@@ -103,19 +103,26 @@ void ASparkHeroCharacter::BeginPlay()
 	AirDashesRemaining = MaxAirDashes;
 	GetCharacterMovement()->GravityScale = BaseGravityScale;
 
-	// Tint the placeholder hero in the Anthropic palette (best-effort; the engine
-	// BasicShapeMaterial exposes a "Color" vector parameter).
+	// Tint the placeholder hero in the Anthropic palette. The sphere asset's default
+	// slot is the grid material (no Color param), so explicitly base our dynamic
+	// materials on the engine's tintable BasicShapeMaterial.
 	const FLinearColor SparkOrange(0.851f, 0.467f, 0.341f); // #d97757
 	const FLinearColor Cream(0.980f, 0.976f, 0.961f);       // #faf9f5
-	if (BodyMesh && BodyMesh->GetMaterial(0))
+	if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
+			nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 	{
-		UMaterialInstanceDynamic* MID = BodyMesh->CreateAndSetMaterialInstanceDynamic(0);
-		if (MID) { MID->SetVectorParameterValue(TEXT("Color"), SparkOrange); }
-	}
-	if (SparkHead && SparkHead->GetMaterial(0))
-	{
-		UMaterialInstanceDynamic* MID = SparkHead->CreateAndSetMaterialInstanceDynamic(0);
-		if (MID) { MID->SetVectorParameterValue(TEXT("Color"), Cream); }
+		if (BodyMesh)
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+			MID->SetVectorParameterValue(TEXT("Color"), SparkOrange);
+			BodyMesh->SetMaterial(0, MID);
+		}
+		if (SparkHead)
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+			MID->SetVectorParameterValue(TEXT("Color"), Cream);
+			SparkHead->SetMaterial(0, MID);
+		}
 	}
 
 	// Camera pitch limits (don't let the orbit flip under the floor / over the top).
