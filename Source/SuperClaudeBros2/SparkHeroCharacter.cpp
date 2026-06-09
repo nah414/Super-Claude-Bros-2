@@ -46,20 +46,20 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
 	VisualRoot->SetupAttachment(RootComponent);
 
-	// Placeholder Spark Hero from engine primitives: orange capsule body + sphere head.
+	// Placeholder Spark Hero from engine primitives: egg-shaped sphere body + sphere head.
+	// (UE 5.7 ships no Capsule in /Engine/BasicShapes — only Cone/Cube/Cylinder/Plane/Sphere.)
 	// The real procedural-modeled hero (glTF) replaces these meshes later.
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CapsuleMesh(TEXT("/Engine/BasicShapes/Capsule.Capsule"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 
 	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
 	BodyMesh->SetupAttachment(VisualRoot);
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	if (CapsuleMesh.Succeeded())
+	if (SphereMesh.Succeeded())
 	{
-		BodyMesh->SetStaticMesh(CapsuleMesh.Object);
+		BodyMesh->SetStaticMesh(SphereMesh.Object);
 	}
-	BodyMesh->SetRelativeScale3D(FVector(0.62f, 0.62f, 0.92f));
-	BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -22.f));
+	BodyMesh->SetRelativeScale3D(FVector(0.70f, 0.70f, 1.05f));
+	BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -18.f));
 
 	SparkHead = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SparkHead"));
 	SparkHead->SetupAttachment(VisualRoot);
