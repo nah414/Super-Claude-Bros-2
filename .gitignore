@@ -1,0 +1,31 @@
+# ── Unreal Engine project .gitignore ──────────────────────────────
+# (Staged here; I move it to the project root once SuperClaudeBros2 exists.)
+
+# Generated / build output — never committed
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+!Build/*/Resources/
+
+# Visual Studio / Rider
+.vs/
+.vsconfig
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+.idea/
+*.xcodeproj/
+*.xcworkspace/
+
+# OS cruft
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Local-only notes
+Saved/Screenshots/   # I'll copy out the ones I need to review; not version-controlled
