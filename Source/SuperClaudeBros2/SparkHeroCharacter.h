@@ -158,6 +158,18 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
 	void OnHeroRespawned();
 
+	/** True while the spark-dash owns the hero's velocity (read by enemies for dash-kills). */
+	UFUNCTION(BlueprintPure, Category = "SparkHero")
+	bool IsDashing() const { return bIsDashing; }
+
+	// ---------------- Hero model (imported glb; falls back to placeholder shapes) ----------------
+	/** Yaw correction for the imported hero mesh (axis conventions differ between tools). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
+	float HeroMeshYaw = -90.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
+	float HeroMeshScale = 1.25f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -203,6 +215,9 @@ private:
 	float LastDashEndTime = -1000.f;
 	FTimerHandle DashTimerHandle;
 
+	// True when the imported SparkHero model loaded in the constructor.
+	bool bHasRealModel = false;
+
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();
 	FVector SpawnLocation = FVector::ZeroVector;     // the level's PlayerStart
@@ -218,4 +233,9 @@ private:
 
 	void ApplySquash(float ZScale);
 	float Now() const;
+
+	// Juice helpers — every asset is optional (nullptr-safe) so the game runs
+	// before/without the audio pack and shake classes.
+	void PlaySfx(const TCHAR* AssetPath) const;
+	void PlayShake(TSubclassOf<class UCameraShakeBase> ShakeClass) const;
 };

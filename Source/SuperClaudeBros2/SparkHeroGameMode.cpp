@@ -3,8 +3,10 @@
 
 #include "Engine/World.h"
 #include "HAL/PlatformMisc.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Sound/SoundBase.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
 
@@ -16,6 +18,17 @@ ASparkHeroGameMode::ASparkHeroGameMode()
 void ASparkHeroGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Night ambience + music (loop flags are set on the SoundWave assets at import;
+	// both are optional — the game runs silently before the audio pack is imported).
+	if (USoundBase* Amb = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop")))
+	{
+		UGameplayStatics::PlaySound2D(this, Amb, 0.7f);
+	}
+	if (USoundBase* Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop")))
+	{
+		UGameplayStatics::PlaySound2D(this, Music, 0.5f);
+	}
 
 	// ----- Claude's eyes: automated capture mode -----
 	// Launch with:  -SCB2Shot="C:\path\out.png" [-SCB2ShotDelay=3]

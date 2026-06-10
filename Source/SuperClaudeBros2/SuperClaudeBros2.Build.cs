@@ -12,7 +12,8 @@ public class SuperClaudeBros2 : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"InputCore",
-			"EnhancedInput"
+			"EnhancedInput",
+			"EngineCameras"   // PerlinNoiseCameraShakePattern (UE 5.7: lives in the EngineCameras plugin)
 		});
 	}
 }

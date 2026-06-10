@@ -18,6 +18,8 @@
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Sound/SoundBase.h"
+#include "SparkCameraShakes.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -49,20 +51,35 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
 	VisualRoot->SetupAttachment(RootComponent);
 
-	// Placeholder Spark Hero from engine primitives: egg-shaped sphere body + sphere head.
-	// (UE 5.7 ships no Capsule in /Engine/BasicShapes — only Cone/Cube/Cylinder/Plane/Sphere.)
-	// The real procedural-modeled hero (glTF) replaces these meshes later.
+	// The hero's body. Preferred: the procedurally-modeled SparkHero (imported glb),
+	// loaded HERE in the constructor — the proven path that renders (BeginPlay-time
+	// SetStaticMesh left the component visible-but-unrendered on 5.7). Fallback:
+	// egg-shaped engine sphere placeholder. (UE 5.7 ships no Capsule basic shape.)
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> HeroModel(TEXT("/Game/Art/Hero/SparkHero/StaticMeshes/SparkHero.SparkHero"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 
 	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
 	BodyMesh->SetupAttachment(VisualRoot);
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	if (SphereMesh.Succeeded())
+	// KNOWN ISSUE (parked): the Interchange-imported glb mesh has full render data
+	// (24k tris, correct bounds/materials) but renders nothing on this component —
+	// constructor- AND BeginPlay-assignment both tried; kit meshes as STATIC actors
+	// render fine. Until solved (or the rigged hero arrives), ship the placeholder.
+	constexpr bool bPreferImportedModel = false;
+	bHasRealModel = bPreferImportedModel && HeroModel.Succeeded();
+	if (bHasRealModel)
+	{
+		BodyMesh->SetStaticMesh(HeroModel.Object);
+		BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -72.f));   // mesh pivot at feet
+		BodyMesh->SetRelativeRotation(FRotator(0.f, HeroMeshYaw, 0.f));
+		BodyMesh->SetRelativeScale3D(FVector(HeroMeshScale));
+	}
+	else if (SphereMesh.Succeeded())
 	{
 		BodyMesh->SetStaticMesh(SphereMesh.Object);
+		BodyMesh->SetRelativeScale3D(FVector(0.70f, 0.70f, 1.05f));
+		BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -18.f));
 	}
-	BodyMesh->SetRelativeScale3D(FVector(0.70f, 0.70f, 1.05f));
-	BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -18.f));
 
 	SparkHead = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SparkHead"));
 	SparkHead->SetupAttachment(VisualRoot);
@@ -98,6 +115,23 @@ float ASparkHeroCharacter::Now() const
 	return GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 }
 
+void ASparkHeroCharacter::PlaySfx(const TCHAR* AssetPath) const
+{
+	if (USoundBase* Sound = LoadObject<USoundBase>(nullptr, AssetPath))
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, Sound, GetActorLocation());
+	}
+}
+
+void ASparkHeroCharacter::PlayShake(TSubclassOf<UCameraShakeBase> ShakeClass) const
+{
+	if (!ShakeClass) { return; }
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->ClientStartCameraShake(ShakeClass);
+	}
+}
+
 void ASparkHeroCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -126,25 +160,35 @@ void ASparkHeroCharacter::BeginPlay()
 			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2 = double)   SHIFT dash   CTRL fast-fall"));
 	}
 
-	// Tint the placeholder hero in the Anthropic palette. The sphere asset's default
-	// slot is the grid material (no Color param), so explicitly base our dynamic
-	// materials on the engine's tintable BasicShapeMaterial.
-	const FLinearColor SparkOrange(0.851f, 0.467f, 0.341f); // #d97757
-	const FLinearColor Cream(0.980f, 0.976f, 0.961f);       // #faf9f5
-	if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
-			nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+	// Real model (assigned in the constructor): just hide the placeholder spark head.
+	if (bHasRealModel)
 	{
-		if (BodyMesh)
+		SparkHead->SetVisibility(false);      // the real model carries its own spark
+		UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: real model active, loc=%s"),
+			*BodyMesh->GetComponentLocation().ToString());
+	}
+
+	// Placeholder tint (Anthropic palette). The engine sphere's default slot is the
+	// grid material (no Color param), so base dynamic materials on BasicShapeMaterial.
+	if (!bHasRealModel)
+	{
+		const FLinearColor SparkOrange(0.851f, 0.467f, 0.341f); // #d97757
+		const FLinearColor Cream(0.980f, 0.976f, 0.961f);       // #faf9f5
+		if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
+				nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 		{
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
-			MID->SetVectorParameterValue(TEXT("Color"), SparkOrange);
-			BodyMesh->SetMaterial(0, MID);
-		}
-		if (SparkHead)
-		{
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
-			MID->SetVectorParameterValue(TEXT("Color"), Cream);
-			SparkHead->SetMaterial(0, MID);
+			if (BodyMesh)
+			{
+				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+				MID->SetVectorParameterValue(TEXT("Color"), SparkOrange);
+				BodyMesh->SetMaterial(0, MID);
+			}
+			if (SparkHead)
+			{
+				UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+				MID->SetVectorParameterValue(TEXT("Color"), Cream);
+				SparkHead->SetMaterial(0, MID);
+			}
 		}
 	}
 
@@ -337,6 +381,8 @@ void ASparkHeroCharacter::DoJump(bool bAirJump)
 	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
 
 	ApplySquash(JumpStretch);
+	PlaySfx(bAirJump ? TEXT("/Game/Art/Audio/sfx_doublejump.sfx_doublejump")
+	                 : TEXT("/Game/Art/Audio/sfx_jump.sfx_jump"));
 	OnHeroJumped(bAirJump);
 }
 
@@ -367,6 +413,12 @@ void ASparkHeroCharacter::Landed(const FHitResult& Hit)
 	const float Strength = FMath::GetMappedRangeValueClamped(
 		FVector2f(400.f, 2000.f), FVector2f(0.94f, LandSquash), ImpactSpeed);
 	ApplySquash(Strength);
+	if (ImpactSpeed > 350.f)
+	{
+		PlaySfx(TEXT("/Game/Art/Audio/sfx_land.sfx_land"));
+		PlayShake(ImpactSpeed > 1400.f ? USparkBigLandShake::StaticClass()
+		                               : USparkLandShake::StaticClass());
+	}
 	OnHeroLanded(ImpactSpeed);
 
 	// Jump buffering: a press just before touchdown fires now.
@@ -403,6 +455,8 @@ void ASparkHeroCharacter::HandleDashPressed()
 
 	GetWorldTimerManager().SetTimer(DashTimerHandle, this, &ASparkHeroCharacter::EndDash,
 	                                DashDuration, false);
+	PlaySfx(TEXT("/Game/Art/Audio/sfx_dash.sfx_dash"));
+	PlayShake(USparkDashShake::StaticClass());
 	OnDashStarted(Dir);
 }
 
@@ -446,6 +500,7 @@ void ASparkHeroCharacter::RespawnAtStart()
 	AirJumpsRemaining = MaxAirJumps;
 	AirDashesRemaining = MaxAirDashes;
 	ApplySquash(JumpStretch);                 // a little "pop" back into existence
+	PlaySfx(TEXT("/Game/Art/Audio/sfx_respawn.sfx_respawn"));
 	OnHeroRespawned();
 }
 
