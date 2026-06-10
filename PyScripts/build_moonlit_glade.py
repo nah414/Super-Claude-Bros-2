@@ -85,14 +85,15 @@ EMBER = unreal.LinearColor(217 / 255.0, 119 / 255.0, 87 / 255.0, 1.0)
 
 
 def glow_light(x, y, z, label, intensity=2500.0, radius=900.0):
-    """Warm point light, shadows OFF for perf (there will be many of these)."""
+    """Warm point light. Shadows ON: MegaLights (UE 5.7) renders many shadowed
+    dynamic lights at near-constant cost — this glade is its poster child."""
     light = eas.spawn_actor_from_class(unreal.PointLight, unreal.Vector(x, y, z))
     light.set_actor_label(label)
     lc = light.light_component
     lc.set_light_color(EMBER)
     lc.set_intensity(intensity)  # cd
     lc.set_editor_property("attenuation_radius", radius)
-    lc.set_editor_property("cast_shadows", False)
+    lc.set_editor_property("cast_shadows", True)
     return light
 
 
@@ -275,11 +276,35 @@ try:
     pps.set_editor_property("override_bloom_intensity", True)
     pps.set_editor_property("bloom_intensity", 1.2)
     # LOCK the eye: auto-exposure would re-brighten the night back into day.
-    # (Lower EV = brighter image; -1.6 keeps moonlit ground readable, crystals hot.)
     pps.set_editor_property("override_auto_exposure_min_brightness", True)
     pps.set_editor_property("auto_exposure_min_brightness", -1.2)
     pps.set_editor_property("override_auto_exposure_max_brightness", True)
     pps.set_editor_property("auto_exposure_max_brightness", -1.2)
+    # ---- Cinematic stack (Phase 0.7) — each guarded; property names can shift ----
+    for prop, val in (
+        ("override_bloom_method", True),
+        ("bloom_method", unreal.BloomMethod.BM_FFT),          # convolution bloom: real halos
+        ("override_bloom_threshold", True),
+        ("bloom_threshold", 1.5),                              # only hot pixels bloom
+        ("override_film_grain_intensity", True),
+        ("film_grain_intensity", 0.12),                        # subtle film texture
+        ("override_vignette_intensity", True),
+        ("vignette_intensity", 0.3),
+        ("override_scene_fringe_intensity", True),
+        ("scene_fringe_intensity", 0.25),                      # whisper of chromatic aberration
+        ("override_local_exposure_shadow_contrast_scale", True),
+        ("local_exposure_shadow_contrast_scale", 0.8),         # lift night shadows readably
+        ("override_color_saturation", True),
+        ("color_saturation", unreal.Vector4(0.95, 0.95, 0.95, 1.0)),
+        ("override_color_gain_shadows", True),
+        ("color_gain_shadows", unreal.Vector4(0.92, 1.0, 1.12, 1.0)),   # teal shadows
+        ("override_color_gain_highlights", True),
+        ("color_gain_highlights", unreal.Vector4(1.10, 1.02, 0.92, 1.0)),  # warm highlights
+    ):
+        try:
+            pps.set_editor_property(prop, val)
+        except Exception as e:
+            unreal.log_warning(f"MoonlitGlade: post prop {prop} skipped: {e}")
     ppv.set_editor_property("settings", pps)         # write the struct back
 except Exception as e:
     unreal.log_warning(f"MoonlitGlade: post-process tuning failed: {e}")

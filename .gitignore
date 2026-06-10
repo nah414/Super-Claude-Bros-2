@@ -29,3 +29,7 @@ desktop.ini
 
 # Local-only notes
 Saved/Screenshots/   # I'll copy out the ones I need to review; not version-controlled
+
+# secrets (API keys) - never committed
+/_secrets/
+
