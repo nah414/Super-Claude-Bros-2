@@ -103,6 +103,10 @@ void ASparkHeroCharacter::BeginPlay()
 	AirDashesRemaining = MaxAirDashes;
 	GetCharacterMovement()->GravityScale = BaseGravityScale;
 
+	// Remember where we started — falling off the world brings us back here.
+	SpawnLocation = GetActorLocation();
+	SpawnRotation = GetActorRotation();
+
 	// Tint the placeholder hero in the Anthropic palette. The sphere asset's default
 	// slot is the grid material (no Color param), so explicitly base our dynamic
 	// materials on the engine's tintable BasicShapeMaterial.
@@ -387,6 +391,36 @@ void ASparkHeroCharacter::EndDash()
 }
 
 // ---------------------------------------------------------------------------
+// Respawn: heroes need solid ground — no endless void falls.
+// ---------------------------------------------------------------------------
+void ASparkHeroCharacter::RespawnAtStart()
+{
+	if (bIsDashing) { EndDash(); }
+	if (bFastFalling) { HandleFastFallReleased(); }
+
+	GetCharacterMovement()->Velocity = FVector::ZeroVector;
+	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+	SetActorLocation(SpawnLocation + FVector(0.f, 0.f, 50.f), false, nullptr,
+	                 ETeleportType::TeleportPhysics);
+	SetActorRotation(SpawnRotation);
+	if (Controller)
+	{
+		Controller->SetControlRotation(SpawnRotation);
+	}
+	AirJumpsRemaining = MaxAirJumps;
+	AirDashesRemaining = MaxAirDashes;
+	ApplySquash(JumpStretch);                 // a little "pop" back into existence
+	OnHeroRespawned();
+}
+
+void ASparkHeroCharacter::FellOutOfWorld(const UDamageType& DmgType)
+{
+	// Engine kill-Z: respawn instead of being destroyed (the default would
+	// delete the pawn and leave the camera floating in the void).
+	RespawnAtStart();
+}
+
+// ---------------------------------------------------------------------------
 // Fast-fall
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::HandleFastFallPressed()
@@ -413,6 +447,12 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	UCharacterMovementComponent* Move = GetCharacterMovement();
+
+	// Solid-ground guarantee: dropped below the world? Straight back to the start.
+	if (GetActorLocation().Z < RespawnBelowZ)
+	{
+		RespawnAtStart();
+	}
 
 	// Track the last moment we stood on ground (coyote time reads this).
 	if (Move->IsMovingOnGround())

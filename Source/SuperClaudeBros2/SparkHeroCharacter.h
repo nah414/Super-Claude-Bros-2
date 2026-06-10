@@ -57,10 +57,14 @@ public:
 
 	/** 0..1 — how much steering you keep while airborne. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Movement", meta = (ClampMin = "0", ClampMax = "1"))
-	float AirControlAmount = 0.65f;
+	float AirControlAmount = 0.85f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Movement")
 	float BaseGravityScale = 1.9f;
+
+	/** Falling below this world Z teleports the hero back to the start — no endless void falls. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|World")
+	float RespawnBelowZ = -2000.f;
 
 	// ---------------- Jump feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Jump")
@@ -151,12 +155,16 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
 	void OnDashEnded();
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroRespawned();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void NotifyControllerChanged() override;
 	virtual void Landed(const FHitResult& Hit) override;
+	virtual void FellOutOfWorld(const UDamageType& DmgType) override;
 
 	// Input handlers
 	void HandleMove(const FInputActionValue& Value);
@@ -192,6 +200,11 @@ private:
 	int32 AirDashesRemaining = 0;
 	float LastDashEndTime = -1000.f;
 	FTimerHandle DashTimerHandle;
+
+	// Respawn (solid-ground guarantee)
+	void RespawnAtStart();
+	FVector SpawnLocation = FVector::ZeroVector;
+	FRotator SpawnRotation = FRotator::ZeroRotator;
 
 	// Misc state
 	FVector LastWorldMoveInput = FVector::ForwardVector; // dash direction fallback

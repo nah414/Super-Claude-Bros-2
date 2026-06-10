@@ -1,7 +1,10 @@
-"""Build the Feel Gym — SCB2's movement test level — entirely from code.
+"""Build the Feel Gym v2 — SCB2's movement test level — entirely from code.
 
-A floor, an ascending 5-platform staircase (the camera/jump test), a flat gap-jump
-line (coyote-time + buffer test), a dash gap, lights, sky, fog, and a PlayerStart.
+v2 honors the first playtest lesson: HEROES NEED SOLID GROUND. A huge floor,
+a full perimeter wall (no edge to fall off), the ascending staircase, the
+growing-gap line over a shallow catch-pit (misses land softly; the C++ respawn
+guard backstops everything), a dash gap, lights, sky, fog, and a PlayerStart.
+
 Run via:  Scripts\\run_pyscript.ps1 -Script PyScripts\\build_feel_gym.py
 Saves to: /Game/Maps/FeelGym
 """
@@ -12,7 +15,12 @@ CUBE = unreal.EditorAssetLibrary.load_asset("/Engine/BasicShapes/Cube")
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
-# Fresh empty level.
+# Overwrite the previous gym cleanly. NEVER delete the currently-loaded level
+# (the editor starts ON FeelGym via EditorStartupMap and asserts if we saw off
+# the branch we're sitting on) — step onto a scratch level first.
+if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/FeelGym"):
+    les.new_level("/Game/Maps/_Scratch")
+    unreal.EditorAssetLibrary.delete_asset("/Game/Maps/FeelGym")
 les.new_level("/Game/Maps/FeelGym")
 
 
@@ -27,24 +35,31 @@ def block(x, y, z, sx, sy, sz, label):
     return actor
 
 
-# ---- Ground slab ----
-block(0, 0, -50, 12000, 4000, 100, "Floor")
+# ---- The arena: a big solid floor with a full perimeter wall ----
+FX, FY = 20000, 12000           # floor footprint (200m x 120m)
+CX = 5000                       # arena center x (the course runs toward +x)
+block(CX, 0, -50, FX, FY, 100, "Floor")
+WALL_H, WALL_T = 900, 200       # tall enough that double-jump + dash can't escape
+block(CX, FY / 2 + WALL_T / 2, WALL_H / 2, FX + 2 * WALL_T, WALL_T, WALL_H, "Wall_North")
+block(CX, -(FY / 2 + WALL_T / 2), WALL_H / 2, FX + 2 * WALL_T, WALL_T, WALL_H, "Wall_South")
+block(CX + FX / 2 + WALL_T / 2, 0, WALL_H / 2, WALL_T, FY, WALL_H, "Wall_East")
+block(CX - FX / 2 - WALL_T / 2, 0, WALL_H / 2, WALL_T, FY, WALL_H, "Wall_West")
 
 # ---- Test 1: ascending staircase (5 platforms, rising ~150uu each) ----
 for i in range(5):
     block(800 + i * 450, 0, 100 + i * 150, 250, 250, 40, f"Stair_{i+1}")
 
-# ---- Test 2: flat gap-jump line (gaps grow: tests buffer + coyote feel) ----
-y = 800
+# ---- Test 2: gap-jump line (gaps grow; the main floor catches any miss) ----
+y = 1200
 x = 600
 for i, gap in enumerate((200, 300, 400, 500)):
-    block(x, y, 60, 300, 300, 40, f"GapPad_{i+1}")
+    block(x, y, 160, 300, 300, 40, f"GapPad_{i+1}")
     x += 300 + gap
-block(x, y, 60, 300, 300, 40, "GapPad_End")
+block(x, y, 160, 300, 300, 40, "GapPad_End")
 
 # ---- Test 3: dash gap (too wide to jump; spark-dash required) ----
-block(600, 1700, 60, 300, 300, 40, "DashPad_A")
-block(600 + 300 + 750, 1700, 60, 300, 300, 40, "DashPad_B")
+block(600, 2400, 160, 300, 300, 40, "DashPad_A")
+block(600 + 300 + 750, 2400, 160, 300, 300, 40, "DashPad_B")
 
 # ---- Light + atmosphere ----
 sun = eas.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 1000))
@@ -63,7 +78,9 @@ fog.set_actor_label("HeightFog")
 start = eas.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, 0, 120))
 start.set_actor_label("PlayerStart")
 
-# Save.
+# Save, and sweep up the scratch level if we used one.
 les.save_current_level()
-unreal.log("FEEL_GYM_BUILT: /Game/Maps/FeelGym")
-print("FEEL_GYM_BUILT: /Game/Maps/FeelGym")
+if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/_Scratch"):
+    unreal.EditorAssetLibrary.delete_asset("/Game/Maps/_Scratch")
+unreal.log("FEEL_GYM_BUILT: /Game/Maps/FeelGym (v2: walled arena)")
+print("FEEL_GYM_BUILT: /Game/Maps/FeelGym (v2: walled arena)")
