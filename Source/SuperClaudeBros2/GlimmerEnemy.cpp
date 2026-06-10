@@ -223,10 +223,12 @@ void AGlimmerEnemy::HandleHeroContact(ASparkHeroCharacter* Hero)
 {
 	if (bDead || Hero == nullptr) { return; }
 
-	// Stomp: the hero is above us and falling hard. Dash: the spark zip wins outright.
+	// Stomp: the hero is above us and was falling hard a moment ago. (Landing on our
+	// capsule zeroes his velocity BEFORE this event fires — read the RECENT fall, or
+	// every clean head-jump degrades into a mutual bonk.)
 	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	const bool bHeroAbove = Hero->GetActorLocation().Z > GetActorLocation().Z + HalfHeight * 0.5f;
-	const bool bStomp = bHeroAbove && Hero->GetVelocity().Z < StompVelocityThreshold;
+	const bool bHeroAbove = Hero->GetActorLocation().Z > GetActorLocation().Z + HalfHeight * 0.25f;
+	const bool bStomp = bHeroAbove && Hero->GetRecentFallSpeed() < StompVelocityThreshold;
 
 	if (bStomp || Hero->IsDashing())
 	{

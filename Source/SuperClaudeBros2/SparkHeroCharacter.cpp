@@ -55,17 +55,16 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	// loaded HERE in the constructor — the proven path that renders (BeginPlay-time
 	// SetStaticMesh left the component visible-but-unrendered on 5.7). Fallback:
 	// egg-shaped engine sphere placeholder. (UE 5.7 ships no Capsule basic shape.)
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> HeroModel(TEXT("/Game/Art/Hero/SparkHero/StaticMeshes/SparkHero.SparkHero"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> HeroModel(TEXT("/Game/Art/Hero/SparkHero.SparkHero"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 
 	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
 	BodyMesh->SetupAttachment(VisualRoot);
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// KNOWN ISSUE (parked): the Interchange-imported glb mesh has full render data
-	// (24k tris, correct bounds/materials) but renders nothing on this component —
-	// constructor- AND BeginPlay-assignment both tried; kit meshes as STATIC actors
-	// render fine. Until solved (or the rigged hero arrives), ship the placeholder.
-	constexpr bool bPreferImportedModel = false;
+	// MYSTERY SOLVED: the "invisible hero" was the import losing the meters->cm unit
+	// conversion — the mesh rendered at 1/100 scale. The glb now bakes the x100 scale,
+	// so the imported model is back on.
+	constexpr bool bPreferImportedModel = true;
 	bHasRealModel = bPreferImportedModel && HeroModel.Succeeded();
 	if (bHasRealModel)
 	{

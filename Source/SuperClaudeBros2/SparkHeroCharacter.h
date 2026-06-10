@@ -162,13 +162,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SparkHero")
 	bool IsDashing() const { return bIsDashing; }
 
+	/** Most negative recent vertical velocity — landing zeroes velocity BEFORE contact
+	    events fire, so stomp checks must read the fall as it was a tick ago. */
+	UFUNCTION(BlueprintPure, Category = "SparkHero")
+	float GetRecentFallSpeed() const
+	{
+		return FMath::Min(GetVelocity().Z, PrevTickVelZ);
+	}
+
 	// ---------------- Hero model (imported glb; falls back to placeholder shapes) ----------------
 	/** Yaw correction for the imported hero mesh (axis conventions differ between tools). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
 	float HeroMeshYaw = -90.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
-	float HeroMeshScale = 1.25f;
+	float HeroMeshScale = 1.05f;   // mesh is 132uu tall (scale baked); capsule is 144
 
 protected:
 	virtual void BeginPlay() override;
