@@ -6,11 +6,14 @@
 #include "Components/StaticMeshComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerStart.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
@@ -103,9 +106,25 @@ void ASparkHeroCharacter::BeginPlay()
 	AirDashesRemaining = MaxAirDashes;
 	GetCharacterMovement()->GravityScale = BaseGravityScale;
 
-	// Remember where we started — falling off the world brings us back here.
+	// Anchor the respawn to the level's PlayerStart — NOT to wherever we happened to
+	// spawn. (PIE's "spawn at camera location" can drop the hero mid-air; anchoring
+	// there would respawn him into the sky forever.)
 	SpawnLocation = GetActorLocation();
 	SpawnRotation = GetActorRotation();
+	if (const AActor* Start = UGameplayStatics::GetActorOfClass(GetWorld(), APlayerStart::StaticClass()))
+	{
+		SpawnLocation = Start->GetActorLocation() + FVector(0.f, 0.f, 20.f);
+		SpawnRotation = FRotator(0.f, Start->GetActorRotation().Yaw, 0.f);
+	}
+	SafeGroundLocation = SpawnLocation;
+
+	// Proof-of-possession + controls card (also instantly tells us if Play put the
+	// player into a spectator pawn instead of the hero).
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(1, 10.f, FColor::Orange,
+			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2 = double)   SHIFT dash   CTRL fast-fall"));
+	}
 
 	// Tint the placeholder hero in the Anthropic palette. The sphere asset's default
 	// slot is the grid material (no Color param), so explicitly base our dynamic
@@ -400,7 +419,7 @@ void ASparkHeroCharacter::RespawnAtStart()
 
 	GetCharacterMovement()->Velocity = FVector::ZeroVector;
 	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
-	SetActorLocation(SpawnLocation + FVector(0.f, 0.f, 50.f), false, nullptr,
+	SetActorLocation(SafeGroundLocation + FVector(0.f, 0.f, 50.f), false, nullptr,
 	                 ETeleportType::TeleportPhysics);
 	SetActorRotation(SpawnRotation);
 	if (Controller)
@@ -454,11 +473,13 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		RespawnAtStart();
 	}
 
-	// Track the last moment we stood on ground (coyote time reads this).
+	// Track the last moment we stood on ground (coyote time reads this), and the
+	// last solid spot we stood on (the respawn point — checkpointing-lite).
 	if (Move->IsMovingOnGround())
 	{
 		LastGroundedTime = Now();
 		bCoyoteConsumed = false;
+		SafeGroundLocation = GetActorLocation();
 	}
 	PrevTickVelZ = Move->Velocity.Z;
 

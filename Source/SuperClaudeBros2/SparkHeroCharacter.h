@@ -203,8 +203,9 @@ private:
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();
-	FVector SpawnLocation = FVector::ZeroVector;
+	FVector SpawnLocation = FVector::ZeroVector;     // the level's PlayerStart
 	FRotator SpawnRotation = FRotator::ZeroRotator;
+	FVector SafeGroundLocation = FVector::ZeroVector; // last spot we truly stood on
 
 	// Misc state
 	FVector LastWorldMoveInput = FVector::ForwardVector; // dash direction fallback

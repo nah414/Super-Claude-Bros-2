@@ -78,6 +78,18 @@ fog.set_actor_label("HeightFog")
 start = eas.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, 0, 120))
 start.set_actor_label("PlayerStart")
 
+# Pin OUR game mode on the map itself (belt & suspenders: PIE honors this even if
+# project/user settings drift), so Play always spawns the Spark Hero.
+try:
+    hero_gm = unreal.load_class(None, "/Script/SuperClaudeBros2.SparkHeroGameMode")
+    for a in eas.get_all_level_actors():
+        if isinstance(a, unreal.WorldSettings):
+            a.set_editor_property("default_game_mode", hero_gm)
+            unreal.log("WorldSettings: game mode pinned to SparkHeroGameMode")
+            break
+except Exception as e:  # never let the pin break the gym build
+    unreal.log_warning(f"could not pin game mode on WorldSettings: {e}")
+
 # Save, and sweep up the scratch level if we used one.
 les.save_current_level()
 if unreal.EditorAssetLibrary.does_asset_exist("/Game/Maps/_Scratch"):
