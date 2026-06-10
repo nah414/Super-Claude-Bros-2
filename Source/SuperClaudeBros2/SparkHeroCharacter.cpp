@@ -183,6 +183,9 @@ void ASparkHeroCharacter::BuildInputObjects()
 	FastFallAction = NewObject<UInputAction>(this, TEXT("IA_FastFall"));
 	FastFallAction->ValueType = EInputActionValueType::Boolean;
 
+	QuitAction = NewObject<UInputAction>(this, TEXT("IA_Quit"));
+	QuitAction->ValueType = EInputActionValueType::Boolean;
+
 	auto AddSwizzle = [this](FEnhancedActionKeyMapping& M)
 	{
 		M.Modifiers.Add(NewObject<UInputModifierSwizzleAxis>(MappingContext)); // X -> Y
@@ -213,6 +216,10 @@ void ASparkHeroCharacter::BuildInputObjects()
 	MappingContext->MapKey(DashAction, EKeys::Gamepad_FaceButton_Left);
 	MappingContext->MapKey(FastFallAction, EKeys::LeftControl);
 	MappingContext->MapKey(FastFallAction, EKeys::Gamepad_RightShoulder);
+
+	// Quit: Esc (the game window must always be escapable).
+	MappingContext->MapKey(QuitAction, EKeys::Escape);
+	MappingContext->MapKey(QuitAction, EKeys::Gamepad_Special_Right);
 }
 
 void ASparkHeroCharacter::NotifyControllerChanged()
@@ -245,6 +252,16 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(DashAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleDashPressed);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleFastFallPressed);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleFastFallReleased);
+		EIC->BindAction(QuitAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleQuit);
+	}
+}
+
+void ASparkHeroCharacter::HandleQuit()
+{
+	// In PIE this ends the play session; in the standalone game it closes the window.
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PC->ConsoleCommand(TEXT("quit"));
 	}
 }
 

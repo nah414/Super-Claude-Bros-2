@@ -174,6 +174,7 @@ protected:
 	void HandleDashPressed();
 	void HandleFastFallPressed();
 	void HandleFastFallReleased();
+	void HandleQuit();
 
 private:
 	// Runtime-built Enhanced Input (no content assets needed).
@@ -185,6 +186,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputAction> JumpAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> DashAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> FastFallAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> QuitAction;
 
 	// Jump state
 	void TryJump();
