@@ -2,6 +2,7 @@
 #include "SparkHeroCharacter.h"
 
 #include "Engine/World.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "HAL/PlatformMisc.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
@@ -39,6 +40,35 @@ void ASparkHeroGameMode::BeginPlay()
 	{
 		float Delay = 3.f;
 		FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotDelay="), Delay);
+
+		// Optional framing: -SCB2ShotArm=160 pulls the camera in for hero close-ups,
+		// -SCB2ShotYaw=180 orbits it (180 = face-on portrait).
+		float ShotArm = 0.f, ShotYaw = 0.f;
+		const bool bHasArm = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotArm="), ShotArm);
+		const bool bHasYaw = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotYaw="), ShotYaw);
+		if (bHasArm || bHasYaw)
+		{
+			if (ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(
+					UGameplayStatics::GetPlayerPawn(this, 0)))
+			{
+				if (bHasArm)
+				{
+					Hero->BaseArmLength = ShotArm;
+					Hero->ArmLengthLookingDown = ShotArm;
+					Hero->ArmLengthLookingUp = ShotArm;
+					Hero->SpringArm->TargetArmLength = ShotArm;
+					Hero->SpringArm->bEnableCameraLag = false;
+					Hero->SpringArm->bEnableCameraRotationLag = false;
+				}
+				if (bHasYaw)
+				{
+					if (AController* C = Hero->GetController())
+					{
+						C->SetControlRotation(FRotator(0.f, ShotYaw, 0.f));
+					}
+				}
+			}
+		}
 
 		FTimerHandle ShotTimer;
 		GetWorldTimerManager().SetTimer(ShotTimer, [this, ShotPath]()

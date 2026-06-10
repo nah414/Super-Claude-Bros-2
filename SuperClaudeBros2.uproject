@@ -29,6 +29,10 @@
 			"TargetAllowList": [
 				"Editor"
 			]
+		},
+		{
+			"Name": "meshy",
+			"Enabled": true
 		}
 	]
 }

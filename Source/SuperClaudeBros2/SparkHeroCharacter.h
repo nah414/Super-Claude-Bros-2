@@ -14,9 +14,11 @@
 class USpringArmComponent;
 class UCameraComponent;
 class UStaticMeshComponent;
+class USkeletalMeshComponent;
 class USceneComponent;
 class UInputAction;
 class UInputMappingContext;
+class UAnimSequence;
 
 UCLASS()
 class ASparkHeroCharacter : public ACharacter
@@ -38,6 +40,10 @@ public:
 	/** Placeholder spark head (engine sphere mesh). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UStaticMeshComponent> SparkHead;
+
+	/** The rigged hero (Meshy pipeline). When it loads, the static placeholders hide. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<USkeletalMeshComponent> SkelBody;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<USpringArmComponent> SpringArm;
@@ -178,6 +184,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
 	float HeroMeshScale = 1.05f;   // mesh is 132uu tall (scale baked); capsule is 144
 
+	/** Yaw correction for the skeletal hero (FBX axis conventions; tuned by screenshot:
+	    at 0 the model faces -Y, so +90 turns it to the actor's +X forward). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
+	float SkelMeshYaw = 90.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
+	float SkelMeshScale = 1.0f;
+
+	// ---------------- Animation (single-node playback; no AnimBP assets) ----------------
+	/** Ground speed above which the run cycle replaces the walk cycle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float RunAnimSpeedThreshold = 420.f;
+
+	/** Ground speed below which the hero counts as standing still. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float WalkAnimMinSpeed = 60.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -225,6 +248,16 @@ private:
 
 	// True when the imported SparkHero model loaded in the constructor.
 	bool bHasRealModel = false;
+
+	// Skeletal hero + clips (constructor-loaded; all optional).
+	UPROPERTY() TObjectPtr<UAnimSequence> WalkAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> RunAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> JumpAnim;
+	bool bHasSkeletalModel = false;
+
+	enum class EHeroAnimState : uint8 { Idle, Walk, Run, Jump };
+	EHeroAnimState AnimState = EHeroAnimState::Idle;
+	void UpdateHeroAnimation();
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();

@@ -1,9 +1,12 @@
 #include "SparkHeroCharacter.h"
 
+#include "Animation/AnimSequence.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/Engine.h"
@@ -90,6 +93,30 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	SparkHead->SetRelativeScale3D(FVector(0.52f));
 	SparkHead->SetRelativeLocation(FVector(0.f, 0.f, 52.f));
 
+	// The rigged hero from the Meshy pipeline (Blender-baked cm, legacy FBX import).
+	// Outranks both static visuals when present. Pivot is at the feet (Blender drops
+	// it to ground), so it sits at the capsule's bottom.
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> SkelModel(TEXT("/Game/Art/HeroSkel/SCB2Hero.SCB2Hero"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkel/A_Hero_Walk.A_Hero_Walk"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkel/A_Hero_Run.A_Hero_Run"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkel/A_Hero_SpinJump.A_Hero_SpinJump"));
+
+	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
+	SkelBody->SetupAttachment(VisualRoot);
+	SkelBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	bHasSkeletalModel = SkelModel.Succeeded();
+	if (bHasSkeletalModel)
+	{
+		SkelBody->SetSkeletalMesh(SkelModel.Object);
+		SkelBody->SetRelativeLocation(FVector(0.f, 0.f, -72.f));
+		SkelBody->SetRelativeRotation(FRotator(0.f, SkelMeshYaw, 0.f));
+		SkelBody->SetRelativeScale3D(FVector(SkelMeshScale));
+		SkelBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	}
+	WalkAnim = WalkClip.Succeeded() ? WalkClip.Object : nullptr;
+	RunAnim = RunClip.Succeeded() ? RunClip.Object : nullptr;
+	JumpAnim = JumpClip.Succeeded() ? JumpClip.Object : nullptr;
+
 	// --- Camera rig: spring arm with collision probe + lag, free orbit ---
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	SpringArm->SetupAttachment(RootComponent);
@@ -159,8 +186,33 @@ void ASparkHeroCharacter::BeginPlay()
 			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2 = double)   SHIFT dash   CTRL fast-fall"));
 	}
 
-	// Real model (assigned in the constructor): just hide the placeholder spark head.
-	if (bHasRealModel)
+	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
+	if (bHasSkeletalModel)
+	{
+		BodyMesh->SetVisibility(false);
+		SparkHead->SetVisibility(false);
+		if (WalkAnim)
+		{
+			SkelBody->SetAnimation(WalkAnim);
+			SkelBody->Stop();                 // standing frame as the v1 idle pose
+		}
+		// Spark-orange identity tint until the PBR-textured Meshy model lands
+		// (this rig shipped untextured — the texture pass comes via the API).
+		if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
+				nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.851f, 0.467f, 0.341f));
+			for (int32 i = 0; i < SkelBody->GetNumMaterials(); ++i)
+			{
+				SkelBody->SetMaterial(i, MID);
+			}
+		}
+		UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: skeletal model active (%s anims), loc=%s"),
+			(WalkAnim && RunAnim && JumpAnim) ? TEXT("all") : TEXT("partial"),
+			*SkelBody->GetComponentLocation().ToString());
+	}
+	else if (bHasRealModel)
 	{
 		SparkHead->SetVisibility(false);      // the real model carries its own spark
 		UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: real model active, loc=%s"),
@@ -579,6 +631,12 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		                                              DeltaSeconds, 4.f);
 	}
 
+	// Drive the rigged hero's clips from movement state.
+	if (bHasSkeletalModel)
+	{
+		UpdateHeroAnimation();
+	}
+
 	// Squash & stretch spring-back.
 	if (VisualRoot)
 	{
@@ -589,6 +647,68 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		{
 			VisualScaleTarget = FVector::OneVector;
 		}
+	}
+}
+
+// Single-node clip switching — the whole "AnimBP" in ~30 lines. States only change
+// on transition so PlayAnimation never restarts a clip mid-loop.
+void ASparkHeroCharacter::UpdateHeroAnimation()
+{
+	const UCharacterMovementComponent* Move = GetCharacterMovement();
+	const float GroundSpeed = static_cast<float>(Move->Velocity.Size2D());
+
+	EHeroAnimState Desired;
+	if (!Move->IsMovingOnGround())
+	{
+		Desired = EHeroAnimState::Jump;
+	}
+	else if (GroundSpeed > RunAnimSpeedThreshold)
+	{
+		Desired = EHeroAnimState::Run;
+	}
+	else if (GroundSpeed > WalkAnimMinSpeed)
+	{
+		Desired = EHeroAnimState::Walk;
+	}
+	else
+	{
+		Desired = EHeroAnimState::Idle;
+	}
+
+	if (Desired != AnimState)
+	{
+		AnimState = Desired;
+		switch (AnimState)
+		{
+		case EHeroAnimState::Jump:
+			if (JumpAnim) { SkelBody->PlayAnimation(JumpAnim, false); }
+			break;
+		case EHeroAnimState::Run:
+			if (RunAnim) { SkelBody->PlayAnimation(RunAnim, true); }
+			break;
+		case EHeroAnimState::Walk:
+			if (WalkAnim) { SkelBody->PlayAnimation(WalkAnim, true); }
+			break;
+		case EHeroAnimState::Idle:
+		default:
+			if (WalkAnim)
+			{
+				SkelBody->SetAnimation(WalkAnim);
+				SkelBody->SetPosition(0.f);
+				SkelBody->Stop();             // hold the standing frame until an idle clip lands
+			}
+			break;
+		}
+	}
+
+	// Scale locomotion playback to actual speed so feet slide less.
+	if (AnimState == EHeroAnimState::Walk)
+	{
+		SkelBody->SetPlayRate(FMath::Clamp(GroundSpeed / 280.f, 0.6f, 1.8f));
+	}
+	else if (AnimState == EHeroAnimState::Run)
+	{
+		SkelBody->SetPlayRate(FMath::Clamp(GroundSpeed / 600.f, 0.7f, 1.5f));
 	}
 }
 
