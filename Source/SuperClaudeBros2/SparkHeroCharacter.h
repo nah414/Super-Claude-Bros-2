@@ -250,6 +250,7 @@ private:
 	bool bHasRealModel = false;
 
 	// Skeletal hero + clips (constructor-loaded; all optional).
+	UPROPERTY() TObjectPtr<UAnimSequence> IdleAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> WalkAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> RunAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> JumpAnim;

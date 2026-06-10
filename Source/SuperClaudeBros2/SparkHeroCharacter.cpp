@@ -97,9 +97,10 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	// Outranks both static visuals when present. Pivot is at the feet (Blender drops
 	// it to ground), so it sits at the capsule's bottom.
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> SkelModel(TEXT("/Game/Art/HeroSkel/SCB2Hero.SCB2Hero"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> IdleClip(TEXT("/Game/Art/HeroSkel/A_Hero_Idle.A_Hero_Idle"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkel/A_Hero_Walk.A_Hero_Walk"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkel/A_Hero_Run.A_Hero_Run"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkel/A_Hero_SpinJump.A_Hero_SpinJump"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkel/A_Hero_Jump.A_Hero_Jump"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -113,6 +114,7 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 		SkelBody->SetRelativeScale3D(FVector(SkelMeshScale));
 		SkelBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	}
+	IdleAnim = IdleClip.Succeeded() ? IdleClip.Object : nullptr;
 	WalkAnim = WalkClip.Succeeded() ? WalkClip.Object : nullptr;
 	RunAnim = RunClip.Succeeded() ? RunClip.Object : nullptr;
 	JumpAnim = JumpClip.Succeeded() ? JumpClip.Object : nullptr;
@@ -196,18 +198,8 @@ void ASparkHeroCharacter::BeginPlay()
 			SkelBody->SetAnimation(WalkAnim);
 			SkelBody->Stop();                 // standing frame as the v1 idle pose
 		}
-		// Spark-orange identity tint until the PBR-textured Meshy model lands
-		// (this rig shipped untextured — the texture pass comes via the API).
-		if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
-				nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
-		{
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
-			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.851f, 0.467f, 0.341f));
-			for (int32 i = 0; i < SkelBody->GetNumMaterials(); ++i)
-			{
-				SkelBody->SetMaterial(i, MID);
-			}
-		}
+		// The mesh carries M_HeroPBR (retextured orange/white/black 4K maps) —
+		// assigned on the asset by import_hero_textures.py; nothing to override here.
 		UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: skeletal model active (%s anims), loc=%s"),
 			(WalkAnim && RunAnim && JumpAnim) ? TEXT("all") : TEXT("partial"),
 			*SkelBody->GetComponentLocation().ToString());
@@ -691,11 +683,16 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 			break;
 		case EHeroAnimState::Idle:
 		default:
-			if (WalkAnim)
+			if (IdleAnim)
+			{
+				SkelBody->PlayAnimation(IdleAnim, true);
+				SkelBody->SetPlayRate(1.f);
+			}
+			else if (WalkAnim)
 			{
 				SkelBody->SetAnimation(WalkAnim);
 				SkelBody->SetPosition(0.f);
-				SkelBody->Stop();             // hold the standing frame until an idle clip lands
+				SkelBody->Stop();             // fallback until an idle clip lands
 			}
 			break;
 		}

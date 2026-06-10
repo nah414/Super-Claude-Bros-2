@@ -14,12 +14,13 @@ import os
 
 import unreal
 
-SRC_DIR = r"C:\Users\Atomn\mario2\_prep\meshy_drops\ue_ready"
-MESH_FBX = os.path.join(SRC_DIR, "automaton_walking.fbx")
+SRC_DIR = r"C:\Users\Atomn\mario2\_prep\meshy_api_drops\ue_ready"
+MESH_FBX = os.path.join(SRC_DIR, "hero_rigged.fbx")
 ANIM_FBXES = {
-    "A_Hero_Walk": os.path.join(SRC_DIR, "automaton_walking.fbx"),
-    "A_Hero_Run": os.path.join(SRC_DIR, "automaton_running.fbx"),
-    "A_Hero_SpinJump": os.path.join(SRC_DIR, "automaton_spinjump.fbx"),
+    "A_Hero_Idle": os.path.join(SRC_DIR, "hero_idle.fbx"),
+    "A_Hero_Walk": os.path.join(SRC_DIR, "hero_walk.fbx"),
+    "A_Hero_Run": os.path.join(SRC_DIR, "hero_run.fbx"),
+    "A_Hero_Jump": os.path.join(SRC_DIR, "hero_jump.fbx"),  # lands when Meshy finishes the clip
 }
 DEST = "/Game/Art/HeroSkel"
 NAME = "SCB2Hero"
