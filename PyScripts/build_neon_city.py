@@ -52,7 +52,7 @@ M_EMISSIVE = EAL.load_asset("/Game/Art/M_VertexLitEmissive")
 placed = Counter()
 
 
-def block(x, y, z, sx, sy, sz, label, material=None, hidden=False):
+def block(x, y, z, sx, sy, sz, label, material=None, hidden=False, rt=True):
     a = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(x, y, z))
     a.static_mesh_component.set_static_mesh(CUBE)
     a.set_actor_scale3d(unreal.Vector(sx / 100.0, sy / 100.0, sz / 100.0))
@@ -60,6 +60,8 @@ def block(x, y, z, sx, sy, sz, label, material=None, hidden=False):
         a.static_mesh_component.set_material(0, material)
     if hidden:
         a.set_actor_hidden_in_game(True)
+    if not rt:  # decorative geometry stays OUT of the ray-tracing scene (budget)
+        a.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
     a.set_actor_label(label)
     placed[label.split("_")[0]] += 1
     return a
@@ -84,9 +86,13 @@ def glow(x, y, z, color, intensity=2200.0, radius=900.0, label="Neon"):
     li = eas.spawn_actor_from_class(unreal.PointLight, unreal.Vector(x, y, z))
     lc = li.light_component
     lc.set_light_color(color)
-    lc.set_intensity(intensity)
+    lc.set_intensity(intensity * 0.45)  # NIGHT: glow wins by contrast, not wattage
     lc.set_editor_property("attenuation_radius", radius)
     lc.set_editor_property("cast_shadows", True)  # MegaLights eats this for breakfast
+    try:  # keep the fog from drinking every light and glowing white
+        lc.set_editor_property("volumetric_scattering_intensity", 0.25)
+    except Exception as e:
+        unreal.log_warning(f"volumetric scattering skip: {e}")
     li.set_actor_label(label)
     placed["Light"] += 1
     return li
@@ -252,26 +258,26 @@ for i in range(44):
     by = _m.sin(_m.radians(ang)) * random.uniform(5200, 9000)
     h = random.uniform(2400, 7200)
     block(bx, by, h / 2.0, random.uniform(700, 1500), random.uniform(700, 1500), h,
-          f"Skyline_{i:02d}", material=M_WINDOWS[i % 3])
+          f"Skyline_{i:02d}", material=M_WINDOWS[i % 3], rt=False)
 
 # Boundary walls (invisible) around the playable street.
 for x, y, sx, sy in ((CX, -3200, STREET_LEN + 4000, 150), (CX, 3200, STREET_LEN + 4000, 150),
                      (X0 - 1800, 0, 150, 7000), (12600, 0, 150, 7000)):
-    block(x, y, 1800, sx, sy, 3600, "Boundary", material=None, hidden=True)
+    block(x, y, 1800, sx, sy, 3600, "Boundary", material=None, hidden=True, rt=False)
 
 # ================================================================ atmosphere
 fog = eas.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0))
 fc = fog.component
 fc.set_editor_property("enable_volumetric_fog", True)
-fc.set_editor_property("fog_density", 0.038)
-fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.018, 0.014, 0.040, 1.0))
+fc.set_editor_property("fog_density", 0.028)
+fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.010, 0.008, 0.026, 1.0))
 fog.set_actor_label("RainFog")
 
 sky_atm = eas.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0))
 sky_atm.set_actor_label("SkyAtmosphere")
 skylight = eas.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 800))
 skylight.light_component.set_editor_property("real_time_capture", True)
-skylight.light_component.set_intensity(0.12)
+skylight.light_component.set_intensity(0.05)  # true night — neon carries the scene
 skylight.set_actor_label("SkyLight")
 
 ppv = eas.spawn_actor_from_class(unreal.PostProcessVolume, unreal.Vector(0, 0, 0))
@@ -284,10 +290,10 @@ def pp(prop_name, value):
     except Exception as e:
         unreal.log_warning(f"pp skip {prop_name}: {e}")
 pp("bloom_method", unreal.BloomMethod.BM_FFT)
-pp("bloom_intensity", 1.35)
-pp("bloom_threshold", 1.1)
-pp("auto_exposure_min_brightness", -1.0)
-pp("auto_exposure_max_brightness", -1.0)
+pp("bloom_intensity", 1.15)
+pp("bloom_threshold", 1.35)
+pp("auto_exposure_min_brightness", -1.15)
+pp("auto_exposure_max_brightness", -1.15)
 pp("film_grain_intensity", 0.12)
 pp("vignette_intensity", 0.35)
 pp("scene_fringe_intensity", 0.3)
