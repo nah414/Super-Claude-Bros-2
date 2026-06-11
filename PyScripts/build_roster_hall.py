@@ -13,6 +13,9 @@ eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 # fails silently, leaving the startup map (MoonlitGlade!) loaded — every spawn
 # then contaminates the GAME LEVEL and save_current_level() saves the damage.
 # So: hop to a scratch level, delete the old hall, create it fresh, verify.
+# (new_level also refuses to overwrite the SCRATCH itself — delete it first.)
+if EAL.does_asset_exist("/Game/Maps/_Scratch"):
+    EAL.delete_asset("/Game/Maps/_Scratch")
 assert les.new_level("/Game/Maps/_Scratch"), "SCRATCH_LEVEL_FAILED"
 if EAL.does_asset_exist("/Game/Maps/RosterHall"):
     assert EAL.delete_asset("/Game/Maps/RosterHall"), "DELETE_OLD_HALL_FAILED"
@@ -56,6 +59,15 @@ for i, path in enumerate(assets):
     count += 1
 print(f"PLACED: {count} characters")
 
+# ---- a LIVE Glimmer (the real enemy, crystal-sprite body) for behavior review ----
+try:
+    glimmer_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy")
+    g = eas.spawn_actor_from_class(glimmer_cls, unreal.Vector(350, -400, 60))
+    g.set_actor_label("LiveGlimmer")
+    print("LIVE_GLIMMER_PLACED")
+except Exception as e:
+    print(f"LIVE_GLIMMER_SKIPPED: {e}")
+
 # ---- the visitor ----
 start = eas.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, -700, 100))
 start.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)  # look at the line
@@ -63,6 +75,9 @@ start.set_actor_label("PlayerStart")
 
 saved = les.save_current_level()
 print(f"SAVE_RESULT: {saved}")
+# Leave no scratch behind (we're on RosterHall now, so the asset is deletable).
+if EAL.does_asset_exist("/Game/Maps/_Scratch"):
+    EAL.delete_asset("/Game/Maps/_Scratch")
 if not saved:
     # Belt and braces: save every dirty package the unattended path might hold back.
     ok = unreal.EditorLoadingAndSavingUtils.save_dirty_packages(

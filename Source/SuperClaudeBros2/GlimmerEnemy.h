@@ -110,5 +110,8 @@ private:
 	// Cached hero for the generous per-frame proximity backstop.
 	TWeakObjectPtr<ASparkHeroCharacter> CachedHero;
 
+	// True when the Roster crystal-sprite model loaded (eyes/tint stay off).
+	bool bHasRealModel = false;
+
 	float Now() const;
 };

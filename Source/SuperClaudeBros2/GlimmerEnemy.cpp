@@ -43,19 +43,28 @@ AGlimmerEnemy::AGlimmerEnemy()
 	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
 	VisualRoot->SetupAttachment(RootComponent);
 
-	// Placeholder Glimmer from engine primitives: one ink sphere + two cream eyes.
-	// (UE 5.7 ships no Capsule in /Engine/BasicShapes — only Cone/Cube/Cylinder/Plane/Sphere.)
-	// The real procedural-modeled Glimmer (glTF) replaces these meshes later.
+	// The REAL Glimmer: the Roster's crystal sprite (Adam-reviewed in the Hall).
+	// Fallback: the original ink sphere + cream eyes if the asset is missing.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> SpriteMesh(TEXT("/Game/Art/Roster/glimmer_sprite/SM_glimmer_sprite.SM_glimmer_sprite"));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	bHasRealModel = SpriteMesh.Succeeded();
 
 	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
 	BodyMesh->SetupAttachment(VisualRoot);
 	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	if (SphereMesh.Succeeded())
+	if (bHasRealModel)
+	{
+		BodyMesh->SetStaticMesh(SpriteMesh.Object);
+		// Mesh pivot at feet (Blender ground-drop); capsule half-height is 40.
+		BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -40.f));
+		BodyMesh->SetRelativeRotation(FRotator(0.f, 90.f, 0.f)); // face actor +X
+		BodyMesh->SetRelativeScale3D(FVector(1.3f));             // 60uu sprite -> squat 78uu menace
+	}
+	else if (SphereMesh.Succeeded())
 	{
 		BodyMesh->SetStaticMesh(SphereMesh.Object);
+		BodyMesh->SetRelativeScale3D(FVector(0.8f));
 	}
-	BodyMesh->SetRelativeScale3D(FVector(0.8f));
 
 	LeftEye = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LeftEye"));
 	LeftEye->SetupAttachment(VisualRoot);
@@ -89,13 +98,21 @@ void AGlimmerEnemy::BeginPlay()
 
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 
+	// The crystal sprite brings its own face — placeholder eyes and tint stay off.
+	if (bHasRealModel)
+	{
+		if (LeftEye) { LeftEye->SetVisibility(false); }
+		if (RightEye) { RightEye->SetVisibility(false); }
+	}
+
 	// Tint the placeholder in the night palette: ink body, cream eyes. The sphere
 	// asset's default slot is the grid material (no Color param), so explicitly base
 	// our dynamic materials on the engine's tintable BasicShapeMaterial.
 	const FLinearColor Ink(0.078f, 0.078f, 0.075f);   // #141413
 	const FLinearColor Cream(0.980f, 0.976f, 0.961f); // #faf9f5
 	if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
-			nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+			nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+		BaseMat && !bHasRealModel)
 	{
 		if (BodyMesh)
 		{
