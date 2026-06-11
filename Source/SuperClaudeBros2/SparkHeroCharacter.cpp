@@ -166,16 +166,16 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	{
 		EmberFlame->SetStaticMesh(SphereMesh.Object);
 	}
-	EmberFlame->SetRelativeLocation(FVector(0.f, 0.f, 74.f));  // just above the dome crown
-	EmberFlame->SetRelativeScale3D(FVector(0.10f, 0.10f, 0.18f));
+	EmberFlame->SetRelativeLocation(FVector(0.f, 0.f, 74.f));  // re-seated onto the head bone at BeginPlay
+	EmberFlame->SetRelativeScale3D(FVector(0.08f, 0.08f, 0.15f));
 	EmberFlame->SetCastShadow(false);
 
 	// Adam's playtest verdict: "too much orange glow." The inverse-square fix is
-	// distance + source size, not wattage alone — the light now floats ABOVE the
-	// flame (not inside it), soft-sourced, dim, tight. A candle, not a beacon.
+	// distance + source size, not wattage alone — soft-sourced, dim, tight.
+	// The glow rides the flame (which rides the head bone) so light follows pose.
 	EmberGlow = CreateDefaultSubobject<UPointLightComponent>(TEXT("EmberGlow"));
-	EmberGlow->SetupAttachment(VisualRoot);                    // not the flame — child scale would drag it
-	EmberGlow->SetRelativeLocation(FVector(0.f, 0.f, 96.f));   // a hand above the dome
+	EmberGlow->SetupAttachment(EmberFlame);
+	EmberGlow->SetRelativeLocation(FVector(0.f, 0.f, 0.f));
 	EmberGlow->SetIntensity(40.f);                             // candle, final answer
 	EmberGlow->SetAttenuationRadius(120.f);
 	EmberGlow->SetSourceRadius(10.f);                          // soft area light, no hot pinprick
@@ -230,7 +230,7 @@ void ASparkHeroCharacter::BeginPlay()
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(1, 10.f, FColor::Orange,
-			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2)   SHIFT dash   LMB strike (x3 = combo)   CTRL fast-fall"));
+			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2)   SHIFT dash   LMB strike (x3 = combo)   WHEEL zoom   CTRL fast-fall"));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -248,6 +248,31 @@ void ASparkHeroCharacter::BeginPlay()
 		UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: skeletal model active (%s anims), loc=%s"),
 			(WalkAnim && RunAnim && JumpAnim) ? TEXT("all") : TEXT("partial"),
 			*SkelBody->GetComponentLocation().ToString());
+
+		// The ember flame rides the DOME, not the capsule: a fixed offset left an
+		// egg floating over animated poses (Adam's playtest). Find the head bone
+		// and re-seat the flame on it; the glow is the flame's child and follows.
+		if (EmberFlame)
+		{
+			FName HeadBone = NAME_None;
+			for (int32 i = 0; i < SkelBody->GetNumBones(); ++i)
+			{
+				const FName Bone = SkelBody->GetBoneName(i);
+				if (Bone.ToString().Contains(TEXT("head"), ESearchCase::IgnoreCase))
+				{
+					HeadBone = Bone;
+					break;
+				}
+			}
+			if (HeadBone != NAME_None)
+			{
+				EmberFlame->AttachToComponent(SkelBody,
+					FAttachmentTransformRules::KeepWorldTransform, HeadBone);
+				UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: ember flame seated on bone '%s'"),
+					*HeadBone.ToString());
+			}
+			EmberFlame->SetVisibility(bShowEmberFlame);
+		}
 	}
 	else if (bHasRealModel)
 	{
@@ -324,6 +349,9 @@ void ASparkHeroCharacter::BuildInputObjects()
 	LookAction = NewObject<UInputAction>(this, TEXT("IA_Look"));
 	LookAction->ValueType = EInputActionValueType::Axis2D;
 
+	ZoomAction = NewObject<UInputAction>(this, TEXT("IA_Zoom"));
+	ZoomAction->ValueType = EInputActionValueType::Axis1D;
+
 	JumpAction = NewObject<UInputAction>(this, TEXT("IA_Jump"));
 	JumpAction->ValueType = EInputActionValueType::Boolean;
 
@@ -361,6 +389,11 @@ void ASparkHeroCharacter::BuildInputObjects()
 	// Look: mouse + gamepad right stick.
 	MappingContext->MapKey(LookAction, EKeys::Mouse2D);
 	MappingContext->MapKey(LookAction, EKeys::Gamepad_Right2D);
+
+	// Zoom: mouse wheel (up = closer) + d-pad up/down.
+	MappingContext->MapKey(ZoomAction, EKeys::MouseWheelAxis);
+	MappingContext->MapKey(ZoomAction, EKeys::Gamepad_DPad_Up);
+	AddNegate(MappingContext->MapKey(ZoomAction, EKeys::Gamepad_DPad_Down));
 
 	// Jump / dash / fast-fall.
 	MappingContext->MapKey(JumpAction, EKeys::SpaceBar);
@@ -404,6 +437,7 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 	{
 		EIC->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASparkHeroCharacter::HandleMove);
 		EIC->BindAction(LookAction, ETriggerEvent::Triggered, this, &ASparkHeroCharacter::HandleLook);
+		EIC->BindAction(ZoomAction, ETriggerEvent::Triggered, this, &ASparkHeroCharacter::HandleZoom);
 		EIC->BindAction(JumpAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleJumpPressed);
 		EIC->BindAction(JumpAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleJumpReleased);
 		EIC->BindAction(DashAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleDashPressed);
@@ -454,6 +488,17 @@ void ASparkHeroCharacter::HandleLook(const FInputActionValue& Value)
 	AddControllerYawInput(Axis.X * LookSensitivity);
 	const float PitchSign = bInvertLookY ? 1.f : -1.f;
 	AddControllerPitchInput(Axis.Y * LookSensitivity * PitchSign);
+}
+
+void ASparkHeroCharacter::HandleZoom(const FInputActionValue& Value)
+{
+	// Wheel up = closer. Exponential steps so every notch feels equal; the
+	// multiplier rides on top of the context camera (Tick applies it).
+	const float Notches = Value.Get<float>();
+	if (FMath::IsNearlyZero(Notches)) { return; }
+	ZoomMultiplier = FMath::Clamp(
+		ZoomMultiplier * FMath::Pow(ZoomStepPerNotch, -Notches),
+		ZoomMinMultiplier, ZoomMaxMultiplier);
 }
 
 // ---------------------------------------------------------------------------
@@ -853,6 +898,8 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 			TargetLen = FMath::GetMappedRangeValueClamped(
 				FVector2f(0.f, CameraPitchMax), FVector2f(BaseArmLength, ArmLengthLookingUp), Pitch);
 		}
+		// Player zoom rides on top of the context camera (wheel / d-pad).
+		TargetLen = FMath::Clamp(TargetLen * ZoomMultiplier, 60.f, 3000.f);
 		SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, TargetLen,
 		                                              DeltaSeconds, 4.f);
 	}

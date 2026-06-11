@@ -57,9 +57,15 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UEmberMeterComponent> EmberMeter;
 
-	/** The visible Spark-flame above the dome; the meter drives its height. */
+	/** The visible Spark-flame above the dome; the meter drives its height.
+	    Rides the HEAD BONE (found at BeginPlay) so it follows animated poses. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UStaticMeshComponent> EmberFlame;
+
+	/** Adam's kill-switch for the flame mesh (the glow light stays — it carries
+	    the health telegraph). Uncheck if the crown fire isn't wanted visually. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Ember")
+	bool bShowEmberFlame = true;
 
 	/** The flame's warm light — the world dims with the hero's health, no HUD. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
@@ -168,6 +174,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
 	float ArmLengthLookingUp = 580.f;
 
+	// Mouse-wheel zoom (Adam's call: ~5x visual control either way).
+	/** Each wheel notch multiplies/divides the camera distance by this. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
+	float ZoomStepPerNotch = 1.18f;
+
+	/** Closest zoom: 0.2 = five times closer than the context camera's choice. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
+	float ZoomMinMultiplier = 0.2f;
+
+	/** Farthest zoom: 5 = five times farther. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
+	float ZoomMaxMultiplier = 5.f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
 	float LookSensitivity = 1.0f;
 
@@ -254,10 +273,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
 	float HeroMeshScale = 1.05f;   // mesh is 132uu tall (scale baked); capsule is 144
 
-	/** Yaw correction for the skeletal hero (FBX axis conventions; tuned by screenshot:
-	    at 0 the model faces -Y, so +90 turns it to the actor's +X forward). */
+	/** Yaw correction for the skeletal hero. Meshy-NATIVE FBX (HeroSkelV4) faces the
+	    opposite way from the old Blender-baked rigs — Adam's playtest: "walking in
+	    rewind." -90 turns the native model to the actor's +X forward. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
-	float SkelMeshYaw = 90.f;
+	float SkelMeshYaw = -90.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Model")
 	float SkelMeshScale = 1.0f;
@@ -289,6 +309,7 @@ protected:
 	// Input handlers
 	void HandleMove(const FInputActionValue& Value);
 	void HandleLook(const FInputActionValue& Value);
+	void HandleZoom(const FInputActionValue& Value);
 	void HandleJumpPressed();
 	void HandleJumpReleased();
 	void HandleDashPressed();
@@ -304,6 +325,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputMappingContext> MappingContext;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> MoveAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> LookAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> ZoomAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> JumpAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> DashAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> StrikeAction;
@@ -372,6 +394,7 @@ private:
 	FVector SafeGroundLocation = FVector::ZeroVector; // last spot we truly stood on
 
 	// Misc state
+	float ZoomMultiplier = 1.f;                          // mouse-wheel camera zoom
 	FVector LastWorldMoveInput = FVector::ForwardVector; // dash direction fallback
 	float PrevTickVelZ = 0.f;                            // landing impact speed
 	bool bFastFalling = false;
