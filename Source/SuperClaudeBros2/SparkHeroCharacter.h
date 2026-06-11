@@ -263,12 +263,12 @@ public:
 	float SkelMeshScale = 1.0f;
 
 	// ---------------- Animation (single-node playback; no AnimBP assets) ----------------
-	/** TEMP GATE (June 11): clip playback collapses the body — the Blender converter
-	    bakes the scale into the rig's rest pose but NOT the motion curves, so bound
-	    clips evaluate into mush. OFF = handsome ref-pose hero + full combat juice.
-	    Flip ON (live, EditAnywhere) the moment the converter fix lands. */
+	/** Clip playback gate (June 11): V3 assets carry the anim-scale fix — clips
+	    convert at factor 1.0 (no Blender scale bake) and UE applies the 0.8 at
+	    import, scaling rig and curves together. ON by default; flip OFF live if
+	    a future import regresses (the hero falls back to his handsome ref-pose). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
-	bool bEnableClipPlayback = false;
+	bool bEnableClipPlayback = true;
 
 	/** Ground speed above which the run cycle replaces the walk cycle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")

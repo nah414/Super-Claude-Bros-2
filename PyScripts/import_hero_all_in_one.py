@@ -14,11 +14,16 @@ import os
 import unreal
 
 SRC_DIR = r"C:\Users\Atomn\mario2\_prep\meshy_api_drops\ue_ready"
-# V2 folder: the old /Game/Art/HeroSkel is held in memory by the hero CDO's
-# FObjectFinders (editor boot loads it), so delete_directory returns False and
-# every reimport silently collides. A virgin folder sidesteps the lock entirely.
-DEST = "/Game/Art/HeroSkelV2"
+# Virgin folder per import generation: whichever folder the compiled C++ CDO
+# references is memory-locked at editor boot (delete_directory returns False and
+# reimports silently collide). V3 = the anim-scale fix generation.
+DEST = "/Game/Art/HeroSkelV3"
 NAME = "SCB2Hero"
+# THE ANIM-SCALE FIX: clips are converted at factor 1.0 (no Blender scale bake —
+# baking scales the REST pose but not the action curves, which collapsed the
+# body). UE applies the 0.8 here instead, scaling rig AND translation tracks
+# together. The mesh stays a 0.800-baked conversion; 1.0-clips x 0.8 = match.
+CLIP_IMPORT_SCALE = 0.8
 CLIPS = ["Idle", "Walk", "Run", "Jump", "Strike1", "Strike2", "Haymaker", "HitReact", "Relight"]
 
 unreal.SystemLibrary.execute_console_command(None, "Interchange.FeatureFlags.Import.FBX false")
@@ -79,7 +84,7 @@ for clip in CLIPS:
     aui.import_textures = False
     aui.skeleton = skeleton
     aui.mesh_type_to_import = unreal.FBXImportType.FBXIT_ANIMATION
-    aui.anim_sequence_import_data.set_editor_property("import_uniform_scale", 1.0)
+    aui.anim_sequence_import_data.set_editor_property("import_uniform_scale", CLIP_IMPORT_SCALE)
     aui.anim_sequence_import_data.set_editor_property("snap_to_closest_frame_boundary", True)
     t = unreal.AssetImportTask()
     t.filename = fbx

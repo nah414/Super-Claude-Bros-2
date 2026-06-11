@@ -103,16 +103,16 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	// HeroSkelV2 + the _Anim names: the importer-built layout (mesh-ful clip FBXes
 	// produce a junk mesh + a properly BOUND <name>_Anim sequence — heroine-proven).
 	// The old /HeroSkel folder is CDO-locked and stays orphaned until a manual sweep.
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> SkelModel(TEXT("/Game/Art/HeroSkelV2/SCB2Hero.SCB2Hero"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> IdleClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Idle_Anim.A_Hero_Idle_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Walk_Anim.A_Hero_Walk_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Run_Anim.A_Hero_Run_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Jump_Anim.A_Hero_Jump_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike1Clip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Strike1_Anim.A_Hero_Strike1_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike2Clip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Strike2_Anim.A_Hero_Strike2_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> HaymakerClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Haymaker_Anim.A_Hero_Haymaker_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> HitReactClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_HitReact_Anim.A_Hero_HitReact_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> RelightClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Relight_Anim.A_Hero_Relight_Anim"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> SkelModel(TEXT("/Game/Art/HeroSkelV4/SCB2Hero.SCB2Hero"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> IdleClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Idle_Anim.A_Hero_Idle_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Walk_Anim.A_Hero_Walk_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Run_Anim.A_Hero_Run_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Jump_Anim.A_Hero_Jump_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike1Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Strike1_Anim.A_Hero_Strike1_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike2Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Strike2_Anim.A_Hero_Strike2_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HaymakerClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Haymaker_Anim.A_Hero_Haymaker_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HitReactClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_HitReact_Anim.A_Hero_HitReact_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> RelightClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Relight_Anim.A_Hero_Relight_Anim"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
