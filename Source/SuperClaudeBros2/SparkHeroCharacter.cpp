@@ -152,13 +152,18 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 		EmberFlame->SetStaticMesh(SphereMesh.Object);
 	}
 	EmberFlame->SetRelativeLocation(FVector(0.f, 0.f, 74.f));  // just above the dome crown
-	EmberFlame->SetRelativeScale3D(FVector(0.14f, 0.14f, 0.22f));
+	EmberFlame->SetRelativeScale3D(FVector(0.10f, 0.10f, 0.18f));
 	EmberFlame->SetCastShadow(false);
 
+	// Adam's playtest verdict: "too much orange glow." The inverse-square fix is
+	// distance + source size, not wattage alone — the light now floats ABOVE the
+	// flame (not inside it), soft-sourced, dim, tight. A candle, not a beacon.
 	EmberGlow = CreateDefaultSubobject<UPointLightComponent>(TEXT("EmberGlow"));
-	EmberGlow->SetupAttachment(EmberFlame);
-	EmberGlow->SetIntensity(380.f);
-	EmberGlow->SetAttenuationRadius(260.f);
+	EmberGlow->SetupAttachment(VisualRoot);                    // not the flame — child scale would drag it
+	EmberGlow->SetRelativeLocation(FVector(0.f, 0.f, 96.f));   // a hand above the dome
+	EmberGlow->SetIntensity(40.f);                             // candle, final answer
+	EmberGlow->SetAttenuationRadius(120.f);
+	EmberGlow->SetSourceRadius(10.f);                          // soft area light, no hot pinprick
 	EmberGlow->SetLightColor(FColor(255, 150, 60));            // kept-fire amber (Color Law)
 	EmberGlow->SetCastShadows(false);                          // small, warm, cheap
 }
@@ -278,7 +283,7 @@ void ASparkHeroCharacter::BeginPlay()
 				nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 		{
 			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
-			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.55f, 0.15f));
+			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.85f, 0.42f, 0.10f));
 			EmberFlame->SetMaterial(0, MID);
 		}
 	}

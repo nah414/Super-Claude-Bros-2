@@ -51,10 +51,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember|Visual")
 	float FlameGutterScaleZ = 0.05f;
 
-	/** Tuned DOWN from 1200 after the first glade shot — the flame should read as a
-	    candle the player carries, not a floodlight (Brightness War lesson, June 11). */
+	/** Tuned DOWN three times (1200 → 380 → 120 → 40, Adam's "too much orange glow"
+	    verdict, June 11) — the flame reads as a candle the player carries, not a
+	    floodlight. Lessons: at point-blank range surfaces saturate at almost ANY
+	    wattage (inverse square), and the glade's FFT bloom turns hot pixels into
+	    stars — so the fix was distance + source size + a smaller, dimmer flame. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember|Visual")
-	float GlowFullIntensity = 380.f;
+	float GlowFullIntensity = 40.f;
 
 	// ---------------- Events ----------------
 	/** The flame went out. The owner decides what death means (hero: respawn). */
