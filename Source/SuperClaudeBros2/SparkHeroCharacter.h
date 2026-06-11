@@ -19,6 +19,8 @@ class USceneComponent;
 class UInputAction;
 class UInputMappingContext;
 class UAnimSequence;
+class UEmberMeterComponent;
+class UPointLightComponent;
 
 UCLASS()
 class ASparkHeroCharacter : public ACharacter
@@ -50,6 +52,18 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UCameraComponent> FollowCamera;
+
+	/** The Ember Meter — the hero's health IS this flame (SCB2_INTERACTION_SPEC.md §2). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<UEmberMeterComponent> EmberMeter;
+
+	/** The visible Spark-flame above the dome; the meter drives its height. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<UStaticMeshComponent> EmberFlame;
+
+	/** The flame's warm light — the world dims with the hero's health, no HUD. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<UPointLightComponent> EmberGlow;
 
 	// ---------------- Movement feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Movement")
@@ -164,6 +178,19 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
 	void OnHeroRespawned();
 
+	/** A hit got through (grace didn't eat it). NewFraction is the flame's new 0..1. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroEmberHit(float NewFraction);
+
+	/** The flame went out. Fires just before the lantern relights the hero. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroFlameOut();
+
+	/** Enemies route ember damage through here (Contact Matrix, spec §5). Knockback
+	    is the caller's job and always applies; fire only drains outside grace. */
+	UFUNCTION(BlueprintCallable, Category = "SparkHero")
+	void TakeEmberHit(float Embers);
+
 	/** True while the spark-dash owns the hero's velocity (read by enemies for dash-kills). */
 	UFUNCTION(BlueprintPure, Category = "SparkHero")
 	bool IsDashing() const { return bIsDashing; }
@@ -262,6 +289,7 @@ private:
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();
+	UFUNCTION() void HandleFlameOut();   // bound to the meter's OnFlameOut
 	FVector SpawnLocation = FVector::ZeroVector;     // the level's PlayerStart
 	FRotator SpawnRotation = FRotator::ZeroRotator;
 	FVector SafeGroundLocation = FVector::ZeroVector; // last spot we truly stood on

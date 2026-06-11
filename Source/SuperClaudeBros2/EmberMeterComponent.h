@@ -1,0 +1,109 @@
+// Super Claude Bros 2 — the Ember Meter.
+// The hero's health is a flame, not a HUD: an inner Spark-fire that burns tall at
+// full health and gutters low when hurt (locked by Adam, June 11 — full spec in
+// SCB2_INTERACTION_SPEC.md §2). This component owns the numbers and drives the
+// owner's registered flame visuals; it never draws UI. Reusable by design: the
+// same meter is Sonnet's companion health and every rival's duel meter.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "EmberMeterComponent.generated.h"
+
+class UStaticMeshComponent;
+class UPointLightComponent;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnFlameOut);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEmbersChanged, float, Fraction);
+
+UCLASS(ClassGroup = (SCB2), meta = (BlueprintSpawnableComponent))
+class UEmberMeterComponent : public UActorComponent
+{
+	GENERATED_BODY()
+
+public:
+	UEmberMeterComponent();
+
+	// ---------------- Tunables (spec §2 — TARGET values now CODE) ----------------
+	/** Full flame. The hearth boon (one per world) raises this by +25. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember")
+	float MaxEmbers = 100.f;
+
+	/** No-damage grace after a hit; the flame flares to telegraph it. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember")
+	float GraceDuration = 0.8f;
+
+	/** Below this fraction the flame visibly gutters (flicker + dim). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember")
+	float GutterFraction = 0.25f;
+
+	/** Embers per second regained inside a lit lantern's radius.
+	    (Wired up when the lantern light-state component lands — P0-M0.2.) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember")
+	float LanternRefillRate = 25.f;
+
+	// ---------------- Flame visuals (owner registers; both optional) ----------------
+	/** Flame height tracks the meter: Z scale = GutterScale..FullScale. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember|Visual")
+	float FlameFullScaleZ = 0.22f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember|Visual")
+	float FlameGutterScaleZ = 0.05f;
+
+	/** Tuned DOWN from 1200 after the first glade shot — the flame should read as a
+	    candle the player carries, not a floodlight (Brightness War lesson, June 11). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember|Visual")
+	float GlowFullIntensity = 380.f;
+
+	// ---------------- Events ----------------
+	/** The flame went out. The owner decides what death means (hero: respawn). */
+	UPROPERTY(BlueprintAssignable, Category = "Ember|Events")
+	FOnFlameOut OnFlameOut;
+
+	/** Fired on every damage/refill with the new 0..1 fraction (VFX/SFX seam). */
+	UPROPERTY(BlueprintAssignable, Category = "Ember|Events")
+	FOnEmbersChanged OnEmbersChanged;
+
+	// ---------------- API ----------------
+	/** Drain embers. Returns false if the hit was eaten by grace or the flame is
+	    already out (knockback still applies at the caller — contact always costs
+	    momentum, it just doesn't always cost fire). */
+	UFUNCTION(BlueprintCallable, Category = "Ember")
+	bool ApplyEmberDamage(float Embers);
+
+	UFUNCTION(BlueprintCallable, Category = "Ember")
+	void Refill(float Embers);
+
+	UFUNCTION(BlueprintCallable, Category = "Ember")
+	void RefillFull();
+
+	UFUNCTION(BlueprintPure, Category = "Ember")
+	float GetFraction() const { return MaxEmbers > 0.f ? CurrentEmbers / MaxEmbers : 0.f; }
+
+	UFUNCTION(BlueprintPure, Category = "Ember")
+	bool IsInGrace() const;
+
+	UFUNCTION(BlueprintPure, Category = "Ember")
+	bool IsFlameOut() const { return bFlameOut; }
+
+	/** The owner hands over its flame mesh + glow light; the meter animates them.
+	    Both nullptr-safe — the meter runs fine invisible (house pattern). */
+	void RegisterFlameVisuals(UStaticMeshComponent* InFlame, UPointLightComponent* InGlow);
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
+	                           FActorComponentTickFunction* ThisTickFunction) override;
+
+private:
+	float CurrentEmbers = 100.f;
+	float GraceUntilTime = -1000.f;
+	bool bFlameOut = false;
+
+	TWeakObjectPtr<UStaticMeshComponent> Flame;
+	TWeakObjectPtr<UPointLightComponent> Glow;
+
+	void UpdateFlameVisuals(float DeltaTime);
+	float Now() const;
+};

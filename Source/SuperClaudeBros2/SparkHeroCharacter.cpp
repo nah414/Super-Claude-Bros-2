@@ -4,8 +4,10 @@
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EmberMeterComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -136,6 +138,29 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	FollowCamera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
 	FollowCamera->FieldOfView = 80.f;
+
+	// --- The Ember Meter: health as a flame above the dome (spec §2) ---
+	// Placeholder flame = a small sphere the meter scales; the point light is the
+	// part that actually sells it (and dims the world as the hero gutters).
+	EmberMeter = CreateDefaultSubobject<UEmberMeterComponent>(TEXT("EmberMeter"));
+
+	EmberFlame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EmberFlame"));
+	EmberFlame->SetupAttachment(VisualRoot);   // squashes with the body — flames bounce too
+	EmberFlame->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (SphereMesh.Succeeded())
+	{
+		EmberFlame->SetStaticMesh(SphereMesh.Object);
+	}
+	EmberFlame->SetRelativeLocation(FVector(0.f, 0.f, 74.f));  // just above the dome crown
+	EmberFlame->SetRelativeScale3D(FVector(0.14f, 0.14f, 0.22f));
+	EmberFlame->SetCastShadow(false);
+
+	EmberGlow = CreateDefaultSubobject<UPointLightComponent>(TEXT("EmberGlow"));
+	EmberGlow->SetupAttachment(EmberFlame);
+	EmberGlow->SetIntensity(380.f);
+	EmberGlow->SetAttenuationRadius(260.f);
+	EmberGlow->SetLightColor(FColor(255, 150, 60));            // kept-fire amber (Color Law)
+	EmberGlow->SetCastShadows(false);                          // small, warm, cheap
 }
 
 float ASparkHeroCharacter::Now() const
@@ -243,6 +268,24 @@ void ASparkHeroCharacter::BeginPlay()
 			PC->PlayerCameraManager->ViewPitchMin = CameraPitchMin;
 			PC->PlayerCameraManager->ViewPitchMax = CameraPitchMax;
 		}
+	}
+
+	// The Ember Meter takes the flame: amber tint on the placeholder sphere, then
+	// hand both visuals to the component — it animates them from here on.
+	if (EmberFlame)
+	{
+		if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
+				nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.55f, 0.15f));
+			EmberFlame->SetMaterial(0, MID);
+		}
+	}
+	if (EmberMeter)
+	{
+		EmberMeter->RegisterFlameVisuals(EmberFlame, EmberGlow);
+		EmberMeter->OnFlameOut.AddDynamic(this, &ASparkHeroCharacter::HandleFlameOut);
 	}
 }
 
@@ -545,6 +588,29 @@ void ASparkHeroCharacter::RespawnAtStart()
 	ApplySquash(JumpStretch);                 // a little "pop" back into existence
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_respawn.sfx_respawn"));
 	OnHeroRespawned();
+}
+
+// ---------------------------------------------------------------------------
+// The Ember Meter: contact costs fire (outside grace) — and a dead flame is
+// relit at the respawn point. Lumen keeps your continue lit.
+// ---------------------------------------------------------------------------
+void ASparkHeroCharacter::TakeEmberHit(float Embers)
+{
+	if (!EmberMeter) { return; }
+	if (EmberMeter->ApplyEmberDamage(Embers))
+	{
+		PlayShake(USparkLandShake::StaticClass());
+		OnHeroEmberHit(EmberMeter->GetFraction());
+	}
+}
+
+void ASparkHeroCharacter::HandleFlameOut()
+{
+	// Today: instant relight at the safe spot. The ~3 s lantern ceremony (respawn
+	// at the last LIT lantern, spec §2) arrives with the checkpoint system, M0.3.
+	OnHeroFlameOut();
+	RespawnAtStart();
+	if (EmberMeter) { EmberMeter->RefillFull(); }
 }
 
 void ASparkHeroCharacter::FellOutOfWorld(const UDamageType& DmgType)

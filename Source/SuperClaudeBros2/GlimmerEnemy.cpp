@@ -267,7 +267,11 @@ void AGlimmerEnemy::HandleHeroContact(ASparkHeroCharacter* Hero)
 	Away = Away.IsNearlyZero() ? -GetActorForwardVector() : Away.GetSafeNormal();
 	Hero->LaunchCharacter(Away * KnockbackForce + FVector(0.f, 0.f, KnockbackLift), true, true);
 
-	// No damage system yet — the Glimmer just pauses, smug, before walking on.
+	// Contact costs momentum AND fire: the bonk drains embers (10, per the spec §2
+	// damage table) unless the hero's grace flare eats it. Knockback applies either
+	// way — the flame and the shove are separate ledgers.
+	Hero->TakeEmberHit(ContactProfile.ContactDamageEmbers);
+
 	StunnedUntilTime = Now() + StunDuration;
 	GetCharacterMovement()->StopMovementImmediately();
 }

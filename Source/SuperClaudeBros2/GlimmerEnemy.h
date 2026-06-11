@@ -9,6 +9,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "SparkContactTypes.h"
 #include "GlimmerEnemy.generated.h"
 
 class UStaticMeshComponent;
@@ -48,6 +49,12 @@ public:
 	float TurnCheckDistance = 50.f;
 
 	// ---------------- Hero contact ----------------
+	/** The Glimmer's row in the Limitations Ledger: Mote class, stompable,
+	    dashable, 10-ember bonk — the Contact Matrix's reference enemy
+	    (SCB2_INTERACTION_SPEC.md §5; struct defaults ARE the Glimmer). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	FContactProfile ContactProfile;
+
 	/** Horizontal launch speed applied to the hero on a side bonk. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float KnockbackForce = 700.f;
