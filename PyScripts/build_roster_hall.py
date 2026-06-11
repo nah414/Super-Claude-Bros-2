@@ -9,7 +9,14 @@ EAL = unreal.EditorAssetLibrary
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 
-les.new_level("/Game/Maps/RosterHall")
+# THE SCRATCH DANCE (hard lesson, twice now): new_level() over an EXISTING map
+# fails silently, leaving the startup map (MoonlitGlade!) loaded — every spawn
+# then contaminates the GAME LEVEL and save_current_level() saves the damage.
+# So: hop to a scratch level, delete the old hall, create it fresh, verify.
+assert les.new_level("/Game/Maps/_Scratch"), "SCRATCH_LEVEL_FAILED"
+if EAL.does_asset_exist("/Game/Maps/RosterHall"):
+    assert EAL.delete_asset("/Game/Maps/RosterHall"), "DELETE_OLD_HALL_FAILED"
+assert les.new_level("/Game/Maps/RosterHall"), "NEW_HALL_FAILED"
 
 # ---- stage: floor + daylight ----
 cube = unreal.load_asset("/Engine/BasicShapes/Cube")
@@ -54,5 +61,11 @@ start = eas.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, -700, 10
 start.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)  # look at the line
 start.set_actor_label("PlayerStart")
 
-les.save_current_level()
+saved = les.save_current_level()
+print(f"SAVE_RESULT: {saved}")
+if not saved:
+    # Belt and braces: save every dirty package the unattended path might hold back.
+    ok = unreal.EditorLoadingAndSavingUtils.save_dirty_packages(
+        save_map_packages=True, save_content_packages=True)
+    print(f"SAVE_DIRTY_FALLBACK: {ok}")
 print("ROSTER_HALL_DONE")
