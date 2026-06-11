@@ -90,7 +90,7 @@ def glow(x, y, z, color, intensity=2200.0, radius=900.0, label="Neon"):
     lc.set_editor_property("attenuation_radius", radius)
     lc.set_editor_property("cast_shadows", True)  # MegaLights eats this for breakfast
     try:  # keep the fog from drinking every light and glowing white
-        lc.set_editor_property("volumetric_scattering_intensity", 0.25)
+        lc.set_editor_property("volumetric_scattering_intensity", 0.05)
     except Exception as e:
         unreal.log_warning(f"volumetric scattering skip: {e}")
     li.set_actor_label(label)
@@ -270,8 +270,8 @@ for x, y, sx, sy in ((CX, -3200, STREET_LEN + 4000, 150), (CX, 3200, STREET_LEN 
 fog = eas.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0))
 fc = fog.component
 fc.set_editor_property("enable_volumetric_fog", True)
-fc.set_editor_property("fog_density", 0.028)
-fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.010, 0.008, 0.026, 1.0))
+fc.set_editor_property("fog_density", 0.022)
+fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.005, 0.004, 0.014, 1.0))
 fog.set_actor_label("RainFog")
 
 sky_atm = eas.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0))
@@ -293,8 +293,8 @@ def pp(prop_name, value):
 pp("bloom_method", unreal.BloomMethod.BM_FFT)
 pp("bloom_intensity", 1.15)
 pp("bloom_threshold", 1.35)
-pp("auto_exposure_min_brightness", -1.15)
-pp("auto_exposure_max_brightness", -1.15)
+pp("auto_exposure_min_brightness", -1.6)
+pp("auto_exposure_max_brightness", -1.6)
 pp("film_grain_intensity", 0.12)
 pp("vignette_intensity", 0.35)
 pp("scene_fringe_intensity", 0.3)

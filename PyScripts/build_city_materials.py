@@ -131,7 +131,7 @@ for s in SIGNS:
     t.set_editor_property("texture", textures[f"sign_{s}"])
     t.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
     boost = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -700, 220)
-    boost.set_editor_property("r", 6.0)
+    boost.set_editor_property("r", 4.0)
     mul = MEL.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, 80)
     MEL.connect_material_expressions(t, "RGB", mul, "A")
     MEL.connect_material_expressions(boost, "", mul, "B")
@@ -147,7 +147,7 @@ for v in WINDOWS:
     t.set_editor_property("texture", textures[f"win_{v}"])
     t.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
     boost = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -700, 220)
-    boost.set_editor_property("r", 2.5)
+    boost.set_editor_property("r", 1.0)  # windows glitter; they must not LIGHT the city
     mul = MEL.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, 80)
     MEL.connect_material_expressions(t, "RGB", mul, "A")
     MEL.connect_material_expressions(boost, "", mul, "B")
