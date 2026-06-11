@@ -20,13 +20,20 @@ void ASparkHeroGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Night ambience + music (loop flags are set on the SoundWave assets at import;
-	// both are optional — the game runs silently before the audio pack is imported).
-	if (USoundBase* Amb = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop")))
+	// Per-map ambience + music (loop flags set on the SoundWave assets at import;
+	// all optional — the game runs silently before the audio pack is imported).
+	const bool bNeonCity = GetWorld() && GetWorld()->GetMapName().Contains(TEXT("NeonCity"));
+	const TCHAR* AmbPath = bNeonCity
+		? TEXT("/Game/Art/Audio/amb_rain_loop.amb_rain_loop")
+		: TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop");
+	const TCHAR* MusicPath = bNeonCity
+		? TEXT("/Game/Art/Audio/music_city_loop.music_city_loop")
+		: TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop");
+	if (USoundBase* Amb = LoadObject<USoundBase>(nullptr, AmbPath))
 	{
 		UGameplayStatics::PlaySound2D(this, Amb, 0.7f);
 	}
-	if (USoundBase* Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop")))
+	if (USoundBase* Music = LoadObject<USoundBase>(nullptr, MusicPath))
 	{
 		UGameplayStatics::PlaySound2D(this, Music, 0.5f);
 	}

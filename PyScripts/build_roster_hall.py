@@ -25,7 +25,7 @@ assert les.new_level("/Game/Maps/RosterHall"), "NEW_HALL_FAILED"
 cube = unreal.load_asset("/Engine/BasicShapes/Cube")
 floor = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, -50))
 floor.static_mesh_component.set_static_mesh(cube)
-floor.set_actor_scale3d(unreal.Vector(60.0, 30.0, 1.0))
+floor.set_actor_scale3d(unreal.Vector(220.0, 90.0, 1.0))
 floor.set_actor_label("HallFloor")
 
 sun = eas.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 800))
@@ -58,6 +58,31 @@ for i, path in enumerate(assets):
     actor.set_actor_label(sm.get_name())
     count += 1
 print(f"PLACED: {count} characters")
+
+# ---- second wing: the CITY KIT (review gate for stage objects) ----
+city = sorted(a for a in EAL.list_assets("/Game/Art/CityKit", recursive=True) if "/SM_" in a)
+small_x, big_x = -4500.0, -9000.0
+for path in city:
+    sm = EAL.load_asset(path)
+    if not isinstance(sm, unreal.StaticMesh):
+        continue
+    b = sm.get_bounding_box()
+    width = max(b.max.x - b.min.x, b.max.y - b.min.y)
+    tall = (b.max.z - b.min.z) > 800.0
+    if tall:
+        x = big_x + width / 2.0
+        big_x += width + 260.0
+        y = 3800.0
+    else:
+        x = small_x + width / 2.0
+        small_x += width + 180.0
+        y = 1800.0
+    actor = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(x, y, 0.0))
+    actor.static_mesh_component.set_static_mesh(sm)
+    actor.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)
+    actor.set_actor_label(sm.get_name())
+    count += 1
+print(f"PLACED_CITY: {len(city)}")
 
 # ---- a LIVE Glimmer (the real enemy, crystal-sprite body) for behavior review ----
 try:
