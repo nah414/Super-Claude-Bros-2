@@ -100,16 +100,19 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	// The rigged hero from the Meshy pipeline (Blender-baked cm, legacy FBX import).
 	// Outranks both static visuals when present. Pivot is at the feet (Blender drops
 	// it to ground), so it sits at the capsule's bottom.
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> SkelModel(TEXT("/Game/Art/HeroSkel/SCB2Hero.SCB2Hero"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> IdleClip(TEXT("/Game/Art/HeroSkel/A_Hero_Idle.A_Hero_Idle"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkel/A_Hero_Walk.A_Hero_Walk"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkel/A_Hero_Run.A_Hero_Run"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkel/A_Hero_Jump.A_Hero_Jump"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike1Clip(TEXT("/Game/Art/HeroSkel/A_Hero_Strike1.A_Hero_Strike1"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike2Clip(TEXT("/Game/Art/HeroSkel/A_Hero_Strike2.A_Hero_Strike2"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> HaymakerClip(TEXT("/Game/Art/HeroSkel/A_Hero_Haymaker.A_Hero_Haymaker"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> HitReactClip(TEXT("/Game/Art/HeroSkel/A_Hero_HitReact.A_Hero_HitReact"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> RelightClip(TEXT("/Game/Art/HeroSkel/A_Hero_Relight.A_Hero_Relight"));
+	// HeroSkelV2 + the _Anim names: the importer-built layout (mesh-ful clip FBXes
+	// produce a junk mesh + a properly BOUND <name>_Anim sequence — heroine-proven).
+	// The old /HeroSkel folder is CDO-locked and stays orphaned until a manual sweep.
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> SkelModel(TEXT("/Game/Art/HeroSkelV2/SCB2Hero.SCB2Hero"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> IdleClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Idle_Anim.A_Hero_Idle_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Walk_Anim.A_Hero_Walk_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Run_Anim.A_Hero_Run_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Jump_Anim.A_Hero_Jump_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike1Clip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Strike1_Anim.A_Hero_Strike1_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike2Clip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Strike2_Anim.A_Hero_Strike2_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HaymakerClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Haymaker_Anim.A_Hero_Haymaker_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HitReactClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_HitReact_Anim.A_Hero_HitReact_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> RelightClip(TEXT("/Game/Art/HeroSkelV2/A_Hero_Relight_Anim.A_Hero_Relight_Anim"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -235,7 +238,7 @@ void ASparkHeroCharacter::BeginPlay()
 	{
 		BodyMesh->SetVisibility(false);
 		SparkHead->SetVisibility(false);
-		if (WalkAnim)
+		if (bEnableClipPlayback && WalkAnim)
 		{
 			SkelBody->SetAnimation(WalkAnim);
 			SkelBody->Stop();                 // standing frame as the v1 idle pose
@@ -707,6 +710,7 @@ void ASparkHeroCharacter::EndStrike()
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::PlayActionClip(UAnimSequence* Clip, float FitDuration)
 {
+	if (!bEnableClipPlayback) { return; } // TEMP: juice carries strikes until then
 	if (!bHasSkeletalModel || !Clip || !SkelBody) { return; }
 	bActionAnimActive = true;
 	SkelBody->PlayAnimation(Clip, false);
@@ -876,6 +880,7 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 // on transition so PlayAnimation never restarts a clip mid-loop.
 void ASparkHeroCharacter::UpdateHeroAnimation()
 {
+	if (!bEnableClipPlayback) { return; } // TEMP: ref-pose until the converter fix
 	if (bActionAnimActive) { return; }   // a one-shot (strike/flinch) owns the body
 
 	const UCharacterMovementComponent* Move = GetCharacterMovement();
