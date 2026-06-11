@@ -62,10 +62,11 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UStaticMeshComponent> EmberFlame;
 
-	/** Adam's kill-switch for the flame mesh (the glow light stays — it carries
-	    the health telegraph). Uncheck if the crown fire isn't wanted visually. */
+	/** The flame MESH is hidden (Adam's call, round 2: "hide the light egg") —
+	    the glow light still rides the head and carries the health telegraph
+	    (dim with damage, flicker when guttering, flare during grace). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Ember")
-	bool bShowEmberFlame = true;
+	bool bShowEmberFlame = false;
 
 	/** The flame's warm light — the world dims with the hero's health, no HUD. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
@@ -289,6 +290,16 @@ public:
 	    a future import regresses (the hero falls back to his handsome ref-pose). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
 	bool bEnableClipPlayback = true;
+
+	/** Meshy jump presets are ~10 s ROUTINES (idle, crouch, leap, land, idle) —
+	    a 1 s hop only ever showed the rigid lead-in (Adam: "knees should bend").
+	    Start the clip where the leap lives and play it fitted. Both EditAnywhere:
+	    tune by feel — earlier/later = fraction, snappier/slower = rate. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float JumpClipStartFraction = 0.30f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float JumpClipRate = 2.5f;
 
 	/** Ground speed above which the run cycle replaces the walk cycle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")

@@ -107,7 +107,7 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> IdleClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Idle_Anim.A_Hero_Idle_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Walk_Anim.A_Hero_Walk_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Run_Anim.A_Hero_Run_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Jump_Anim.A_Hero_Jump_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Jump2_Anim.A_Hero_Jump2_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike1Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Strike1_Anim.A_Hero_Strike1_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike2Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Strike2_Anim.A_Hero_Strike2_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HaymakerClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Haymaker_Anim.A_Hero_Haymaker_Anim"));
@@ -957,7 +957,14 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 		switch (AnimState)
 		{
 		case EHeroAnimState::Jump:
-			if (JumpAnim) { SkelBody->PlayAnimation(JumpAnim, false); }
+			if (JumpAnim)
+			{
+				// Skip the routine's lead-in: start at the leap, play it fitted.
+				SkelBody->SetAnimation(JumpAnim);
+				SkelBody->SetPlayRate(JumpClipRate);
+				SkelBody->SetPosition(JumpAnim->GetPlayLength() * JumpClipStartFraction, false);
+				SkelBody->Play(false);
+			}
 			break;
 		case EHeroAnimState::Run:
 			if (RunAnim) { SkelBody->PlayAnimation(RunAnim, true); }
