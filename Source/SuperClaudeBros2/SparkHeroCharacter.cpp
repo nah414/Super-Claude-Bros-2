@@ -11,8 +11,10 @@
 #include "Engine/SkeletalMesh.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "GlimmerEnemy.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -215,7 +217,7 @@ void ASparkHeroCharacter::BeginPlay()
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(1, 10.f, FColor::Orange,
-			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2 = double)   SHIFT dash   CTRL fast-fall"));
+			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2)   SHIFT dash   LMB strike (x3 = combo)   CTRL fast-fall"));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -315,6 +317,9 @@ void ASparkHeroCharacter::BuildInputObjects()
 	DashAction = NewObject<UInputAction>(this, TEXT("IA_Dash"));
 	DashAction->ValueType = EInputActionValueType::Boolean;
 
+	StrikeAction = NewObject<UInputAction>(this, TEXT("IA_Strike"));
+	StrikeAction->ValueType = EInputActionValueType::Boolean;
+
 	FastFallAction = NewObject<UInputAction>(this, TEXT("IA_FastFall"));
 	FastFallAction->ValueType = EInputActionValueType::Boolean;
 
@@ -349,6 +354,10 @@ void ASparkHeroCharacter::BuildInputObjects()
 	MappingContext->MapKey(JumpAction, EKeys::Gamepad_FaceButton_Bottom);
 	MappingContext->MapKey(DashAction, EKeys::LeftShift);
 	MappingContext->MapKey(DashAction, EKeys::Gamepad_FaceButton_Left);
+
+	// Strike: the mouse button Adam reserved for combat on day one, finally spent.
+	MappingContext->MapKey(StrikeAction, EKeys::LeftMouseButton);
+	MappingContext->MapKey(StrikeAction, EKeys::Gamepad_FaceButton_Right);
 	MappingContext->MapKey(FastFallAction, EKeys::LeftControl);
 	MappingContext->MapKey(FastFallAction, EKeys::Gamepad_RightShoulder);
 
@@ -385,6 +394,7 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(JumpAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleJumpPressed);
 		EIC->BindAction(JumpAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleJumpReleased);
 		EIC->BindAction(DashAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleDashPressed);
+		EIC->BindAction(StrikeAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleStrikePressed);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleFastFallPressed);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleFastFallReleased);
 		EIC->BindAction(QuitAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleQuit);
@@ -569,6 +579,106 @@ void ASparkHeroCharacter::EndDash()
 		Move->Velocity = FVector(Clamped.X, Clamped.Y, Vel.Z);
 	}
 	OnDashEnded();
+}
+
+// ---------------------------------------------------------------------------
+// The Spark Combo: lash, lash, HAYMAKER. (SCB2_POWERS_CODEX.md §1 — Adam's
+// June 11 lock.) Strikes are movement: each beat lunges the hero forward and
+// sweeps a sphere ahead. No clips yet — lunge + squash + shake sell it, the
+// dash precedent. Stomp remains the sacred finisher; fists open doors.
+// ---------------------------------------------------------------------------
+void ASparkHeroCharacter::HandleStrikePressed()
+{
+	if (bIsDashing) { return; }                       // the dash owns its moment
+	if (Now() < ComboCooldownUntil) { return; }       // post-haymaker breather
+	if (bStriking) { bStrikeQueued = true; return; }  // chain the next beat
+
+	if ((Now() - LastStrikeEndTime) > StrikeComboWindow)
+	{
+		ComboBeat = 0;                                // too slow — the string resets
+	}
+	DoStrike();
+}
+
+void ASparkHeroCharacter::DoStrike()
+{
+	bStriking = true;
+	const bool bHeavy = (ComboBeat >= 2);
+	const float Duration = bHeavy ? StrikeHeavyDuration : StrikeLightDuration;
+	const float Lunge = bHeavy ? StrikeHeavyLunge : StrikeLightLunge;
+
+	// The strike steps INTO the target — facing-direction lunge, Z untouched.
+	FVector Dir = GetActorForwardVector();
+	Dir.Z = 0.f;
+	Dir = Dir.GetSafeNormal();
+	LaunchCharacter(Dir * Lunge, true, false);
+
+	ApplySquash(bHeavy ? 1.10f : 1.05f);              // a forward-leaning stretch
+	PlaySfx(TEXT("/Game/Art/Audio/sfx_dash.sfx_dash"));
+	OnHeroStrike(ComboBeat);
+
+	GetWorldTimerManager().SetTimer(StrikeHitTimerHandle, this, &ASparkHeroCharacter::StrikeHitCheck,
+	                                Duration * 0.45f, false);
+	GetWorldTimerManager().SetTimer(StrikeTimerHandle, this, &ASparkHeroCharacter::EndStrike,
+	                                Duration, false);
+}
+
+void ASparkHeroCharacter::StrikeHitCheck()
+{
+	UWorld* World = GetWorld();
+	if (World == nullptr) { return; }
+
+	const bool bHeavy = (ComboBeat >= 2);
+	const FVector Center = GetActorLocation() + GetActorForwardVector() * StrikeRange;
+	const float Radius = StrikeRadius + (bHeavy ? 15.f : 0.f);
+
+	TArray<FOverlapResult> Hits;
+	FCollisionQueryParams Params(TEXT("SparkStrike"), false, this);
+	World->OverlapMultiByChannel(Hits, Center, FQuat::Identity, ECC_Pawn,
+	                             FCollisionShape::MakeSphere(Radius), Params);
+
+	bool bConnected = false;
+	for (const FOverlapResult& Hit : Hits)
+	{
+		// v1: Motes die to any beat (mass-class ladder: Spark >> Mote). Heavier
+		// classes get their CLASH/CLANG rows when the duel framework lands (P1).
+		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
+		{
+			Glimmer->TakeStrike();
+			OnHeroStrikeHit(Glimmer, ComboBeat);
+			bConnected = true;
+		}
+	}
+	if (bConnected)
+	{
+		PlaySfx(TEXT("/Game/Art/Audio/sfx_land.sfx_land"));
+		PlayShake(bHeavy ? USparkBigLandShake::StaticClass() : USparkLandShake::StaticClass());
+	}
+}
+
+void ASparkHeroCharacter::EndStrike()
+{
+	if (!bStriking) { return; }
+	bStriking = false;
+	LastStrikeEndTime = Now();
+	GetWorldTimerManager().ClearTimer(StrikeTimerHandle);
+
+	const bool bWasHeavy = (ComboBeat >= 2);
+	if (bWasHeavy)
+	{
+		ComboBeat = 0;
+		bStrikeQueued = false;
+		ComboCooldownUntil = Now() + StrikeComboCooldown;
+	}
+	else
+	{
+		ComboBeat++;
+		if (bStrikeQueued)
+		{
+			bStrikeQueued = false;
+			DoStrike();                               // the chained beat fires immediately
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------

@@ -276,6 +276,14 @@ void AGlimmerEnemy::HandleHeroContact(ASparkHeroCharacter* Hero)
 	GetCharacterMovement()->StopMovementImmediately();
 }
 
+void AGlimmerEnemy::TakeStrike()
+{
+	if (!bDead)
+	{
+		Die(false);   // squashed sideways — same exit as a dash kill
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Death: squash flat, switch the body off, linger a beat, clean up
 // ---------------------------------------------------------------------------

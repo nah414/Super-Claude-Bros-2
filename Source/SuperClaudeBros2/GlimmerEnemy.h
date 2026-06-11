@@ -87,6 +87,11 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Glimmer|Events")
 	void OnGlimmerSquashed(bool bByStomp);
 
+	/** A hero strike landed (the Spark Combo). Motes die to any beat — the
+	    mass-class ladder, applied by fist. */
+	UFUNCTION(BlueprintCallable, Category = "Glimmer")
+	void TakeStrike();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;

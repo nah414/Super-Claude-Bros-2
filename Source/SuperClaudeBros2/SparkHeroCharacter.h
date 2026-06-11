@@ -125,6 +125,37 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Dash")
 	int32 MaxAirDashes = 1;
 
+	// ---------------- The Spark Combo (hand-to-hand — Adam's June 11 lock) ----------------
+	// Three beats: tentacle lash, tentacle lash, fist HAYMAKER. No block button —
+	// the dash is the dodge. Full design: SCB2_POWERS_CODEX.md §1.
+	/** How far ahead of the hero the strike sphere lands. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeRange = 85.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeRadius = 55.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeLightDuration = 0.22f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeHeavyDuration = 0.38f;
+
+	/** Forward step the lash carries (the strike IS movement — squid boxing). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeLightLunge = 420.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeHeavyLunge = 550.f;
+
+	/** Next beat must be pressed within this window after a beat ends, or the combo resets. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeComboWindow = 0.45f;
+
+	/** Breather after the haymaker before the string can start again. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
+	float StrikeComboCooldown = 0.35f;
+
 	// ---------------- Camera feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
 	float BaseArmLength = 460.f;
@@ -195,6 +226,18 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SparkHero")
 	bool IsDashing() const { return bIsDashing; }
 
+	/** True mid-strike (read by duelists for CLASH resolution, later). */
+	UFUNCTION(BlueprintPure, Category = "SparkHero")
+	bool IsStriking() const { return bStriking; }
+
+	/** A combo beat fired (0/1 = lash, 2 = haymaker) — VFX/SFX seam. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroStrike(int32 Beat);
+
+	/** A strike connected with something. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroStrikeHit(AActor* Victim, int32 Beat);
+
 	/** Most negative recent vertical velocity — landing zeroes velocity BEFORE contact
 	    events fire, so stomp checks must read the fall as it was a tick ago. */
 	UFUNCTION(BlueprintPure, Category = "SparkHero")
@@ -242,6 +285,7 @@ protected:
 	void HandleJumpPressed();
 	void HandleJumpReleased();
 	void HandleDashPressed();
+	void HandleStrikePressed();
 	void HandleFastFallPressed();
 	void HandleFastFallReleased();
 	void HandleQuit();
@@ -255,6 +299,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputAction> LookAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> JumpAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> DashAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> StrikeAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> FastFallAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> QuitAction;
 
@@ -272,6 +317,18 @@ private:
 	int32 AirDashesRemaining = 0;
 	float LastDashEndTime = -1000.f;
 	FTimerHandle DashTimerHandle;
+
+	// Strike state (the Spark Combo)
+	void DoStrike();
+	void StrikeHitCheck();
+	void EndStrike();
+	bool bStriking = false;
+	bool bStrikeQueued = false;
+	int32 ComboBeat = 0;                 // 0/1 = lash, 2 = haymaker
+	float LastStrikeEndTime = -1000.f;
+	float ComboCooldownUntil = -1000.f;
+	FTimerHandle StrikeTimerHandle;
+	FTimerHandle StrikeHitTimerHandle;
 
 	// True when the imported SparkHero model loaded in the constructor.
 	bool bHasRealModel = false;
