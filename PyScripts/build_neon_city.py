@@ -189,7 +189,8 @@ for i in range(8):
         a.set_actor_scale3d(unreal.Vector(0.16, 0.16, 4.4))
         a.static_mesh_component.set_material(0, M_SIDEWALK)
         a.set_actor_label(f"LampPole_{i}")
-    glow(lx, ly * 0.86, 470, unreal.LinearColor(1.0, 0.92, 0.78, 1.0), 3200, 1300, f"LampGlow_{i}")
+    # Adam round 2: white street light cut 65% — pools of lamplight, not floodlight.
+    glow(lx, ly * 0.86, 470, unreal.LinearColor(1.0, 0.92, 0.78, 1.0), 1100, 1100, f"LampGlow_{i}")
 prop("noodle_stand", -2200, -950, 0, "NoodleStand", yaw=25)
 prop("street_kiosk", 3200, 980, 0, "Kiosk", yaw=200)
 prop("vending_machine_a", 600, -1150, 0, "Vend_A", yaw=0)
