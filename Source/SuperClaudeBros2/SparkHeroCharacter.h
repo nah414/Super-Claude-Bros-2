@@ -338,11 +338,24 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> WalkAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> RunAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> JumpAnim;
+	// M0.6 Hero Ascension II — the combo made flesh (+ the relight kneel, wired at M0.2).
+	UPROPERTY() TObjectPtr<UAnimSequence> Strike1Anim;
+	UPROPERTY() TObjectPtr<UAnimSequence> Strike2Anim;
+	UPROPERTY() TObjectPtr<UAnimSequence> HaymakerAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> RelightAnim;
 	bool bHasSkeletalModel = false;
 
-	enum class EHeroAnimState : uint8 { Idle, Walk, Run, Jump };
-	EHeroAnimState AnimState = EHeroAnimState::Idle;
+	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump };
+	EHeroAnimState AnimState = EHeroAnimState::None;
 	void UpdateHeroAnimation();
+
+	// Action-override layer: one-shot clips (strikes, hit-react) take the body;
+	// the locomotion state machine waits, then resumes via the None sentinel.
+	void PlayActionClip(UAnimSequence* Clip, float FitDuration);
+	void EndActionClip();
+	bool bActionAnimActive = false;
+	FTimerHandle HitReactTimerHandle;
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();

@@ -20,7 +20,14 @@ ANIM_FBXES = {
     "A_Hero_Idle": os.path.join(SRC_DIR, "hero_idle.fbx"),
     "A_Hero_Walk": os.path.join(SRC_DIR, "hero_walk.fbx"),
     "A_Hero_Run": os.path.join(SRC_DIR, "hero_run.fbx"),
-    "A_Hero_Jump": os.path.join(SRC_DIR, "hero_jump.fbx"),  # lands when Meshy finishes the clip
+    "A_Hero_Jump": os.path.join(SRC_DIR, "hero_jump.fbx"),
+    # M0.6 Hero Ascension II — the Spark Combo made flesh (locked factor 0.498113,
+    # see ue_ready/hero_scale_factor.txt; per-file normalization desyncs rigs).
+    "A_Hero_Strike1": os.path.join(SRC_DIR, "hero_strike1.fbx"),   # 191 Left_Jab_from_Guard
+    "A_Hero_Strike2": os.path.join(SRC_DIR, "hero_strike2.fbx"),   # 192 Right_Jab_from_Guard
+    "A_Hero_Haymaker": os.path.join(SRC_DIR, "hero_haymaker.fbx"), # 194 Right_Uppercut_from_Guard
+    "A_Hero_HitReact": os.path.join(SRC_DIR, "hero_hitreact.fbx"), # 178 Hit_Reaction
+    "A_Hero_Relight": os.path.join(SRC_DIR, "hero_relight.fbx"),   # 365 Kneel_on_One_Knee_and_Stand
 }
 DEST = "/Game/Art/HeroSkel"
 NAME = "SCB2Hero"

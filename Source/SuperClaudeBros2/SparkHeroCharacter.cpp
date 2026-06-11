@@ -105,6 +105,11 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> WalkClip(TEXT("/Game/Art/HeroSkel/A_Hero_Walk.A_Hero_Walk"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> RunClip(TEXT("/Game/Art/HeroSkel/A_Hero_Run.A_Hero_Run"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> JumpClip(TEXT("/Game/Art/HeroSkel/A_Hero_Jump.A_Hero_Jump"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike1Clip(TEXT("/Game/Art/HeroSkel/A_Hero_Strike1.A_Hero_Strike1"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Strike2Clip(TEXT("/Game/Art/HeroSkel/A_Hero_Strike2.A_Hero_Strike2"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HaymakerClip(TEXT("/Game/Art/HeroSkel/A_Hero_Haymaker.A_Hero_Haymaker"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HitReactClip(TEXT("/Game/Art/HeroSkel/A_Hero_HitReact.A_Hero_HitReact"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> RelightClip(TEXT("/Game/Art/HeroSkel/A_Hero_Relight.A_Hero_Relight"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -122,6 +127,11 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	WalkAnim = WalkClip.Succeeded() ? WalkClip.Object : nullptr;
 	RunAnim = RunClip.Succeeded() ? RunClip.Object : nullptr;
 	JumpAnim = JumpClip.Succeeded() ? JumpClip.Object : nullptr;
+	Strike1Anim = Strike1Clip.Succeeded() ? Strike1Clip.Object : nullptr;
+	Strike2Anim = Strike2Clip.Succeeded() ? Strike2Clip.Object : nullptr;
+	HaymakerAnim = HaymakerClip.Succeeded() ? HaymakerClip.Object : nullptr;
+	HitReactAnim = HitReactClip.Succeeded() ? HitReactClip.Object : nullptr;
+	RelightAnim = RelightClip.Succeeded() ? RelightClip.Object : nullptr;
 
 	// --- Camera rig: spring arm with collision probe + lag, free orbit ---
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -617,6 +627,11 @@ void ASparkHeroCharacter::DoStrike()
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_dash.sfx_dash"));
 	OnHeroStrike(ComboBeat);
 
+	// The body acts the beat: clip fitted to the beat window (plus a little
+	// follow-through into recovery) — fighting-game speed from library clips.
+	UAnimSequence* StrikeClip = bHeavy ? HaymakerAnim : (ComboBeat == 1 ? Strike2Anim : Strike1Anim);
+	PlayActionClip(StrikeClip, Duration * 1.35f);
+
 	GetWorldTimerManager().SetTimer(StrikeHitTimerHandle, this, &ASparkHeroCharacter::StrikeHitCheck,
 	                                Duration * 0.45f, false);
 	GetWorldTimerManager().SetTimer(StrikeTimerHandle, this, &ASparkHeroCharacter::EndStrike,
@@ -669,6 +684,7 @@ void ASparkHeroCharacter::EndStrike()
 		ComboBeat = 0;
 		bStrikeQueued = false;
 		ComboCooldownUntil = Now() + StrikeComboCooldown;
+		EndActionClip();                              // string over — body back to locomotion
 	}
 	else
 	{
@@ -678,7 +694,32 @@ void ASparkHeroCharacter::EndStrike()
 			bStrikeQueued = false;
 			DoStrike();                               // the chained beat fires immediately
 		}
+		else
+		{
+			EndActionClip();                          // string broken — resume locomotion
+		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Action-override animation layer: one-shot clips take the body, the locomotion
+// state machine waits, then resumes through the None sentinel.
+// ---------------------------------------------------------------------------
+void ASparkHeroCharacter::PlayActionClip(UAnimSequence* Clip, float FitDuration)
+{
+	if (!bHasSkeletalModel || !Clip || !SkelBody) { return; }
+	bActionAnimActive = true;
+	SkelBody->PlayAnimation(Clip, false);
+	const float Rate = Clip->GetPlayLength() / FMath::Max(FitDuration, 0.05f);
+	SkelBody->SetPlayRate(FMath::Clamp(Rate, 0.5f, 5.f));
+}
+
+void ASparkHeroCharacter::EndActionClip()
+{
+	if (!bActionAnimActive) { return; }
+	bActionAnimActive = false;
+	if (SkelBody) { SkelBody->SetPlayRate(1.f); }
+	AnimState = EHeroAnimState::None;                 // force a fresh locomotion pick
 }
 
 // ---------------------------------------------------------------------------
@@ -716,6 +757,14 @@ void ASparkHeroCharacter::TakeEmberHit(float Embers)
 	{
 		PlayShake(USparkLandShake::StaticClass());
 		OnHeroEmberHit(EmberMeter->GetFraction());
+
+		// The body flinches (interrupting any strike mid-swing — getting hit hurts).
+		if (HitReactAnim)
+		{
+			PlayActionClip(HitReactAnim, 0.5f);
+			GetWorldTimerManager().SetTimer(HitReactTimerHandle, this,
+			                                &ASparkHeroCharacter::EndActionClip, 0.5f, false);
+		}
 	}
 }
 
@@ -827,6 +876,8 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 // on transition so PlayAnimation never restarts a clip mid-loop.
 void ASparkHeroCharacter::UpdateHeroAnimation()
 {
+	if (bActionAnimActive) { return; }   // a one-shot (strike/flinch) owns the body
+
 	const UCharacterMovementComponent* Move = GetCharacterMovement();
 	const float GroundSpeed = static_cast<float>(Move->Velocity.Size2D());
 
