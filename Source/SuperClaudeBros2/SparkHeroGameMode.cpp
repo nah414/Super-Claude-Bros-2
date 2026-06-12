@@ -7,6 +7,8 @@
 #include "SparkHeroineCharacter.h"
 
 #include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+#include "Framework/Application/SlateApplication.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "HAL/PlatformMisc.h"
 #include "Kismet/GameplayStatics.h"
@@ -35,6 +37,31 @@ UClass* ASparkHeroGameMode::GetDefaultPawnClassForController_Implementation(ACon
 void ASparkHeroGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// -game windowed launches can come up WITHOUT keyboard focus (the Live
+	// Coding console spawns right after the game window and steals it) — the
+	// game then looks completely frozen: every key dead, mouse ignored (Adam's
+	// June 12 report). Claim focus OURSELVES, twice: now, and again after the
+	// late-arriving thief has come and gone. Clicking must never be required.
+	auto ClaimFocus = [this]()
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			FInputModeGameOnly Mode;
+			Mode.SetConsumeCaptureMouseDown(false);
+			PC->SetInputMode(Mode);
+			PC->bShowMouseCursor = false;
+			PC->FlushPressedKeys();
+		}
+		if (GEngine && GEngine->GameViewport && FSlateApplication::IsInitialized())
+		{
+			GEngine->GameViewport->GetWindow()->BringToFront(true);
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+		}
+	};
+	ClaimFocus();
+	FTimerHandle FocusTimer;
+	GetWorldTimerManager().SetTimer(FocusTimer, ClaimFocus, 1.0f, false);
 
 	// Per-map ambience + music (loop flags set on the SoundWave assets at import;
 	// all optional — the game runs silently before the audio pack is imported).

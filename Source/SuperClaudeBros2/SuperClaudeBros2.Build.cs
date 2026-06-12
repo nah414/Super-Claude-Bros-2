@@ -13,7 +13,9 @@ public class SuperClaudeBros2 : ModuleRules
 			"Engine",
 			"InputCore",
 			"EnhancedInput",
-			"EngineCameras"   // PerlinNoiseCameraShakePattern (UE 5.7: lives in the EngineCameras plugin)
+			"EngineCameras",  // PerlinNoiseCameraShakePattern (UE 5.7: lives in the EngineCameras plugin)
+			"Slate",          // focus-claim fix: -game windows can launch input-deaf
+			"SlateCore"
 		});
 	}
 }
