@@ -242,8 +242,8 @@ void ASparkHeroCharacter::BeginPlay()
 	// player into a spectator pawn instead of the hero).
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(1, 10.f, FColor::Orange,
-			FString::Printf(TEXT("SPARK HERO L%d  |  WASD run  SPACE jump(x2)  SHIFT dash  LMB strike(x3 / hold=CHARGED)  RMB burst(hold=WAVE)  Q guard  CTRL crouch/fast-fall  WHEEL zoom"), PowerLevel));
+		GEngine->AddOnScreenDebugMessage(1, 12.f, FColor::Orange,
+			FString::Printf(TEXT("SPARK HERO L%d  |  LMB power(hold=WAVE)  RMB strike(x3/hold=CHARGED)  Q guard  SPACE jump x2  SHIFT dash  C/CTRL crouch  air+push wall=CLIMB  WHEEL zoom"), PowerLevel));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -420,18 +420,19 @@ void ASparkHeroCharacter::BuildInputObjects()
 	MappingContext->MapKey(DashAction, EKeys::LeftShift);
 	MappingContext->MapKey(DashAction, EKeys::Gamepad_FaceButton_Left);
 
-	// Strike: the mouse button Adam reserved for combat on day one, finally spent.
-	MappingContext->MapKey(StrikeAction, EKeys::LeftMouseButton);
-	MappingContext->MapKey(StrikeAction, EKeys::Gamepad_FaceButton_Right);
-
-	// Powers: the OTHER reserved mouse button. Tap = Prism Burst, hold = Beacon Wave.
-	MappingContext->MapKey(PowerAction, EKeys::RightMouseButton);
+	// Adam's layout: LEFT click = SUPERPOWERS (tap = Prism Burst, hold = Beacon
+	// Wave); RIGHT click = strikes (tap = combo, hold = Charged Haymaker).
+	MappingContext->MapKey(PowerAction, EKeys::LeftMouseButton);
 	MappingContext->MapKey(PowerAction, EKeys::Gamepad_RightTrigger);
+
+	MappingContext->MapKey(StrikeAction, EKeys::RightMouseButton);
+	MappingContext->MapKey(StrikeAction, EKeys::Gamepad_FaceButton_Right);
 
 	// Ember Guard: the flame armors itself.
 	MappingContext->MapKey(GuardAction, EKeys::Q);
 	MappingContext->MapKey(GuardAction, EKeys::Gamepad_LeftShoulder);
 	MappingContext->MapKey(FastFallAction, EKeys::LeftControl);
+	MappingContext->MapKey(FastFallAction, EKeys::C);   // crouch's second home
 	MappingContext->MapKey(FastFallAction, EKeys::Gamepad_RightShoulder);
 
 	// Quit: Esc (the game window must always be escapable).
@@ -506,6 +507,17 @@ void ASparkHeroCharacter::HandleMove(const FInputActionValue& Value)
 	{
 		LastWorldMoveInput = WorldInput.GetSafeNormal();
 	}
+
+	// Climbing remaps the stick: forward/back = up/down the wall, sideways = strafe.
+	if (bClimbing)
+	{
+		const FVector AlongWall = FVector::CrossProduct(FVector::UpVector, ClimbWallNormal);
+		AddMovementInput(FVector::UpVector, Axis.Y);
+		AddMovementInput(AlongWall, Axis.X);
+		AddMovementInput(-ClimbWallNormal, 0.3f);   // hug the surface
+		return;
+	}
+
 	if (!bIsDashing) // dashing owns velocity for its duration
 	{
 		AddMovementInput(Forward, Axis.Y);
@@ -543,6 +555,20 @@ void ASparkHeroCharacter::HandleJumpPressed()
 
 void ASparkHeroCharacter::TryJump()
 {
+	// Climbing: jump = the WALL LEAP — kick away and up, fresh air resources.
+	if (bClimbing)
+	{
+		const FVector Away = ClimbWallNormal;
+		StopClimb();
+		LaunchCharacter(Away * WallLeapAway + FVector(0.f, 0.f, WallLeapUp), true, true);
+		AirJumpsRemaining = MaxAirJumps;
+		AirDashesRemaining = MaxAirDashes;
+		ApplySquash(JumpStretch);
+		PlaySfx(TEXT("/Game/Art/Audio/sfx_jump.sfx_jump"));
+		OnHeroJumped(false);
+		return;
+	}
+
 	UCharacterMovementComponent* Move = GetCharacterMovement();
 	const bool bGrounded = Move->IsMovingOnGround();
 	const bool bInCoyote = !bCoyoteConsumed && (Now() - LastGroundedTime) <= CoyoteTime;
@@ -624,6 +650,7 @@ void ASparkHeroCharacter::Landed(const FHitResult& Hit)
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::HandleDashPressed()
 {
+	if (bClimbing) { return; }   // jump leaves the wall, dash doesn't
 	if (bIsDashing) { return; }
 	if ((Now() - LastDashEndTime) < DashCooldown) { return; }
 
@@ -678,6 +705,7 @@ void ASparkHeroCharacter::EndDash()
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::HandleStrikePressed()
 {
+	if (bClimbing) { return; }                        // both hands are busy
 	if (bIsDashing) { return; }                       // the dash owns its moment
 	if (Now() < ComboCooldownUntil) { return; }       // post-haymaker breather
 	if (bStriking) { bStrikeQueued = true; return; }  // chain the next beat
@@ -821,6 +849,49 @@ void ASparkHeroCharacter::EndStrike()
 			EndActionClip();                          // string broken — resume locomotion
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Climb: the squid grips the wall. Press toward a surface while airborne to
+// cling; stick = up/down/strafe; jump = the wall leap. (GRIPPABLE-material-only
+// once the W3 tags land — bClimbAnywhere is the interim law.)
+// ---------------------------------------------------------------------------
+void ASparkHeroCharacter::TryStartClimb()
+{
+	if (LastWorldMoveInput.IsNearlyZero()) { return; }
+
+	FHitResult WallHit;
+	FCollisionQueryParams Params(TEXT("ClimbGrab"), false, this);
+	const FVector Start = GetActorLocation();
+	const float Reach = GetCapsuleComponent()->GetScaledCapsuleRadius() + ClimbCheckDistance;
+	if (!GetWorld()->LineTraceSingleByChannel(WallHit, Start,
+			Start + LastWorldMoveInput * Reach, ECC_Visibility, Params))
+	{
+		return;
+	}
+	if (FMath::Abs(WallHit.ImpactNormal.Z) > 0.4f) { return; }       // walls only, not ramps
+	if (FVector::DotProduct(LastWorldMoveInput, WallHit.ImpactNormal) > -0.5f) { return; }
+
+	bClimbing = true;
+	ClimbWallNormal = WallHit.ImpactNormal;
+
+	UCharacterMovementComponent* Move = GetCharacterMovement();
+	Move->SetMovementMode(MOVE_Flying);
+	Move->MaxFlySpeed = ClimbSpeed;
+	Move->BrakingDecelerationFlying = 2048.f;
+	Move->GravityScale = 0.f;
+	Move->Velocity = FVector::ZeroVector;
+	SetActorRotation(FRotationMatrix::MakeFromX(-ClimbWallNormal).Rotator());
+}
+
+void ASparkHeroCharacter::StopClimb()
+{
+	if (!bClimbing) { return; }
+	bClimbing = false;
+	UCharacterMovementComponent* Move = GetCharacterMovement();
+	Move->SetMovementMode(MOVE_Falling);
+	Move->GravityScale = bFastFalling ? FastFallGravityScale : BaseGravityScale;
+	AnimState = EHeroAnimState::None;   // re-pick locomotion
 }
 
 // ---------------------------------------------------------------------------
@@ -1010,10 +1081,16 @@ void ASparkHeroCharacter::FellOutOfWorld(const UDamageType& DmgType)
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::HandleFastFallPressed()
 {
-	// One button, two verbs: CTRL crouches on the ground, fast-falls in the air.
+	// One button, two verbs: CTRL/C crouches on the ground, fast-falls in the air.
+	if (bClimbing) { StopClimb(); return; }   // let go of the wall
 	if (GetCharacterMovement()->IsMovingOnGround())
 	{
-		if (!bIsDashing) { Crouch(); }
+		if (!bIsDashing)
+		{
+			Crouch();
+			UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: crouch requested (CanCrouch=%d, bIsCrouched=%d)"),
+				CanCrouch() ? 1 : 0, bIsCrouched ? 1 : 0);
+		}
 		return;
 	}
 	if (bIsDashing) { return; }
@@ -1069,13 +1146,41 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 
 	// Track the last moment we stood on ground (coyote time reads this), and the
 	// last solid spot we stood on (the respawn point — checkpointing-lite).
+	// Air resources restore here too — landing isn't the only way to be grounded
+	// (walking off a ledge used to silently eat the double jump: Adam's bug report).
 	if (Move->IsMovingOnGround())
 	{
 		LastGroundedTime = Now();
 		bCoyoteConsumed = false;
+		AirJumpsRemaining = MaxAirJumps;
+		AirDashesRemaining = MaxAirDashes;
 		SafeGroundLocation = GetActorLocation();
 	}
 	PrevTickVelZ = Move->Velocity.Z;
+
+	// Climb maintenance + entry: pressing toward a nearby wall while airborne
+	// grabs it (the squid speaks to surfaces; GRIPPABLE-only once W3 tags land).
+	if (bClimbing)
+	{
+		FHitResult WallHit;
+		FCollisionQueryParams ClimbParams(TEXT("ClimbHold"), false, this);
+		const FVector Start = GetActorLocation();
+		const float Reach = GetCapsuleComponent()->GetScaledCapsuleRadius() + ClimbCheckDistance + 10.f;
+		const bool bWallStillThere = GetWorld()->LineTraceSingleByChannel(
+			WallHit, Start, Start - ClimbWallNormal * Reach, ECC_Visibility, ClimbParams);
+		if (!bWallStillThere || Move->IsMovingOnGround())
+		{
+			StopClimb();
+		}
+		else
+		{
+			ClimbWallNormal = WallHit.ImpactNormal;
+		}
+	}
+	else if (!Move->IsMovingOnGround() && !bIsDashing && bClimbAnywhere)
+	{
+		TryStartClimb();
+	}
 
 	// Keep live-tuned values flowing into the movement component (editor tuning).
 	Move->MaxWalkSpeed = MaxRunSpeed;
@@ -1134,7 +1239,11 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 	const float GroundSpeed = static_cast<float>(Move->Velocity.Size2D());
 
 	EHeroAnimState Desired;
-	if (!Move->IsMovingOnGround())
+	if (bClimbing)
+	{
+		Desired = EHeroAnimState::Climb;
+	}
+	else if (!Move->IsMovingOnGround())
 	{
 		Desired = EHeroAnimState::Jump;
 	}
@@ -1174,6 +1283,13 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 			if (CrouchAnim)
 			{
 				SkelBody->PlayAnimation(CrouchAnim, true);   // cautious sway, looped
+			}
+			break;
+		case EHeroAnimState::Climb:
+			if (CrouchAnim)
+			{
+				SkelBody->PlayAnimation(CrouchAnim, true);   // crawl reads as climb
+				SkelBody->SetPlayRate(0.8f);                 // (proper climb clip queued)
 			}
 			break;
 		case EHeroAnimState::Run:

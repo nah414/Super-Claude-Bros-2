@@ -171,6 +171,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Crouch")
 	float CrouchSpeed = 260.f;
 
+	// ---------------- Climb (Adam's round-4 verb: "our Hero's need to climb") ----------------
+	/** Vertical/lateral speed while clinging to a wall. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float ClimbSpeed = 220.f;
+
+	/** How far past the capsule we probe for a climbable wall. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float ClimbCheckDistance = 24.f;
+
+	/** Wall-leap: jump while climbing kicks away from the wall and up. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float WallLeapAway = 500.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float WallLeapUp = 700.f;
+
+	/** TEMP: any wall climbs until the W3 GRIPPABLE material tags land — then this
+	    flips false and only bark/vine/rope/cable-class surfaces speak squid. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	bool bClimbAnywhere = true;
+
 	// ---------------- THE SPARK SURGE KIT (Powers Codex §2 — Adam: build the FULL
 	// hero now, stage per-world later) ----------------
 	/** The 1–10 staging gate. L1 verbs+combo · L2 Spark Aura · L3 Charged Haymaker ·
@@ -312,6 +333,9 @@ public:
 	/** Staging gate check — the whole kit reads through this. */
 	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
 	bool HasPowerLevel(int32 Level) const { return PowerLevel >= Level; }
+
+	UFUNCTION(BlueprintPure, Category = "SparkHero")
+	bool IsClimbing() const { return bClimbing; }
 
 	/** L2+ and the flame is lit: the Spark Aura calms wild things (read by fauna). */
 	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
@@ -495,7 +519,7 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> CrouchAnim;
 	bool bHasSkeletalModel = false;
 
-	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump, Crouch };
+	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump, Crouch, Climb };
 	EHeroAnimState AnimState = EHeroAnimState::None;
 	void UpdateHeroAnimation();
 
@@ -512,6 +536,12 @@ private:
 	FVector SpawnLocation = FVector::ZeroVector;     // the level's PlayerStart
 	FRotator SpawnRotation = FRotator::ZeroRotator;
 	FVector SafeGroundLocation = FVector::ZeroVector; // last spot we truly stood on
+
+	// Climb state
+	void TryStartClimb();
+	void StopClimb();
+	bool bClimbing = false;
+	FVector ClimbWallNormal = FVector::ForwardVector;
 
 	// Misc state
 	float ZoomMultiplier = 1.f;                          // mouse-wheel camera zoom
