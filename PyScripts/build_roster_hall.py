@@ -124,6 +124,16 @@ try:
 except Exception as e:
     print(f"LIVE_STALKER_SKIPPED: {e}")
 
+# ---- a LIVE BRAMBLEHULK (the SOOTHE boss — asleep in the SE corner) ----
+try:
+    hulk_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.Bramblehulk")
+    bh = eas.spawn_actor_from_class(hulk_cls, unreal.Vector(2500, -2400, 120))
+    bh.set_actor_rotation(unreal.Rotator(0.0, 0.0, 135.0), False)
+    bh.set_actor_label("LiveBramblehulk")
+    print("LIVE_BRAMBLE_PLACED")
+except Exception as e:
+    print(f"LIVE_BRAMBLE_SKIPPED: {e}")
+
 # ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
 # Both playable heroes stand front-center, breathing their idle clips, so a
 # walk through the Hall always shows the true current state of every rig.

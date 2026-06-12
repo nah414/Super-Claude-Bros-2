@@ -1,4 +1,5 @@
 #include "SparkHeroGameMode.h"
+#include "Bramblehulk.h"
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
 #include "VoidStalker.h"
@@ -140,6 +141,23 @@ void ASparkHeroGameMode::BeginPlay()
 				{
 					Stalker->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2BrambleNear: the sleeping hill wakes on camera.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2BrambleNear")))
+		{
+			FTimerHandle BrambleTimer;
+			GetWorldTimerManager().SetTimer(BrambleTimer, [this]()
+			{
+				ABramblehulk* Hulk = Cast<ABramblehulk>(
+					UGameplayStatics::GetActorOfClass(this, ABramblehulk::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Hulk && Pawn)
+				{
+					Hulk->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 430.f + FVector(0.f, 0.f, 50.f));
 				}
 			}, 1.0f, false);
 		}

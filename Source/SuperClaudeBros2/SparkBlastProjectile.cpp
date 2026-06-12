@@ -4,6 +4,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
+#include "Bramblehulk.h"
 #include "EmberReaver.h"
 #include "GlimmerEnemy.h"
 #include "KrakenBoss.h"
@@ -118,7 +119,7 @@ void ASparkBlastProjectile::OnBlastOverlap(UPrimitiveComponent*, AActor* OtherAc
 		Destroy();
 	}
 	else if (Cast<AKrakenBoss>(OtherActor) || Cast<AEmberReaver>(OtherActor)
-	         || Cast<AVoidStalker>(OtherActor))
+	         || Cast<AVoidStalker>(OtherActor) || Cast<ABramblehulk>(OtherActor))
 	{
 		// Duels are a rhythm game, not target practice: bolts SPLASH on rivals
 		// (no meter damage) — but the contact still SHOWS.

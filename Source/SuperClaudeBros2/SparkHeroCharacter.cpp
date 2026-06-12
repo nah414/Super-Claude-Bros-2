@@ -17,6 +17,7 @@
 #include "KrakenBoss.h"
 #include "EmberReaver.h"
 #include "VoidStalker.h"
+#include "Bramblehulk.h"
 #include "SparkImpactBurst.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -950,6 +951,13 @@ void ASparkHeroCharacter::StrikeHitCheck()
 			OnHeroStrikeHit(Stalker, ComboBeat);
 			bThisOneHit = true;
 		}
+		// COLOSSUS CLANG: the Bramblehulk cannot be punched — stone refuses the
+		// fist and the striker rebounds (he spawns his own clang spark).
+		else if (ABramblehulk* Hulk = Cast<ABramblehulk>(Hit.GetActor()))
+		{
+			Hulk->TakeStrikeClang(this, bChargedStrike);
+			bConnected = true;   // the shake plays; the amber hit-burst does not
+		}
 		if (bThisOneHit)
 		{
 			bConnected = true;
@@ -1150,6 +1158,10 @@ void ASparkHeroCharacter::DoBeaconWave()
 		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
 		{
 			Glimmer->TakeStagger(BurstStagger * 1.5f);
+		}
+		else if (ABramblehulk* Hulk = Cast<ABramblehulk>(Hit.GetActor()))
+		{
+			Hulk->AddCalm(Hulk->WaveCalmBonus);   // light reaches the storm's heart
 		}
 	}
 	// TODO(M0.2): ILightResponsive sweep — relight every lantern in WaveRadius.
