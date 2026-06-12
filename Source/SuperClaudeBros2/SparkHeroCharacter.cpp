@@ -209,7 +209,9 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	PulseLight->SetLightColor(FColor(255, 170, 70));
 	PulseLight->SetCastShadows(false);
 
-	// --- Ember Guard's ring of fire: ten orbs, hidden until the guard burns ---
+	// --- Ember Guard's ring of fire: CONE flame-licks (flames are cones, not
+	// balls — Adam round 9), hidden until the guard burns ---
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
 	GuardFlames.Reserve(10);
 	for (int32 i = 0; i < 10; ++i)
 	{
@@ -217,11 +219,15 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 			*FString::Printf(TEXT("GuardFlame%d"), i));
 		Orb->SetupAttachment(RootComponent);
 		Orb->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		if (SphereMesh.Succeeded())
+		if (ConeMesh.Succeeded())
+		{
+			Orb->SetStaticMesh(ConeMesh.Object);   // a lick of flame, pointed skyward
+		}
+		else if (SphereMesh.Succeeded())
 		{
 			Orb->SetStaticMesh(SphereMesh.Object);
 		}
-		Orb->SetRelativeScale3D(FVector(0.12f));
+		Orb->SetRelativeScale3D(FVector(0.14f));
 		Orb->SetCastShadow(false);
 		Orb->SetVisibility(false);
 		GuardFlames.Add(Orb);

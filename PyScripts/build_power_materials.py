@@ -46,7 +46,35 @@ tint.set_editor_property("default_value", unreal.LinearColor(1.0, 1.0, 1.0, 1.0)
 mult = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -220, 0)
 ok.append(("multA", mel.connect_material_expressions(lerp, "", mult, "A")))
 ok.append(("multB", mel.connect_material_expressions(tint, "", mult, "B")))
-ok.append(("emissive", mel.connect_material_property(mult, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)))
+
+# --- TURBULENCE (round 9): plasma ROILS. World-space noise scrolled by time
+# (drifting downward so flames appear to rise) modulates the brightness. ---
+wpos = mel.create_material_expression(mat, unreal.MaterialExpressionWorldPosition, -950, 350)
+time = mel.create_material_expression(mat, unreal.MaterialExpressionTime, -950, 480)
+drift = mel.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -950, 560)
+drift.set_editor_property("constant", unreal.LinearColor(40.0, 25.0, -160.0, 0.0))
+tmul = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -760, 480)
+ok.append(("tmulA", mel.connect_material_expressions(time, "", tmul, "A")))
+ok.append(("tmulB", mel.connect_material_expressions(drift, "", tmul, "B")))
+padd = mel.create_material_expression(mat, unreal.MaterialExpressionAdd, -600, 400)
+ok.append(("paddA", mel.connect_material_expressions(wpos, "", padd, "A")))
+ok.append(("paddB", mel.connect_material_expressions(tmul, "", padd, "B")))
+noise = mel.create_material_expression(mat, unreal.MaterialExpressionNoise, -450, 400)
+noise.set_editor_property("scale", 0.035)
+noise.set_editor_property("turbulence", True)
+noise.set_editor_property("levels", 3)
+noise.set_editor_property("output_min", 0.45)
+noise.set_editor_property("output_max", 1.45)
+# Position pin name varies by version; try both, and if neither sticks the node
+# falls back to raw world position — moving effects still roil (meshes travel
+# through the static noise field), only perfectly-stationary glow sits still.
+pos_ok = mel.connect_material_expressions(padd, "", noise, "Position") \
+      or mel.connect_material_expressions(padd, "", noise, "")
+print(f"CONNECT noisePos: {pos_ok} (optional — world-position fallback is fine)")
+roil = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -80, 100)
+ok.append(("roilA", mel.connect_material_expressions(mult, "", roil, "A")))
+ok.append(("roilB", mel.connect_material_expressions(noise, "", roil, "B")))
+ok.append(("emissive", mel.connect_material_property(roil, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)))
 
 for name, good in ok:
     print(f"CONNECT {name}: {good}")
