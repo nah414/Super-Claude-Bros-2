@@ -88,6 +88,13 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UPointLightComponent> GuardLight;
 
+	/** The forged additive plasma material (built by build_power_materials.py). */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> PlasmaMaterial;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> GuardFlameMIDs;
+
 	// ---------------- Movement feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Movement")
 	float MaxRunSpeed = 650.f;

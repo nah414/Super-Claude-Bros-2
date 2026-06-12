@@ -37,6 +37,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Blast")
 	float BlastSpeed = 1500.f;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> PlasmaMaterial;
+
 protected:
 	virtual void BeginPlay() override;
 

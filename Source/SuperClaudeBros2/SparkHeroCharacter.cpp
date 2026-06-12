@@ -232,6 +232,9 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	GuardLight->SetAttenuationRadius(420.f);
 	GuardLight->SetLightColor(FColor(255, 140, 50));
 	GuardLight->SetCastShadows(false);
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Plasma(TEXT("/Game/Art/FX/M_SparkPlasma.M_SparkPlasma"));
+	PlasmaMaterial = Plasma.Succeeded() ? Plasma.Object : nullptr;
 }
 
 float ASparkHeroCharacter::Now() const
@@ -390,22 +393,24 @@ void ASparkHeroCharacter::BeginPlay()
 		EmberMeter->OnFlameOut.AddDynamic(this, &ASparkHeroCharacter::HandleFlameOut);
 	}
 
-	// Amber tints for the power visuals (disc + the guard's fire orbs).
-	if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
-			nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+	// Plasma dress for the power visuals: glowing additive material everywhere,
+	// per-flame MIDs so the fire can FLICKER through its own tint (round 7).
+	GuardFlameMIDs.Empty();
+	if (PlasmaMaterial)
 	{
 		if (PulseDisc)
 		{
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
-			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.62f, 0.18f));
-			PulseDisc->SetMaterial(0, MID);
+			if (UMaterialInstanceDynamic* MID = PulseDisc->CreateDynamicMaterialInstance(0, PlasmaMaterial))
+			{
+				MID->SetVectorParameterValue(TEXT("Tint"), FLinearColor(2.0f, 0.85f, 0.22f));
+			}
 		}
 		for (UStaticMeshComponent* Orb : GuardFlames)
 		{
 			if (!Orb) { continue; }
-			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
-			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.45f, 0.08f));
-			Orb->SetMaterial(0, MID);
+			UMaterialInstanceDynamic* MID = Orb->CreateDynamicMaterialInstance(0, PlasmaMaterial);
+			if (MID) { MID->SetVectorParameterValue(TEXT("Tint"), FLinearColor(2.4f, 0.6f, 0.06f)); }
+			GuardFlameMIDs.Add(MID);
 		}
 	}
 
@@ -1337,8 +1342,10 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		UpdateHeroAnimation();
 	}
 
-	// Ember Guard's ring of fire: orbs orbit, bob, and flicker while it burns.
+	// Ember Guard's RING OF FIRE: plasma licks orbit, bob, stretch, and flicker
+	// in both shape AND brightness while it burns; a glowing ground ring beneath.
 	const bool bGuardBurning = Now() < GuardVisualUntil;
+	const bool bPulseRunning = Now() < PulseStartTime + PulseDuration;
 	if (bGuardBurning || (GuardLight && GuardLight->Intensity > 0.f))
 	{
 		const float T = Now();
@@ -1348,13 +1355,31 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 			if (!Orb) { continue; }
 			Orb->SetVisibility(bGuardBurning);
 			if (!bGuardBurning) { continue; }
-			const float Angle = FMath::DegreesToRadians(i * 36.f) + T * 2.6f;   // the ring spins
-			const float Bob = 10.f * FMath::Sin(T * 5.f + i * 1.7f);
-			const float Flick = 0.10f + 0.04f * FMath::Sin(T * 11.f + i * 2.3f);
-			Orb->SetRelativeLocation(FVector(FMath::Cos(Angle) * 110.f,
-			                                 FMath::Sin(Angle) * 110.f,
-			                                 -30.f + Bob));
-			Orb->SetRelativeScale3D(FVector(Flick, Flick, Flick * 1.8f));        // tall licks of flame
+			const float Angle = FMath::DegreesToRadians(i * 36.f) + T * 2.8f;   // the ring spins
+			const float Bob = 12.f * FMath::Sin(T * 5.f + i * 1.7f);
+			const float Flick = 0.11f + 0.05f * FMath::Sin(T * 11.f + i * 2.3f);
+			const float Lick = 2.0f + 0.9f * FMath::Sin(T * 13.f + i * 3.1f);   // flames LICK upward
+			Orb->SetRelativeLocation(FVector(FMath::Cos(Angle) * 105.f,
+			                                 FMath::Sin(Angle) * 105.f,
+			                                 -34.f + Bob));
+			Orb->SetRelativeScale3D(FVector(Flick, Flick, Flick * Lick));
+			if (GuardFlameMIDs.IsValidIndex(i) && GuardFlameMIDs[i])
+			{
+				const float Heat = 0.7f + 0.5f * FMath::Sin(T * 17.f + i * 2.9f);
+				GuardFlameMIDs[i]->SetVectorParameterValue(TEXT("Tint"),
+					FLinearColor(2.4f * Heat, 0.6f * Heat, 0.06f * Heat));
+			}
+		}
+		// The burning ground ring under the flames (when no shockwave owns the disc).
+		if (PulseDisc && !bPulseRunning)
+		{
+			PulseDisc->SetVisibility(bGuardBurning);
+			if (bGuardBurning)
+			{
+				const float FootZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 3.f;
+				PulseDisc->SetRelativeLocation(FVector(0.f, 0.f, FootZ));
+				PulseDisc->SetRelativeScale3D(FVector(2.4f, 2.4f, 0.025f));
+			}
 		}
 		if (GuardLight)
 		{

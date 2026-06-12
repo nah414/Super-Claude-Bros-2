@@ -22,6 +22,9 @@ ASparkBlastProjectile::ASparkBlastProjectile()
 	SetRootComponent(Collision);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Plasma(TEXT("/Game/Art/FX/M_SparkPlasma.M_SparkPlasma"));
+	PlasmaMaterial = Plasma.Succeeded() ? Plasma.Object : nullptr;
+
 	Ball = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Ball"));
 	Ball->SetupAttachment(Collision);
 	Ball->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -29,7 +32,7 @@ ASparkBlastProjectile::ASparkBlastProjectile()
 	{
 		Ball->SetStaticMesh(SphereMesh.Object);
 	}
-	Ball->SetRelativeScale3D(FVector(0.24f));
+	Ball->SetRelativeScale3D(FVector(0.52f, 0.22f, 0.22f));   // a BOLT, stretched along flight
 	Ball->SetCastShadow(false);
 
 	Light = CreateDefaultSubobject<UPointLightComponent>(TEXT("Light"));
@@ -52,8 +55,16 @@ void ASparkBlastProjectile::BeginPlay()
 
 	Collision->OnComponentBeginOverlap.AddDynamic(this, &ASparkBlastProjectile::OnBlastOverlap);
 
-	// Hot amber tint (the engine sphere's default material has a Color param).
-	if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
+	// PLASMA: the forged additive-fresnel material — white-hot core, glowing rim,
+	// blooms under the cinematic post. Fallback to a flat amber tint if missing.
+	if (PlasmaMaterial)
+	{
+		if (UMaterialInstanceDynamic* MID = Ball->CreateDynamicMaterialInstance(0, PlasmaMaterial))
+		{
+			MID->SetVectorParameterValue(TEXT("Tint"), FLinearColor(3.0f, 2.0f, 1.1f));
+		}
+	}
+	else if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
 			nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 	{
 		UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
