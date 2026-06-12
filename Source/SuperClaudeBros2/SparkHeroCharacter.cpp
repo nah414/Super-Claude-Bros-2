@@ -188,6 +188,25 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	EmberGlow->SetSourceRadius(10.f);                          // soft area light, no hot pinprick
 	EmberGlow->SetLightColor(FColor(255, 150, 60));            // kept-fire amber (Color Law)
 	EmberGlow->SetCastShadows(false);                          // small, warm, cheap
+
+	// --- Power pulse VFX: a flat amber shockwave disc + a flash light ---
+	PulseDisc = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PulseDisc"));
+	PulseDisc->SetupAttachment(RootComponent);
+	PulseDisc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (SphereMesh.Succeeded())
+	{
+		PulseDisc->SetStaticMesh(SphereMesh.Object);
+	}
+	PulseDisc->SetRelativeScale3D(FVector(0.01f, 0.01f, 0.04f));
+	PulseDisc->SetCastShadow(false);
+	PulseDisc->SetVisibility(false);
+
+	PulseLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("PulseLight"));
+	PulseLight->SetupAttachment(RootComponent);
+	PulseLight->SetIntensity(0.f);
+	PulseLight->SetAttenuationRadius(600.f);
+	PulseLight->SetLightColor(FColor(255, 170, 70));
+	PulseLight->SetCastShadows(false);
 }
 
 float ASparkHeroCharacter::Now() const
@@ -344,6 +363,18 @@ void ASparkHeroCharacter::BeginPlay()
 	{
 		EmberMeter->RegisterFlameVisuals(EmberFlame, EmberGlow);
 		EmberMeter->OnFlameOut.AddDynamic(this, &ASparkHeroCharacter::HandleFlameOut);
+	}
+
+	// Amber tint for the power shockwave disc.
+	if (PulseDisc)
+	{
+		if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
+				nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+		{
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.62f, 0.18f));
+			PulseDisc->SetMaterial(0, MID);
+		}
 	}
 }
 
@@ -749,6 +780,7 @@ void ASparkHeroCharacter::DoChargedStrike()
 	ApplySquash(1.16f);
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_dash.sfx_dash"));
 	if (EmberMeter) { EmberMeter->FlashGlow(0.35f, 4.f); }
+	FirePulse(220.f, 0.35f, 2500.f);
 	OnHeroChargedStrike();
 	PlayActionClip(HaymakerAnim, 0.55f);
 
@@ -903,6 +935,26 @@ bool ASparkHeroCharacter::IsAuraActive() const
 	return HasPowerLevel(2) && EmberMeter && !EmberMeter->IsFlameOut();
 }
 
+// The asset-free power flash: a ground disc that races outward + a light spike.
+// Tick animates it (scale and fade) until PulseDuration runs out.
+void ASparkHeroCharacter::FirePulse(float Radius, float Duration, float LightIntensity)
+{
+	PulseStartTime = Now();
+	PulseDuration = Duration;
+	PulseTargetRadius = Radius;
+	if (PulseDisc)
+	{
+		const float FootZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 4.f;
+		PulseDisc->SetRelativeLocation(FVector(0.f, 0.f, FootZ));
+		PulseDisc->SetVisibility(true);
+	}
+	if (PulseLight)
+	{
+		PulseLight->SetAttenuationRadius(Radius * 1.3f);
+		PulseLight->SetIntensity(LightIntensity);
+	}
+}
+
 void ASparkHeroCharacter::HandlePowerPressed()
 {
 	if (!HasPowerLevel(4)) { return; }   // the burst is the kit's entry power
@@ -934,6 +986,7 @@ void ASparkHeroCharacter::DoPrismBurst()
 	BurstReadyTime = Now() + BurstCooldown;
 
 	const float Radius = BurstRadius * (HasPowerLevel(8) ? 1.3f : 1.f);
+	FirePulse(Radius, 0.45f, 5000.f);
 	if (EmberMeter) { EmberMeter->FlashGlow(0.4f, 8.f); }
 	PlayShake(USparkLandShake::StaticClass());
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_doublejump.sfx_doublejump"));
@@ -960,6 +1013,7 @@ void ASparkHeroCharacter::DoBeaconWave()
 	if (Now() < WaveReadyTime) { return; }
 	WaveReadyTime = Now() + WaveCooldown;
 
+	FirePulse(WaveRadius, 0.7f, 12000.f);
 	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 16.f); }
 	PlayShake(USparkBigLandShake::StaticClass());
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_land.sfx_land"));
@@ -989,6 +1043,7 @@ void ASparkHeroCharacter::HandleGuardPressed()
 
 	EmberMeter->ActivateGuard(HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration);
 	EmberMeter->FlashGlow(0.5f, 6.f);
+	FirePulse(160.f, 0.4f, 3000.f);
 	OnHeroEmberGuard();
 }
 
@@ -1108,15 +1163,15 @@ void ASparkHeroCharacter::HandleFastFallReleased()
 	}
 }
 
-// Crouch shrinks the capsule around its center; shift the visuals so the feet
-// stay planted (our art hangs on VisualRoot, not the stock Mesh the base class
-// adjusts).
+// Crouch shrinks the capsule and drops its center; shift the visuals so the
+// feet stay planted. ABSOLUTE positions, never deltas — the additive version
+// accumulated across crouch cycles and sank the hero permanently (Adam's bug).
 void ASparkHeroCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
 	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 	if (VisualRoot)
 	{
-		VisualRoot->AddRelativeLocation(FVector(0.f, 0.f, ScaledHalfHeightAdjust));
+		VisualRoot->SetRelativeLocation(FVector(0.f, 0.f, ScaledHalfHeightAdjust));
 	}
 }
 
@@ -1125,7 +1180,7 @@ void ASparkHeroCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHe
 	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 	if (VisualRoot)
 	{
-		VisualRoot->AddRelativeLocation(FVector(0.f, 0.f, -ScaledHalfHeightAdjust));
+		VisualRoot->SetRelativeLocation(FVector::ZeroVector);   // the one true rest pose
 	}
 }
 
@@ -1213,6 +1268,27 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 	if (bHasSkeletalModel)
 	{
 		UpdateHeroAnimation();
+	}
+
+	// Power pulse animation: the disc races outward and the flash decays.
+	if (Now() < PulseStartTime + PulseDuration)
+	{
+		const float T = (Now() - PulseStartTime) / PulseDuration;          // 0..1
+		const float Eased = 1.f - FMath::Square(1.f - T);                  // fast out
+		if (PulseDisc)
+		{
+			const float S = FMath::Max(0.02f, (PulseTargetRadius / 50.f) * Eased);
+			PulseDisc->SetRelativeScale3D(FVector(S, S, 0.04f));
+		}
+		if (PulseLight)
+		{
+			PulseLight->SetIntensity(PulseLight->Intensity * (1.f - DeltaSeconds * 3.f));
+		}
+	}
+	else if (PulseDisc && PulseDisc->IsVisible())
+	{
+		PulseDisc->SetVisibility(false);
+		if (PulseLight) { PulseLight->SetIntensity(0.f); }
 	}
 
 	// Squash & stretch spring-back.

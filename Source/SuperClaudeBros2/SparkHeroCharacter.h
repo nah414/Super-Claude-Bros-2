@@ -72,6 +72,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UPointLightComponent> EmberGlow;
 
+	/** Power VFX, asset-free: an expanding ground shockwave disc + a light flash.
+	    (The powers worked but were invisible — Adam's round-5 rendering call.) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<UStaticMeshComponent> PulseDisc;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<UPointLightComponent> PulseLight;
+
 	// ---------------- Movement feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Movement")
 	float MaxRunSpeed = 650.f;
@@ -496,6 +504,10 @@ private:
 	// Power state (the Spark Surge kit)
 	void DoPrismBurst();
 	void DoBeaconWave();
+	void FirePulse(float Radius, float Duration, float LightIntensity);
+	float PulseStartTime = -1000.f;
+	float PulseDuration = 0.45f;
+	float PulseTargetRadius = 450.f;
 	bool bChargingPower = false;
 	float PowerChargeStart = -1000.f;
 	float BurstReadyTime = -1000.f;
