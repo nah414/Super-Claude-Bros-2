@@ -1,4 +1,4 @@
-// The Iron Kraken — duel framework v1. Patterns proven elsewhere in the project:
+﻿// The Iron Kraken â€” duel framework v1. Patterns proven elsewhere in the project:
 // single-node clip state machine (hero), VisualRoot never touches the capsule
 // (house law), FObjectFinder fallbacks (everywhere), EmberMeter reuse (its own
 // header called this), knockback = LaunchCharacter (and a pull is a launch
@@ -31,7 +31,7 @@ namespace
 
 namespace
 {
-	UAnimSequence* PickClip(const ConstructorHelpers::FObjectFinder<UAnimSequence>& Finder)
+	UAnimSequence* KrakenClip(const ConstructorHelpers::FObjectFinder<UAnimSequence>& Finder)
 	{
 		return Finder.Succeeded() ? Finder.Object.Get() : nullptr;
 	}
@@ -44,7 +44,7 @@ AKrakenBoss::AKrakenBoss()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	// Champion spec said 36x76, but the visual body is far wider — the contact
+	// Champion spec said 36x76, but the visual body is far wider â€” the contact
 	// pass (Adam: "they go through each other") grows the capsule to the bulk.
 	GetCapsuleComponent()->SetCapsuleSize(54.f, 76.f);
 	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &AKrakenBoss::HandleCapsuleHit);
@@ -89,7 +89,7 @@ AKrakenBoss::AKrakenBoss()
 	GripTether->SetVisibility(false);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (Cyl.Succeeded()) { GripTether->SetStaticMesh(Cyl.Object); }
-	// NOTE: the tether's MID is created at BeginPlay — a constructor MID lives
+	// NOTE: the tether's MID is created at BeginPlay â€” a constructor MID lives
 	// on the CDO and makes every level holding a placed Kraken UNSAVABLE
 	// ("Illegal reference to private object", the June 12 Hall save failure).
 
@@ -126,16 +126,16 @@ AKrakenBoss::AKrakenBoss()
 			PlaceholderBody->SetRelativeScale3D(FVector(1.4f, 1.4f, 2.8f));
 		}
 	}
-	IdleAnim = PickClip(FIdle);
-	WalkAnim = PickClip(FWalk);
-	ChargeAnim = PickClip(FCharge);
-	SwingAnim = PickClip(FSwing);
-	SlamAnim = PickClip(FSlam);
-	GripAnim = PickClip(FGrip);
-	StaggerAnim = PickClip(FStagger);
-	HitReactAnim = PickClip(FHit);
-	DefeatAnim = PickClip(FDefeat);
-	TauntAnim = PickClip(FTaunt);
+	IdleAnim = KrakenClip(FIdle);
+	WalkAnim = KrakenClip(FWalk);
+	ChargeAnim = KrakenClip(FCharge);
+	SwingAnim = KrakenClip(FSwing);
+	SlamAnim = KrakenClip(FSlam);
+	GripAnim = KrakenClip(FGrip);
+	StaggerAnim = KrakenClip(FStagger);
+	HitReactAnim = KrakenClip(FHit);
+	DefeatAnim = KrakenClip(FDefeat);
+	TauntAnim = KrakenClip(FTaunt);
 }
 
 void AKrakenBoss::BeginPlay()
@@ -239,7 +239,7 @@ void AKrakenBoss::SelectMove(float DistToHero)
 		Move = EKrakenMove::IronGrip;
 		return;
 	}
-	// Phase rotation (spec §6.3: new move per threshold; tells stay honest).
+	// Phase rotation (spec Â§6.3: new move per threshold; tells stay honest).
 	TArray<EKrakenMove> Pool = { EKrakenMove::ShowSwing };
 	if (DistToHero > 450.f || Phase >= 2) { Pool.Add(EKrakenMove::PauldronRush); }
 	if (Phase >= 2) { Pool.Add(EKrakenMove::ChampionsSlam); }
@@ -269,7 +269,7 @@ void AKrakenBoss::StartTelegraph()
 	}
 	Tell *= TellScale();
 
-	// THE POWERS SHOW (Adam's law): the tell glows — amber steel, or the violet
+	// THE POWERS SHOW (Adam's law): the tell glows â€” amber steel, or the violet
 	// truth under the paint when the Iron Grip wakes.
 	if (TelegraphLight)
 	{
@@ -316,7 +316,7 @@ void AKrakenBoss::StartAttack()
 
 	case EKrakenMove::PauldronRush:
 	{
-		// Direction LOCKS at commit — sidestepping the line is the dodge.
+		// Direction LOCKS at commit â€” sidestepping the line is the dodge.
 		FVector Dir = Hero ? (Hero->GetActorLocation() - GetActorLocation()) : GetActorForwardVector();
 		Dir.Z = 0.f;
 		RushDirection = Dir.GetSafeNormal();
@@ -337,7 +337,7 @@ void AKrakenBoss::StartAttack()
 
 	case EKrakenMove::IronGrip:
 	{
-		// Commit check: a hero mid-dash slips the grab — dash IS the dodge.
+		// Commit check: a hero mid-dash slips the grab â€” dash IS the dodge.
 		if (Hero && !Hero->IsDashing()
 			&& FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= GripRange)
 		{
@@ -465,7 +465,7 @@ void AKrakenBoss::Landed(const FHitResult& Hit)
 	{
 		bSlamAirborne = false;
 		// THE RING SHOCK SHOWS: a wide ground flash + a second hot core + the
-		// whole world shakes — Champion mass arriving (Adam's powers law).
+		// whole world shakes â€” Champion mass arriving (Adam's powers law).
 		const FVector Feet = GetActorLocation()
 			- FVector(0.f, 0.f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight() - 12.f);
 		ASparkImpactBurst::Burst(this, Feet, FLinearColor(3.f, 1.2f, 0.3f),
@@ -477,7 +477,7 @@ void AKrakenBoss::Landed(const FHitResult& Hit)
 		}
 		if (ASparkHeroCharacter* Hero = ResolveHero())
 		{
-			// Ring shock: grounded heroes inside the ring are hit. JUMP dodges —
+			// Ring shock: grounded heroes inside the ring are hit. JUMP dodges â€”
 			// the slam teaches the first verb (and the final blow is a jump).
 			const bool bHeroGrounded = Hero->GetCharacterMovement()->IsMovingOnGround();
 			if (bHeroGrounded
@@ -493,7 +493,7 @@ void AKrakenBoss::Landed(const FHitResult& Hit)
 void AKrakenBoss::HandleCapsuleHit(UPrimitiveComponent*, AActor* OtherActor,
                                    UPrimitiveComponent*, FVector, const FHitResult&)
 {
-	// CLASH row: stomps and dashes never hurt a Champion — both bounce off.
+	// CLASH row: stomps and dashes never hurt a Champion â€” both bounce off.
 	ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(OtherActor);
 	if (!Hero || State == EKrakenState::Defeated) { return; }
 	const bool bStompTry = Hero->GetActorLocation().Z
@@ -577,7 +577,7 @@ void AKrakenBoss::Tick(float DeltaTime)
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
 
 	// SOLID-BODY LAW (Adam's contact pass): bodies never share the same ground.
-	// A hero inside his personal space gets shouldered out, gently and always —
+	// A hero inside his personal space gets shouldered out, gently and always â€”
 	// except while the Iron Grip legally owns him.
 	if (Hero && !bGripHolding && State != EKrakenState::Defeated)
 	{
@@ -594,8 +594,8 @@ void AKrakenBoss::Tick(float DeltaTime)
 		}
 	}
 
-	// Walk-away law (§6.1): past the disengage ring he stands down; the duel
-	// meter refills for the rematch — the duelist never executes, never sulks.
+	// Walk-away law (Â§6.1): past the disengage ring he stands down; the duel
+	// meter refills for the rematch â€” the duelist never executes, never sulks.
 	if (State != EKrakenState::Waiting && Dist > DisengageRadius)
 	{
 		DuelMeter->RefillFull();
@@ -641,7 +641,7 @@ void AKrakenBoss::Tick(float DeltaTime)
 	}
 
 	case EKrakenState::Telegraph:
-		if (Hero) { FaceHero(Hero, DeltaTime); }   // tells track — dodging is timing, not strafing
+		if (Hero) { FaceHero(Hero, DeltaTime); }   // tells track â€” dodging is timing, not strafing
 		// The tell GLOWS, pulsing faster as the strike arrives (readable danger).
 		if (TelegraphLight)
 		{
@@ -697,3 +697,4 @@ void AKrakenBoss::Tick(float DeltaTime)
 		break;
 	}
 }
+

@@ -1,6 +1,7 @@
 #include "SparkHeroGameMode.h"
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
+#include "VoidStalker.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
 
@@ -121,6 +122,23 @@ void ASparkHeroGameMode::BeginPlay()
 				if (Reaver && Pawn)
 				{
 					Reaver->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2StalkerNear: rival #3's blink wants a camera too.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2StalkerNear")))
+		{
+			FTimerHandle StalkerTimer;
+			GetWorldTimerManager().SetTimer(StalkerTimer, [this]()
+			{
+				AVoidStalker* Stalker = Cast<AVoidStalker>(
+					UGameplayStatics::GetActorOfClass(this, AVoidStalker::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Stalker && Pawn)
+				{
+					Stalker->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);

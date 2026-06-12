@@ -1,4 +1,4 @@
-// The Ember Reaver — duel framework, second voice. Same proven skeleton as the
+﻿// The Ember Reaver â€” duel framework, second voice. Same proven skeleton as the
 // Kraken (concrete on purpose; base extraction at rival #3), different soul:
 // speed instead of mass, fire instead of grip, geometry instead of patterns.
 
@@ -24,7 +24,7 @@ namespace
 {
 	const FLinearColor ReaverEmber(3.0f, 0.42f, 0.1f);   // crimson fire, his own voice
 
-	UAnimSequence* PickClip(const ConstructorHelpers::FObjectFinder<UAnimSequence>& Finder)
+	UAnimSequence* ReaverClip(const ConstructorHelpers::FObjectFinder<UAnimSequence>& Finder)
 	{
 		return Finder.Succeeded() ? Finder.Object.Get() : nullptr;
 	}
@@ -97,15 +97,15 @@ AEmberReaver::AEmberReaver()
 			PlaceholderBody->SetRelativeScale3D(FVector(1.1f, 1.1f, 2.6f));
 		}
 	}
-	IdleAnim = PickClip(FIdle);
-	RunAnim = PickClip(FRun);
-	SlashAnim = PickClip(FSlash);
-	DashAnim = PickClip(FDash);
-	FlurryAnim = PickClip(FFlurry);
-	StaggerAnim = PickClip(FStagger);
-	HitReactAnim = PickClip(FHit);
-	DefeatAnim = PickClip(FDefeat);
-	TauntAnim = PickClip(FTaunt);
+	IdleAnim = ReaverClip(FIdle);
+	RunAnim = ReaverClip(FRun);
+	SlashAnim = ReaverClip(FSlash);
+	DashAnim = ReaverClip(FDash);
+	FlurryAnim = ReaverClip(FFlurry);
+	StaggerAnim = ReaverClip(FStagger);
+	HitReactAnim = ReaverClip(FHit);
+	DefeatAnim = ReaverClip(FDefeat);
+	TauntAnim = ReaverClip(FTaunt);
 }
 
 void AEmberReaver::BeginPlay()
@@ -174,7 +174,7 @@ void AEmberReaver::FaceHero(const ASparkHeroCharacter* Hero, float DeltaTime)
 
 void AEmberReaver::SelectMove(float DistToHero)
 {
-	// Phase rotation: the dash is his SIGNATURE — it debuts in phase 1 (villains
+	// Phase rotation: the dash is his SIGNATURE â€” it debuts in phase 1 (villains
 	// own their full kit from the first bell; phases change pressure, not kit).
 	TArray<EReaverMove> Pool = { EReaverMove::FeintSlash, EReaverMove::EmberDash };
 	if (Phase >= 2) { Pool.Add(EReaverMove::CrossingFlurry); }
@@ -217,7 +217,7 @@ void AEmberReaver::StartTelegraph()
 
 void AEmberReaver::StartDashLeg(const ASparkHeroCharacter* Hero)
 {
-	// He crosses THROUGH where you stand — the dodge is to move, the lesson is
+	// He crosses THROUGH where you stand â€” the dodge is to move, the lesson is
 	// that where he ran is now on fire.
 	FVector Target = Hero
 		? Hero->GetActorLocation() + (Hero->GetActorLocation() - GetActorLocation()).GetSafeNormal2D() * 260.f
@@ -343,7 +343,7 @@ void AEmberReaver::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 		else if (Phase >= 2 && DashesThisAttack < 2 && Now() < StateUntil - DashMaxSeconds * 0.4f)
 		{
 			bHitThisAttack = false;
-			StartDashLeg(Hero);   // phase 2+: the second leg crosses the first — an L of fire
+			StartDashLeg(Hero);   // phase 2+: the second leg crosses the first â€” an L of fire
 		}
 		else
 		{
@@ -361,7 +361,7 @@ void AEmberReaver::TakeStrike(int32 InComboBeat, bool bCharged)
 	float Embers = (bCharged || InComboBeat >= 2) ? HeavyStrikeEmbers : LightStrikeEmbers;
 
 	// THE ONE-EYE RULE: strikes from inside the blind cone bite 1.5x. Geometry,
-	// not stats — the duel rewards the player who learns to circle.
+	// not stats â€” the duel rewards the player who learns to circle.
 	if (ASparkHeroCharacter* Hero = ResolveHero())
 	{
 		const FVector ToHero = (Hero->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
@@ -495,7 +495,7 @@ void AEmberReaver::Tick(float DeltaTime)
 		if (Hero) { FaceHero(Hero, DeltaTime); }
 		if (TelegraphLight)
 		{
-			const float Pulse = 0.55f + 0.45f * FMath::Sin(Now() * 22.f);   // faster pulse — faster danger
+			const float Pulse = 0.55f + 0.45f * FMath::Sin(Now() * 22.f);   // faster pulse â€” faster danger
 			TelegraphLight->SetIntensity(5800.f * Pulse);
 		}
 		if (Now() >= StateUntil) { StartAttack(); }
@@ -532,3 +532,4 @@ void AEmberReaver::Tick(float DeltaTime)
 		break;
 	}
 }
+

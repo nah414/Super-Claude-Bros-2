@@ -251,15 +251,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
 	float BurstStagger = 1.5f;
 
+	/** Was 4s in the rare-ultimate era — duels demand bread-and-butter bolts
+	    (Adam's frequency verdict, June 12). The press governor sets the cadence. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
-	float BurstCooldown = 4.f;
+	float BurstCooldown = 0.25f;
 
 	/** L5 — Ember Guard (tap Q): the flame armors itself — grace extends. L9: 3 s. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
 	float GuardDuration = 2.f;
 
+	/** Was 8s — now the ring is back almost as soon as it gutters out. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
-	float GuardCooldown = 8.f;
+	float GuardCooldown = 2.5f;
 
 	/** L6 — Beacon Wave (hold power, release): the big pulse — staggers wide, and
 	    relights every lantern in radius once the light-state system lands (M0.2). */
@@ -269,8 +272,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
 	float WaveChargeTime = 0.6f;
 
+	/** Was 12s — the nova is now a once-per-exchange weapon, not a once-per-fight one. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
-	float WaveCooldown = 12.f;
+	float WaveCooldown = 3.f;
 
 	/** Capture-harness hook: throw a combo beat on command (the GameMode's
 	    -SCB2ShotStrike flag uses this to photograph strikes headlessly). */

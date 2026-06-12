@@ -16,6 +16,7 @@
 #include "SparkHeroineCharacter.h"
 #include "KrakenBoss.h"
 #include "EmberReaver.h"
+#include "VoidStalker.h"
 #include "SparkImpactBurst.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -941,6 +942,12 @@ void ASparkHeroCharacter::StrikeHitCheck()
 		{
 			Reaver->TakeStrike(ComboBeat, bChargedStrike);
 			OnHeroStrikeHit(Reaver, ComboBeat);
+			bThisOneHit = true;
+		}
+		else if (AVoidStalker* Stalker = Cast<AVoidStalker>(Hit.GetActor()))
+		{
+			Stalker->TakeStrike(ComboBeat, bChargedStrike);
+			OnHeroStrikeHit(Stalker, ComboBeat);
 			bThisOneHit = true;
 		}
 		if (bThisOneHit)

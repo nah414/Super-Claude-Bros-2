@@ -114,6 +114,16 @@ try:
 except Exception as e:
     print(f"LIVE_REAVER_SKIPPED: {e}")
 
+# ---- a LIVE VOID STALKER (rival #3, the south wing — three duels now) ----
+try:
+    stalker_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.VoidStalker")
+    vs = eas.spawn_actor_from_class(stalker_cls, unreal.Vector(0, -2400, 90))
+    vs.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)
+    vs.set_actor_label("LiveVoidStalker")
+    print("LIVE_STALKER_PLACED")
+except Exception as e:
+    print(f"LIVE_STALKER_SKIPPED: {e}")
+
 # ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
 # Both playable heroes stand front-center, breathing their idle clips, so a
 # walk through the Hall always shows the true current state of every rig.
