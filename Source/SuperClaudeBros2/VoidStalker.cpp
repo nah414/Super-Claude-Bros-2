@@ -47,6 +47,7 @@ AVoidStalker::AVoidStalker()
 	StalkerBody->SetupAttachment(VisualRoot);
 	StalkerBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	StalkerBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	StalkerBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;   // LOAD LAW
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);

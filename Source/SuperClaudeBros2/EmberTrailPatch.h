@@ -35,6 +35,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "EmberTrail")
 	float BurnEmbers = 5.f;
 
+	/** LOAD LAW: max live patches world-wide — the oldest flame gutters out
+	    first (reads correctly as fire dying; caps lights + ticks under load). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LoadLaw")
+	int32 MaxLivePatches = 16;
+
 protected:
 	UPROPERTY(VisibleAnywhere) UStaticMeshComponent* Flame;
 	UPROPERTY(VisibleAnywhere) UPointLightComponent* Glow;
@@ -42,4 +47,6 @@ protected:
 
 	float Age = 0.f;
 	float FlickerPhase = 0.f;
+	/** P-switch-safe cached hero (the Glimmer pattern): resolve only on invalid. */
+	TWeakObjectPtr<class ASparkHeroCharacter> CachedHero;
 };

@@ -37,12 +37,29 @@ ASparkImpactBurst::ASparkImpactBurst()
 	InitialLifeSpan = 1.f;   // belt and braces past LifeSeconds
 }
 
+namespace
+{
+	TArray<TWeakObjectPtr<ASparkImpactBurst>> GLiveBursts;   // LOAD LAW registry
+}
+
 void ASparkImpactBurst::Burst(UObject* WorldContext, const FVector& Location,
                               const FLinearColor& Tint, float Scale,
                               float LightIntensity, float Life)
 {
 	UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
 	if (!World) { return; }
+
+	// THE BURST CEILING: combat stays readable under any load — cosmetic
+	// sparkle yields first, the oldest flash yields last, hits always show.
+	GLiveBursts.RemoveAll([](const TWeakObjectPtr<ASparkImpactBurst>& B) { return !B.IsValid(); });
+	const ASparkImpactBurst* CDO = GetDefault<ASparkImpactBurst>();
+	if (GLiveBursts.Num() >= CDO->MaxLiveBurstsSoft && Scale < 0.8f) { return; }
+	while (GLiveBursts.Num() >= CDO->MaxLiveBurstsHard && GLiveBursts.Num() > 0)
+	{
+		if (GLiveBursts[0].IsValid()) { GLiveBursts[0]->Destroy(); }
+		GLiveBursts.RemoveAt(0);
+	}
+
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	ASparkImpactBurst* B = World->SpawnActor<ASparkImpactBurst>(Location, FRotator::ZeroRotator, Params);
@@ -53,6 +70,7 @@ void ASparkImpactBurst::Burst(UObject* WorldContext, const FVector& Location,
 	B->LifeSeconds = Life;
 	B->Flash->SetLightColor(FLinearColor(Tint.R, Tint.G, Tint.B).GetClamped());
 	B->Flash->SetIntensity(LightIntensity);
+	GLiveBursts.Add(B);
 }
 
 void ASparkImpactBurst::Tick(float DeltaSeconds)

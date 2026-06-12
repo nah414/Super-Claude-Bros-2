@@ -49,13 +49,32 @@ AEmberTrailPatch::AEmberTrailPatch()
 	InitialLifeSpan = 3.f;
 }
 
+namespace
+{
+	// LOAD LAW registry: weak ptrs self-invalidate on Destroy — no bookkeeping.
+	TArray<TWeakObjectPtr<AEmberTrailPatch>> GLivePatches;
+}
+
 void AEmberTrailPatch::Plant(UObject* WorldContext, const FVector& GroundLocation)
 {
 	UWorld* World = WorldContext ? WorldContext->GetWorld() : nullptr;
 	if (!World) { return; }
+
+	// THE PATCH CEILING: oldest flame gutters out first.
+	GLivePatches.RemoveAll([](const TWeakObjectPtr<AEmberTrailPatch>& P) { return !P.IsValid(); });
+	const int32 Cap = GetDefault<AEmberTrailPatch>()->MaxLivePatches;
+	while (GLivePatches.Num() >= Cap && GLivePatches.Num() > 0)
+	{
+		if (GLivePatches[0].IsValid()) { GLivePatches[0]->Destroy(); }
+		GLivePatches.RemoveAt(0);
+	}
+
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	World->SpawnActor<AEmberTrailPatch>(GroundLocation, FRotator::ZeroRotator, Params);
+	if (AEmberTrailPatch* P = World->SpawnActor<AEmberTrailPatch>(GroundLocation, FRotator::ZeroRotator, Params))
+	{
+		GLivePatches.Add(P);
+	}
 }
 
 void AEmberTrailPatch::Tick(float DeltaSeconds)
@@ -79,7 +98,13 @@ void AEmberTrailPatch::Tick(float DeltaSeconds)
 
 	// The bite: standing in his fire costs embers (the hero's grace window
 	// rate-limits the burn — the lesson is taught, not griefed).
-	if (ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0)))
+	// LOAD LAW: cached weak-ptr hero (30 patches were calling GetPlayerPawn
+	// EVERY frame); re-resolve only when invalid — P-switch-safe by design.
+	if (!CachedHero.IsValid())
+	{
+		CachedHero = Cast<ASparkHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+	}
+	if (ASparkHeroCharacter* Hero = CachedHero.Get())
 	{
 		FVector To = Hero->GetActorLocation() - GetActorLocation();
 		const float Dz = FMath::Abs(To.Z);

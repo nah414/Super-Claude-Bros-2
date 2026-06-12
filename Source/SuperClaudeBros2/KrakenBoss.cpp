@@ -63,6 +63,7 @@ AKrakenBoss::AKrakenBoss()
 	KrakenBody->SetupAttachment(VisualRoot);
 	KrakenBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	KrakenBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;   // LOAD LAW
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
@@ -523,6 +524,13 @@ void AKrakenBoss::TakeStrike(int32 InComboBeat, bool bCharged)
 		OnKrakenPhaseChanged(Phase);
 		if (State != EKrakenState::Staggered)
 		{
+			// Phase roar mid-attack must CLEAN UP the move it interrupts — a
+			// roar during the grip hold was leaking a frozen tether + a hero
+			// pinned without release (the multi-boss audit's grip-leak).
+			bGripHolding = false;
+			bSlamAirborne = false;
+			if (GripTether) { GripTether->SetVisibility(false); }
+			GetCharacterMovement()->StopMovementImmediately();
 			PlayOneShot(TauntAnim ? TauntAnim : HitReactAnim, 1.1f);
 			EnterState(EKrakenState::Recover, 1.1f);   // the phase roar IS an opening
 		}

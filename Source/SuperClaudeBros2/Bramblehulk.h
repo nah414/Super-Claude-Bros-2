@@ -121,18 +121,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
 	float AttackTriggerRange = 360.f;
 
-	// ---------------- Clip windows (scan after import; all live) ----------------
+	// ---------------- Clip windows (scan-solved June 12; all live) ----------------
+	/** Slam: window the loop's back half — warning stomp at 0.36s into the tell,
+	    payoff stomp (beat frac 0.83) lands EXACTLY on the 0.9s ring. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
-	float SlamClipStart = 0.f;
+	float SlamClipStart = 0.45f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim")
-	float SlamClipRate = 0.f;
+	float SlamClipRate = 0.59f;
 
+	/** Quake: open on the arms-high charge hold; the plunge impact (frac 0.57)
+	    lands at 1.306s = the ring at tell end; crater hold + rise then SHOW
+	    (the one-shot guard keeps the Recover loop from decapitating them). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
-	float QuakeClipStart = 0.f;
+	float QuakeClipStart = 0.1f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim")
-	float QuakeClipRate = 0.f;
+	float QuakeClipRate = 1.08f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim")
 	float SkelMeshYaw = -90.f;
@@ -174,6 +179,11 @@ private:
 	    that interrupts an attack freezes the pose — Adam's June 12 report). */
 	bool bSoothePending = false;
 	FTimerHandle SettleTimer;
+	/** One-shot guard: loops may not replace a one-shot before its visible
+	    window ends (a stomped follow-through never existed — the mush bug). */
+	float OneShotHoldUntil = -1000.f;
+	bool bEverWoken = false;   // once angry, he re-wakes at a wider radius
+	float MoodClock = 0.f;     // LOAD LAW: mood light updates at 10Hz, not per-tick
 
 	UPROPERTY() TObjectPtr<UAnimSequence> DormantAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> AlertAnim;

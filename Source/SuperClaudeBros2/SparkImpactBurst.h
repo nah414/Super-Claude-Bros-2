@@ -35,6 +35,15 @@ protected:
 	UPROPERTY(VisibleAnywhere) UPointLightComponent* Flash;
 	UPROPERTY() UMaterialInstanceDynamic* CoreMID;
 
+	/** LOAD LAW: past the soft cap, cosmetic bursts (dust, wisps — scale <0.8)
+	    are skipped; past the hard cap the oldest burst is culled. Important
+	    hits always show. */
+	UPROPERTY(EditAnywhere, Category = "LoadLaw")
+	int32 MaxLiveBurstsSoft = 14;
+
+	UPROPERTY(EditAnywhere, Category = "LoadLaw")
+	int32 MaxLiveBurstsHard = 20;
+
 	FLinearColor BaseTint = FLinearColor(4.f, 1.8f, 0.5f);
 	float BaseScale = 1.f;
 	float BaseLight = 3500.f;
