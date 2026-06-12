@@ -80,6 +80,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UPointLightComponent> PulseLight;
 
+	/** Ember Guard's RING OF FIRE: orbs that orbit and flicker while the guard
+	    burns (Adam's round-6 look). Hidden outside the guard window. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TArray<TObjectPtr<UStaticMeshComponent>> GuardFlames;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<UPointLightComponent> GuardLight;
+
 	// ---------------- Movement feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Movement")
 	float MaxRunSpeed = 650.f;
@@ -504,7 +512,10 @@ private:
 	// Power state (the Spark Surge kit)
 	void DoPrismBurst();
 	void DoBeaconWave();
+	void FireBlast(const FVector& Direction);
 	void FirePulse(float Radius, float Duration, float LightIntensity);
+	FName HandBoneName = NAME_None;      // found at BeginPlay — blasts spawn here
+	float GuardVisualUntil = -1000.f;    // the fire ring burns until this moment
 	float PulseStartTime = -1000.f;
 	float PulseDuration = 0.45f;
 	float PulseTargetRadius = 450.f;

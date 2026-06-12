@@ -12,6 +12,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GlimmerEnemy.h"
+#include "SparkBlastProjectile.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
@@ -207,6 +208,30 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	PulseLight->SetAttenuationRadius(600.f);
 	PulseLight->SetLightColor(FColor(255, 170, 70));
 	PulseLight->SetCastShadows(false);
+
+	// --- Ember Guard's ring of fire: ten orbs, hidden until the guard burns ---
+	GuardFlames.Reserve(10);
+	for (int32 i = 0; i < 10; ++i)
+	{
+		UStaticMeshComponent* Orb = CreateDefaultSubobject<UStaticMeshComponent>(
+			*FString::Printf(TEXT("GuardFlame%d"), i));
+		Orb->SetupAttachment(RootComponent);
+		Orb->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		if (SphereMesh.Succeeded())
+		{
+			Orb->SetStaticMesh(SphereMesh.Object);
+		}
+		Orb->SetRelativeScale3D(FVector(0.12f));
+		Orb->SetCastShadow(false);
+		Orb->SetVisibility(false);
+		GuardFlames.Add(Orb);
+	}
+	GuardLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("GuardLight"));
+	GuardLight->SetupAttachment(RootComponent);
+	GuardLight->SetIntensity(0.f);
+	GuardLight->SetAttenuationRadius(420.f);
+	GuardLight->SetLightColor(FColor(255, 140, 50));
+	GuardLight->SetCastShadows(false);
 }
 
 float ASparkHeroCharacter::Now() const
@@ -262,7 +287,7 @@ void ASparkHeroCharacter::BeginPlay()
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(1, 12.f, FColor::Orange,
-			FString::Printf(TEXT("SPARK HERO L%d  |  LMB power(hold=WAVE)  RMB strike(x3/hold=CHARGED)  Q guard  SPACE jump x2  SHIFT dash  C/CTRL crouch  air+push wall=CLIMB  WHEEL zoom"), PowerLevel));
+			FString::Printf(TEXT("SPARK HERO L%d  |  LMB strike(x3/hold=CHARGED)  RMB hand-blast(hold=NOVA)  Q fire ring  SPACE jump x2  SHIFT dash  C/CTRL crouch  air+push wall=CLIMB  WHEEL zoom"), PowerLevel));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -365,16 +390,45 @@ void ASparkHeroCharacter::BeginPlay()
 		EmberMeter->OnFlameOut.AddDynamic(this, &ASparkHeroCharacter::HandleFlameOut);
 	}
 
-	// Amber tint for the power shockwave disc.
-	if (PulseDisc)
+	// Amber tints for the power visuals (disc + the guard's fire orbs).
+	if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
+			nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
 	{
-		if (UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(
-				nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")))
+		if (PulseDisc)
 		{
 			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
 			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.62f, 0.18f));
 			PulseDisc->SetMaterial(0, MID);
 		}
+		for (UStaticMeshComponent* Orb : GuardFlames)
+		{
+			if (!Orb) { continue; }
+			UMaterialInstanceDynamic* MID = UMaterialInstanceDynamic::Create(BaseMat, this);
+			MID->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.45f, 0.08f));
+			Orb->SetMaterial(0, MID);
+		}
+	}
+
+	// Find the blast hand: prefer a right hand, take any hand.
+	if (bHasSkeletalModel && SkelBody)
+	{
+		FName AnyHand = NAME_None;
+		for (int32 i = 0; i < SkelBody->GetNumBones(); ++i)
+		{
+			const FName Bone = SkelBody->GetBoneName(i);
+			const FString S = Bone.ToString().ToLower();
+			if (S.Contains(TEXT("hand")))
+			{
+				if (AnyHand == NAME_None) { AnyHand = Bone; }
+				if (S.Contains(TEXT("r")))
+				{
+					HandBoneName = Bone;
+					break;
+				}
+			}
+		}
+		if (HandBoneName == NAME_None) { HandBoneName = AnyHand; }
+		UE_LOG(LogTemp, Display, TEXT("SCB2 HERO: blast hand = '%s'"), *HandBoneName.ToString());
 	}
 }
 
@@ -451,13 +505,13 @@ void ASparkHeroCharacter::BuildInputObjects()
 	MappingContext->MapKey(DashAction, EKeys::LeftShift);
 	MappingContext->MapKey(DashAction, EKeys::Gamepad_FaceButton_Left);
 
-	// Adam's layout: LEFT click = SUPERPOWERS (tap = Prism Burst, hold = Beacon
-	// Wave); RIGHT click = strikes (tap = combo, hold = Charged Haymaker).
-	MappingContext->MapKey(PowerAction, EKeys::LeftMouseButton);
-	MappingContext->MapKey(PowerAction, EKeys::Gamepad_RightTrigger);
-
-	MappingContext->MapKey(StrikeAction, EKeys::RightMouseButton);
+	// Adam's round-6 layout (the classic): LEFT = strikes (tap combo / hold
+	// charged), RIGHT = powers (tap hand-blast / hold Beacon Wave).
+	MappingContext->MapKey(StrikeAction, EKeys::LeftMouseButton);
 	MappingContext->MapKey(StrikeAction, EKeys::Gamepad_FaceButton_Right);
+
+	MappingContext->MapKey(PowerAction, EKeys::RightMouseButton);
+	MappingContext->MapKey(PowerAction, EKeys::Gamepad_RightTrigger);
 
 	// Ember Guard: the flame armors itself.
 	MappingContext->MapKey(GuardAction, EKeys::Q);
@@ -978,41 +1032,53 @@ void ASparkHeroCharacter::HandlePowerReleased()
 	}
 }
 
+// Spawn one spark blast from the hero's hand, flying flat along Direction.
+void ASparkHeroCharacter::FireBlast(const FVector& Direction)
+{
+	FVector SpawnLoc = GetActorLocation() + GetActorForwardVector() * 50.f + FVector(0.f, 0.f, 20.f);
+	if (bHasSkeletalModel && SkelBody && HandBoneName != NAME_None)
+	{
+		SpawnLoc = SkelBody->GetBoneLocation(HandBoneName) + Direction * 25.f;
+	}
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = this;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	GetWorld()->SpawnActor<ASparkBlastProjectile>(ASparkBlastProjectile::StaticClass(),
+		SpawnLoc, Direction.Rotation(), SpawnParams);
+}
+
 void ASparkHeroCharacter::DoPrismBurst()
 {
-	// L4 — PRISM BURST: a ring of light that staggers Motes (and lures moths,
-	// once moths exist). Dazzles, never wounds — the kit keeps the kindness.
+	// L4 — THE SPARK BLAST (Adam's round-6 redesign): power shoots FROM THE HAND —
+	// a glowing amber orb that flies where you face and bursts Motes on contact.
 	if (Now() < BurstReadyTime) { return; }
 	BurstReadyTime = Now() + BurstCooldown;
 
-	const float Radius = BurstRadius * (HasPowerLevel(8) ? 1.3f : 1.f);
-	FirePulse(Radius, 0.45f, 5000.f);
-	if (EmberMeter) { EmberMeter->FlashGlow(0.4f, 8.f); }
-	PlayShake(USparkLandShake::StaticClass());
-	PlaySfx(TEXT("/Game/Art/Audio/sfx_doublejump.sfx_doublejump"));
-	OnHeroPrismBurst(Radius);
+	// Aim where the player looks (camera yaw), flat — platformer-honest.
+	const float Yaw = Controller ? static_cast<float>(Controller->GetControlRotation().Yaw)
+	                             : static_cast<float>(GetActorRotation().Yaw);
+	const FVector Aim = FRotationMatrix(FRotator(0.f, Yaw, 0.f)).GetUnitAxis(EAxis::X);
 
-	TArray<FOverlapResult> Hits;
-	FCollisionQueryParams Params(TEXT("PrismBurst"), false, this);
-	GetWorld()->OverlapMultiByChannel(Hits, GetActorLocation(), FQuat::Identity, ECC_Pawn,
-	                                  FCollisionShape::MakeSphere(Radius), Params);
-	for (const FOverlapResult& Hit : Hits)
-	{
-		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
-		{
-			Glimmer->TakeStagger(BurstStagger);
-		}
-	}
+	FireBlast(Aim);
+	if (EmberMeter) { EmberMeter->FlashGlow(0.25f, 5.f); }
+	PlaySfx(TEXT("/Game/Art/Audio/sfx_doublejump.sfx_doublejump"));
+	OnHeroPrismBurst(BurstRadius);
 }
 
 void ASparkHeroCharacter::DoBeaconWave()
 {
-	// L6 — BEACON WAVE: the big pulse. Staggers wide today; when the lantern
-	// light-state system lands (M0.2), this also relights every lamp in radius —
-	// the W5 territory mechanic in the hero's own hands.
+	// L6 — BEACON WAVE: the big one — TWELVE blasts ring out from the hero in
+	// every direction (a 3D nova, not a floor decal), plus the ground shockwave
+	// and the flash. Relights every lantern in radius once M0.2 lands.
 	if (Now() < WaveReadyTime) { return; }
 	WaveReadyTime = Now() + WaveCooldown;
 
+	for (int32 i = 0; i < 12; ++i)
+	{
+		const float Rad = FMath::DegreesToRadians(i * 30.f);
+		FireBlast(FVector(FMath::Cos(Rad), FMath::Sin(Rad), 0.f));
+	}
 	FirePulse(WaveRadius, 0.7f, 12000.f);
 	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 16.f); }
 	PlayShake(USparkBigLandShake::StaticClass());
@@ -1041,9 +1107,10 @@ void ASparkHeroCharacter::HandleGuardPressed()
 	if (Now() < GuardReadyTime) { return; }
 	GuardReadyTime = Now() + GuardCooldown;
 
-	EmberMeter->ActivateGuard(HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration);
+	const float Duration = HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration;
+	EmberMeter->ActivateGuard(Duration);
 	EmberMeter->FlashGlow(0.5f, 6.f);
-	FirePulse(160.f, 0.4f, 3000.f);
+	GuardVisualUntil = Now() + Duration;   // the RING OF FIRE burns this long
 	OnHeroEmberGuard();
 }
 
@@ -1268,6 +1335,33 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 	if (bHasSkeletalModel)
 	{
 		UpdateHeroAnimation();
+	}
+
+	// Ember Guard's ring of fire: orbs orbit, bob, and flicker while it burns.
+	const bool bGuardBurning = Now() < GuardVisualUntil;
+	if (bGuardBurning || (GuardLight && GuardLight->Intensity > 0.f))
+	{
+		const float T = Now();
+		for (int32 i = 0; i < GuardFlames.Num(); ++i)
+		{
+			UStaticMeshComponent* Orb = GuardFlames[i];
+			if (!Orb) { continue; }
+			Orb->SetVisibility(bGuardBurning);
+			if (!bGuardBurning) { continue; }
+			const float Angle = FMath::DegreesToRadians(i * 36.f) + T * 2.6f;   // the ring spins
+			const float Bob = 10.f * FMath::Sin(T * 5.f + i * 1.7f);
+			const float Flick = 0.10f + 0.04f * FMath::Sin(T * 11.f + i * 2.3f);
+			Orb->SetRelativeLocation(FVector(FMath::Cos(Angle) * 110.f,
+			                                 FMath::Sin(Angle) * 110.f,
+			                                 -30.f + Bob));
+			Orb->SetRelativeScale3D(FVector(Flick, Flick, Flick * 1.8f));        // tall licks of flame
+		}
+		if (GuardLight)
+		{
+			GuardLight->SetIntensity(bGuardBurning
+				? 900.f + 250.f * FMath::Sin(T * 9.f)
+				: 0.f);
+		}
 	}
 
 	// Power pulse animation: the disc races outward and the flash decays.
