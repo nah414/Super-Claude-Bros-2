@@ -93,6 +93,17 @@ try:
 except Exception as e:
     print(f"LIVE_GLIMMER_SKIPPED: {e}")
 
+# ---- a LIVE IRON KRAKEN (Rule 1: the new boss faces Adam's review HERE) ----
+# Placed beyond his 900uu duel-start ring: walk toward him and the duel begins.
+try:
+    kraken_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.KrakenBoss")
+    k = eas.spawn_actor_from_class(kraken_cls, unreal.Vector(1500, -700, 90))
+    k.set_actor_rotation(unreal.Rotator(0.0, 0.0, 180.0), False)
+    k.set_actor_label("LiveIronKraken")
+    print("LIVE_KRAKEN_PLACED")
+except Exception as e:
+    print(f"LIVE_KRAKEN_SKIPPED: {e}")
+
 # ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
 # Both playable heroes stand front-center, breathing their idle clips, so a
 # walk through the Hall always shows the true current state of every rig.

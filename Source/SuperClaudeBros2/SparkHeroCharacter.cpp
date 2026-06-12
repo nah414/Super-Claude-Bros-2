@@ -14,6 +14,7 @@
 #include "GlimmerEnemy.h"
 #include "SparkBlastProjectile.h"
 #include "SparkHeroineCharacter.h"
+#include "KrakenBoss.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
@@ -924,12 +925,19 @@ void ASparkHeroCharacter::StrikeHitCheck()
 	bool bConnected = false;
 	for (const FOverlapResult& Hit : Hits)
 	{
-		// v1: Motes die to any beat (mass-class ladder: Spark >> Mote). Heavier
-		// classes get their CLASH/CLANG rows when the duel framework lands (P1).
+		// Motes die to any beat (mass-class ladder: Spark >> Mote).
 		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
 		{
 			Glimmer->TakeStrike();
 			OnHeroStrikeHit(Glimmer, ComboBeat);
+			bConnected = true;
+		}
+		// Rivals CLASH: duel meters take 8/8/15 per beat (spec §5). When the
+		// Reaver lands, these branches collapse into one ASparkRivalBase cast.
+		else if (AKrakenBoss* Rival = Cast<AKrakenBoss>(Hit.GetActor()))
+		{
+			Rival->TakeStrike(ComboBeat, bChargedStrike);
+			OnHeroStrikeHit(Rival, ComboBeat);
 			bConnected = true;
 		}
 	}

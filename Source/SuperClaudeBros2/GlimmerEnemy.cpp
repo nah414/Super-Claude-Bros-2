@@ -149,6 +149,13 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 
 	if (bDead) { return; }
 
+	// P swaps hero PAWNS (destroy + spawn) — a BeginPlay-cached pointer goes
+	// stale and the aura/backstop silently die. Re-resolve whenever invalid.
+	if (!CachedHero.IsValid())
+	{
+		CachedHero = Cast<ASparkHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+	}
+
 	// Keep live-tuned values flowing into the movement component (editor tuning).
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 
