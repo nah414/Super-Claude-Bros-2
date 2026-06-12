@@ -485,7 +485,6 @@ void AKrakenBoss::Tick(float DeltaTime)
 		if (Hero) { FaceHero(Hero, DeltaTime * 0.5f); }
 		if (Dist <= DuelStartRadius)
 		{
-			++HeroLossCount; HeroLossCount = FMath::Max(HeroLossCount - 1, 0); // touch-warm the counter without counting engages
 			PlayOneShot(TauntAnim ? TauntAnim : IdleAnim, 1.4f);
 			EnterState(EKrakenState::Intro, 1.4f);
 		}
