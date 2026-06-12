@@ -10,6 +10,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "SparkHeroCharacter.h"
+#include "SparkImpactBurst.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -18,7 +19,9 @@ AGlimmerEnemy::AGlimmerEnemy()
 	PrimaryActorTick.bCanEverTick = true;
 
 	// --- Collision capsule: a squat little shadow ---
-	GetCapsuleComponent()->InitCapsuleSize(34.f, 40.f);
+	// Radius grown 34 -> 44 (Adam's contact pass: the crystal body is wider than
+	// the old capsule — heroes visually waded through it before physics noticed).
+	GetCapsuleComponent()->InitCapsuleSize(44.f, 40.f);
 	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &AGlimmerEnemy::OnCapsuleHit);
 	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this, &AGlimmerEnemy::OnCapsuleOverlap);
 
@@ -325,6 +328,10 @@ void AGlimmerEnemy::Die(bool bByStomp)
 {
 	if (bDead) { return; }
 	bDead = true;
+
+	// Every contact SHOWS (Adam's universal-impact law): a spark pop at the kill.
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 10.f),
+	                         FLinearColor(3.2f, 1.5f, 0.45f), 0.85f, 2600.f);
 
 	// Squash flat and drop the pancake to the capsule's feet (visual only).
 	if (VisualRoot)

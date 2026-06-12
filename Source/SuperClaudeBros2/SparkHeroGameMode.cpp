@@ -1,4 +1,5 @@
 #include "SparkHeroGameMode.h"
+#include "KrakenBoss.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
 
@@ -87,6 +88,24 @@ void ASparkHeroGameMode::BeginPlay()
 					}
 				}
 			}
+		}
+
+		// -SCB2KrakenNear teleports the level's Kraken to dueling distance so
+		// captures can photograph telegraphs, slams, and the grip tether.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2KrakenNear")))
+		{
+			FTimerHandle KrakenTimer;
+			GetWorldTimerManager().SetTimer(KrakenTimer, [this]()
+			{
+				AKrakenBoss* Kraken = Cast<AKrakenBoss>(
+					UGameplayStatics::GetActorOfClass(this, AKrakenBoss::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Kraken && Pawn)
+				{
+					Kraken->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
 		}
 
 		// -SCB2ShotStrike throws a combo beat just before the shutter so the

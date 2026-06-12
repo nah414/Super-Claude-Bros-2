@@ -215,6 +215,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Contact")
 	FContactProfile ContactProfile;
 
+	/** Solid-body law (Adam's contact pass): heroes inside his personal space
+	    get pushed out — bodies never share the same floor tile. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Contact")
+	float SeparationPush = 1600.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
@@ -231,6 +236,15 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Kraken")
 	UEmberMeterComponent* DuelMeter;
+
+	/** Telegraph glow: amber for honest steel, VIOLET for the Iron Grip — his
+	    true color leaking where the borrowed paint peeled (Codex §3). */
+	UPROPERTY(VisibleAnywhere, Category = "Kraken")
+	class UPointLightComponent* TelegraphLight;
+
+	/** The grip made visible: a plasma tether from his fist to the held hero. */
+	UPROPERTY(VisibleAnywhere, Category = "Kraken")
+	UStaticMeshComponent* GripTether;
 
 	UFUNCTION()
 	void HandleCapsuleHit(UPrimitiveComponent* HitComp, AActor* OtherActor,
@@ -255,6 +269,8 @@ private:
 	// ---- pattern-punish ring buffer (the third identical approach is SEIZED) ----
 	uint8 ApproachHistory[3] = {0, 0, 0};
 	int32 ApproachWrites = 0;
+	float RushDustClock = 0.f;
+	UPROPERTY() TObjectPtr<class UMaterialInstanceDynamic> TetherMID;
 
 	// ---- clips (FObjectFinder, nullptr-safe; the boss runs clipless if needed) ----
 	UPROPERTY() TObjectPtr<UAnimSequence> IdleAnim;

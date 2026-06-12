@@ -15,6 +15,7 @@
 #include "SparkBlastProjectile.h"
 #include "SparkHeroineCharacter.h"
 #include "KrakenBoss.h"
+#include "SparkImpactBurst.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
@@ -925,12 +926,13 @@ void ASparkHeroCharacter::StrikeHitCheck()
 	bool bConnected = false;
 	for (const FOverlapResult& Hit : Hits)
 	{
+		bool bThisOneHit = false;
 		// Motes die to any beat (mass-class ladder: Spark >> Mote).
 		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
 		{
 			Glimmer->TakeStrike();
 			OnHeroStrikeHit(Glimmer, ComboBeat);
-			bConnected = true;
+			bThisOneHit = true;
 		}
 		// Rivals CLASH: duel meters take 8/8/15 per beat (spec §5). When the
 		// Reaver lands, these branches collapse into one ASparkRivalBase cast.
@@ -938,7 +940,15 @@ void ASparkHeroCharacter::StrikeHitCheck()
 		{
 			Rival->TakeStrike(ComboBeat, bChargedStrike);
 			OnHeroStrikeHit(Rival, ComboBeat);
+			bThisOneHit = true;
+		}
+		if (bThisOneHit)
+		{
 			bConnected = true;
+			// The hit SHOWS at the point of contact (Adam's universal-impact law).
+			ASparkImpactBurst::Burst(this,
+				Hit.GetActor()->GetActorLocation() + FVector(0.f, 0.f, 25.f),
+				FLinearColor(4.f, 1.8f, 0.5f), bHeavy ? 1.25f : 0.9f, 2800.f);
 		}
 	}
 	if (bConnected)
@@ -1250,6 +1260,9 @@ void ASparkHeroCharacter::TakeEmberHit(float Embers)
 	{
 		PlayShake(USparkLandShake::StaticClass());
 		OnHeroEmberHit(EmberMeter->GetFraction());
+		// Universal contact language: every hit that lands SHOWS (Adam's law).
+		ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
+		                         FLinearColor(3.f, 0.5f, 0.2f), 1.0f, 3000.f);
 
 		// The body flinches (interrupting any strike mid-swing — getting hit hurts).
 		if (HitReactAnim)

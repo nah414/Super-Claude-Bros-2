@@ -14,9 +14,20 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "SparkCameraShakes.h"
 #include "SparkHeroCharacter.h"
+#include "SparkImpactBurst.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	const FLinearColor KrakenAmber(1.0f, 0.55f, 0.2f);
+	const FLinearColor KrakenViolet(0.45f, 0.15f, 1.0f);   // the truth under the paint
+}
 
 namespace
 {
@@ -33,7 +44,9 @@ AKrakenBoss::AKrakenBoss()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
-	GetCapsuleComponent()->SetCapsuleSize(38.f, 76.f);   // Champion ≈ 36x76 (spec §9)
+	// Champion spec said 36x76, but the visual body is far wider — the contact
+	// pass (Adam: "they go through each other") grows the capsule to the bulk.
+	GetCapsuleComponent()->SetCapsuleSize(54.f, 76.f);
 	GetCapsuleComponent()->OnComponentHit.AddDynamic(this, &AKrakenBoss::HandleCapsuleHit);
 	// The hero must never wall-climb the boss; Glimmer sense traces pass through too.
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
@@ -59,6 +72,30 @@ AKrakenBoss::AKrakenBoss()
 	// Every combo beat must count: the hero's 3 hits land ~0.3s apart, so the
 	// meter's anti-double-dip grace shrinks to a heartbeat for the duel role.
 	DuelMeter->GraceDuration = 0.05f;
+
+	TelegraphLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("TelegraphLight"));
+	TelegraphLight->SetupAttachment(VisualRoot);
+	TelegraphLight->SetRelativeLocation(FVector(0.f, 0.f, 50.f));
+	TelegraphLight->SetAttenuationRadius(650.f);
+	TelegraphLight->SetCastShadows(false);
+	TelegraphLight->SetIntensity(0.f);
+
+	GripTether = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("GripTether"));
+	GripTether->SetupAttachment(RootComponent);
+	GripTether->SetUsingAbsoluteLocation(true);
+	GripTether->SetUsingAbsoluteRotation(true);
+	GripTether->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GripTether->SetCastShadow(false);
+	GripTether->SetVisibility(false);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Plasma(TEXT("/Game/Art/FX/M_SparkPlasma.M_SparkPlasma"));
+	if (Cyl.Succeeded()) { GripTether->SetStaticMesh(Cyl.Object); }
+	if (Plasma.Succeeded())
+	{
+		TetherMID = UMaterialInstanceDynamic::Create(Plasma.Object, this);
+		TetherMID->SetVectorParameterValue(TEXT("Tint"), KrakenViolet * 2.2f);
+		GripTether->SetMaterial(0, TetherMID);
+	}
 
 	ContactProfile.MassClass = EMassClass::Champion;
 	ContactProfile.bStompImmune = true;
@@ -226,6 +263,13 @@ void AKrakenBoss::StartTelegraph()
 	}
 	Tell *= TellScale();
 
+	// THE POWERS SHOW (Adam's law): the tell glows — amber steel, or the violet
+	// truth under the paint when the Iron Grip wakes.
+	if (TelegraphLight)
+	{
+		TelegraphLight->SetLightColor(Move == EKrakenMove::IronGrip ? KrakenViolet : KrakenAmber);
+	}
+
 	// One clip carries tell + active: fit it across both, windowed by the scans.
 	switch (Move)
 	{
@@ -251,6 +295,12 @@ void AKrakenBoss::StartAttack()
 	ASparkHeroCharacter* Hero = ResolveHero();
 	bGripHolding = false;
 	bSlamAirborne = false;
+	RushDustClock = 0.f;
+
+	// The tell pays off: commit flash in the move's color.
+	if (TelegraphLight) { TelegraphLight->SetIntensity(0.f); }
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
+		(Move == EKrakenMove::IronGrip ? KrakenViolet : KrakenAmber) * 2.6f, 1.3f, 4500.f, 0.22f);
 
 	switch (Move)
 	{
@@ -288,6 +338,10 @@ void AKrakenBoss::StartAttack()
 			const FVector Pull = (GetActorLocation() - Hero->GetActorLocation()).GetSafeNormal2D();
 			Hero->LaunchCharacter(Pull * GripPullSpeed + FVector(0.f, 0.f, 120.f), true, true);
 			bGripHolding = true;
+			// The grip SHOWS: violet seize-burst on the victim + the tether lights.
+			ASparkImpactBurst::Burst(this, Hero->GetActorLocation() + FVector(0.f, 0.f, 30.f),
+			                         KrakenViolet * 2.4f, 1.2f, 5000.f);
+			if (GripTether) { GripTether->SetVisibility(true); }
 			EnterState(EKrakenState::Attack, GripHoldSeconds);
 		}
 		else
@@ -307,6 +361,8 @@ void AKrakenBoss::FinishAttack(float RecoverSeconds)
 {
 	GetCharacterMovement()->StopMovementImmediately();
 	bGripHolding = false;
+	if (GripTether) { GripTether->SetVisibility(false); }
+	if (TelegraphLight) { TelegraphLight->SetIntensity(0.f); }
 	EnterState(EKrakenState::Recover, RecoverSeconds);
 }
 
@@ -320,6 +376,10 @@ void AKrakenBoss::LandDuelHit(ASparkHeroCharacter* Hero, float Embers)
 	Away = Away.IsNearlyZero() ? GetActorForwardVector() : Away.GetSafeNormal();
 	Hero->LaunchCharacter(Away * KnockbackForce + FVector(0.f, 0.f, KnockbackLift), true, true);
 	Hero->TakeEmberHit(Embers);
+	// The blow SHOWS at the body (TakeEmberHit adds the hero-side flash on top).
+	ASparkImpactBurst::Burst(this,
+		(Hero->GetActorLocation() + GetActorLocation()) * 0.5f + FVector(0.f, 0.f, 40.f),
+		KrakenAmber * 3.f, 1.25f, 5200.f);
 }
 
 void AKrakenBoss::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
@@ -342,6 +402,15 @@ void AKrakenBoss::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 		GetCharacterMovement()->Velocity =
 			FVector(RushDirection.X, RushDirection.Y, 0.f) * RushSpeed
 			+ FVector(0.f, 0.f, GetCharacterMovement()->Velocity.Z);
+		// The charge SHOWS: dust-spark trail kicked up at his feet.
+		RushDustClock += DeltaTime;
+		if (RushDustClock >= 0.09f)
+		{
+			RushDustClock = 0.f;
+			ASparkImpactBurst::Burst(this,
+				GetActorLocation() - FVector(0.f, 0.f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight() - 10.f),
+				FLinearColor(1.8f, 0.95f, 0.35f), 0.6f, 900.f, 0.24f);
+		}
 		if (Hero && !bHitThisAttack
 			&& FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= RushHitRange)
 		{
@@ -362,6 +431,21 @@ void AKrakenBoss::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 				+ GetActorForwardVector() * 150.f + FVector(0.f, 0.f, 30.f);
 			Hero->GetCharacterMovement()->Velocity =
 				(HoldPoint - Hero->GetActorLocation()) * 9.f;
+
+			// The grip MADE VISIBLE: a violet plasma tether, fist to victim.
+			if (GripTether)
+			{
+				const FVector A = GetActorLocation()
+					+ GetActorForwardVector() * 60.f + FVector(0.f, 0.f, 40.f);
+				const FVector B = Hero->GetActorLocation() + FVector(0.f, 0.f, 20.f);
+				const FVector Mid = (A + B) * 0.5f;
+				const FVector Dir = B - A;
+				const float Len = FMath::Max(Dir.Size(), 1.f);
+				GripTether->SetWorldLocation(Mid);
+				GripTether->SetWorldRotation(FRotationMatrix::MakeFromZ(Dir / Len).Rotator());
+				// Engine cylinder is 100uu tall: scale Z to span, thin in XY.
+				GripTether->SetWorldScale3D(FVector(0.16f, 0.16f, Len / 100.f));
+			}
 		}
 		break;
 	default: break;
@@ -374,6 +458,17 @@ void AKrakenBoss::Landed(const FHitResult& Hit)
 	if (State == EKrakenState::Attack && Move == EKrakenMove::ChampionsSlam && bSlamAirborne)
 	{
 		bSlamAirborne = false;
+		// THE RING SHOCK SHOWS: a wide ground flash + a second hot core + the
+		// whole world shakes — Champion mass arriving (Adam's powers law).
+		const FVector Feet = GetActorLocation()
+			- FVector(0.f, 0.f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight() - 12.f);
+		ASparkImpactBurst::Burst(this, Feet, FLinearColor(3.f, 1.2f, 0.3f),
+		                         SlamRingRadius / 65.f, 9000.f, 0.45f);
+		ASparkImpactBurst::Burst(this, Feet, FLinearColor(6.f, 3.f, 1.f), 1.1f, 4000.f, 0.25f);
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PC->ClientStartCameraShake(USparkBigLandShake::StaticClass());
+		}
 		if (ASparkHeroCharacter* Hero = ResolveHero())
 		{
 			// Ring shock: grounded heroes inside the ring are hit. JUMP dodges —
@@ -441,7 +536,11 @@ void AKrakenBoss::TakeStagger(float Seconds)
 {
 	if (State == EKrakenState::Defeated) { return; }
 	bGripHolding = false;
+	if (GripTether) { GripTether->SetVisibility(false); }
+	if (TelegraphLight) { TelegraphLight->SetIntensity(0.f); }
 	GetCharacterMovement()->StopMovementImmediately();
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 60.f),
+	                         FLinearColor(5.f, 2.5f, 0.8f), 1.4f, 5500.f);
 	PlayOneShot(StaggerAnim ? StaggerAnim : HitReactAnim, Seconds);
 	EnterState(EKrakenState::Staggered, Seconds);
 }
@@ -450,10 +549,15 @@ void AKrakenBoss::HandleDuelMeterEmpty()
 {
 	if (State == EKrakenState::Defeated) { return; }
 	bGripHolding = false;
+	if (GripTether) { GripTether->SetVisibility(false); }
+	if (TelegraphLight) { TelegraphLight->SetIntensity(0.f); }
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	if (DefeatAnim) { PlayOneShot(DefeatAnim, DefeatAnim->GetPlayLength()); }
+	// Systems shutting down: the violet truth escapes as the borrowed light dies.
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 50.f),
+	                         KrakenViolet * 3.f, 2.2f, 8000.f, 0.6f);
 	EnterState(EKrakenState::Defeated, 0.f);
 	OnKrakenDefeated();   // he tears the orange strip from his pauldron
 }
@@ -465,6 +569,24 @@ void AKrakenBoss::Tick(float DeltaTime)
 
 	ASparkHeroCharacter* Hero = ResolveHero();
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
+
+	// SOLID-BODY LAW (Adam's contact pass): bodies never share the same ground.
+	// A hero inside his personal space gets shouldered out, gently and always —
+	// except while the Iron Grip legally owns him.
+	if (Hero && !bGripHolding && State != EKrakenState::Defeated)
+	{
+		const float PersonalSpace = GetCapsuleComponent()->GetScaledCapsuleRadius()
+			+ Hero->GetCapsuleComponent()->GetScaledCapsuleRadius() + 8.f;
+		FVector Out = Hero->GetActorLocation() - GetActorLocation();
+		Out.Z = 0.f;
+		const float Dist2D = Out.Size();
+		if (Dist2D < PersonalSpace)
+		{
+			Out = Dist2D > 1.f ? Out / Dist2D : -GetActorForwardVector();
+			Hero->GetCharacterMovement()->Velocity +=
+				Out * SeparationPush * DeltaTime * (1.f - Dist2D / PersonalSpace + 0.35f);
+		}
+	}
 
 	// Walk-away law (§6.1): past the disengage ring he stands down; the duel
 	// meter refills for the rematch — the duelist never executes, never sulks.
@@ -514,6 +636,12 @@ void AKrakenBoss::Tick(float DeltaTime)
 
 	case EKrakenState::Telegraph:
 		if (Hero) { FaceHero(Hero, DeltaTime); }   // tells track — dodging is timing, not strafing
+		// The tell GLOWS, pulsing faster as the strike arrives (readable danger).
+		if (TelegraphLight)
+		{
+			const float Pulse = 0.55f + 0.45f * FMath::Sin(Now() * 18.f);
+			TelegraphLight->SetIntensity(6500.f * Pulse);
+		}
 		if (Now() >= StateUntil) { StartAttack(); }
 		break;
 

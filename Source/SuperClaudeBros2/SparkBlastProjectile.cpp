@@ -5,7 +5,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "GlimmerEnemy.h"
+#include "KrakenBoss.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "SparkImpactBurst.h"
 #include "UObject/ConstructorHelpers.h"
 
 ASparkBlastProjectile::ASparkBlastProjectile()
@@ -109,6 +111,16 @@ void ASparkBlastProjectile::OnBlastOverlap(UPrimitiveComponent*, AActor* OtherAc
 	if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(OtherActor))
 	{
 		Glimmer->TakeStrike();   // Motes die to spark-fire (mass-class ladder)
+		ASparkImpactBurst::Burst(this, GetActorLocation(),
+		                         FLinearColor(4.f, 1.6f, 0.45f), 1.1f, 3200.f);
+		Destroy();
+	}
+	else if (Cast<AKrakenBoss>(OtherActor))
+	{
+		// Duels are a rhythm game, not target practice: bolts SPLASH on rivals
+		// (no meter damage) — but the contact still SHOWS.
+		ASparkImpactBurst::Burst(this, GetActorLocation(),
+		                         FLinearColor(2.6f, 1.1f, 0.35f), 0.9f, 2400.f);
 		Destroy();
 	}
 }
