@@ -82,6 +82,9 @@ ABramblehulk::ABramblehulk()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FRoar(TEXT("/Game/Art/BrambleSkelV1/A_Bramble_Roar_Anim.A_Bramble_Roar_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/BrambleSkelV1/A_Bramble_HitReact_Anim.A_Bramble_HitReact_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSoothed(TEXT("/Game/Art/BrambleSkelV1/A_Bramble_Soothed_Anim.A_Bramble_Soothed_Anim"));
+	// Round 2 (Adam: "too little movements"): the sweep and the shove.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSweep(TEXT("/Game/Art/BrambleSkelV1/A_Bramble_Sweep_Anim.A_Bramble_Sweep_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FShove(TEXT("/Game/Art/BrambleSkelV1/A_Bramble_Shove_Anim.A_Bramble_Shove_Anim"));
 
 	if (Model.Succeeded())
 	{
@@ -106,6 +109,8 @@ ABramblehulk::ABramblehulk()
 	RoarAnim = HulkClip(FRoar);
 	HitReactAnim = HulkClip(FHit);
 	SoothedAnim = HulkClip(FSoothed);
+	SweepAnim = HulkClip(FSweep);
+	ShoveAnim = HulkClip(FShove);
 }
 
 void ABramblehulk::BeginPlay()
@@ -412,17 +417,42 @@ void ABramblehulk::Tick(float DeltaTime)
 		AddMovementInput((Hero->GetActorLocation() - GetActorLocation()).GetSafeNormal2D());
 		if (Dist <= AttackTriggerRange)
 		{
-			Move = (FMath::RandRange(0, 2) == 0) ? EHulkMove::QuakeSlam : EHulkMove::TantrumSlam;
-			bRangThisAttack = false;
-			GetCharacterMovement()->StopMovementImmediately();
-			const float Tell = (Move == EHulkMove::QuakeSlam ? QuakeTell : SlamTell);
-			if (Move == EHulkMove::QuakeSlam)
+			// FOUR voices of the storm now (Adam: "too little movements"):
+			// point-blank prefers the SHOVE — he hurls clingers from his heart
+			// (the anti-soothe); otherwise slam/sweep/quake rotate.
+			if (Dist < 210.f && ShoveAnim && FMath::RandBool())
 			{
-				PlayOneShot(QuakeAnim ? QuakeAnim : SlamAnim, Tell + 0.5f + QuakeRecover * 0.4f, QuakeClipStart, QuakeClipRate);
+				Move = EHulkMove::BoulderShove;
 			}
 			else
 			{
+				const int32 Pick = FMath::RandRange(0, 5);
+				Move = (Pick <= 1) ? EHulkMove::TantrumSlam
+				     : (Pick <= 3 && SweepAnim) ? EHulkMove::MossSweep
+				     : (Pick == 4) ? EHulkMove::QuakeSlam
+				     : EHulkMove::TantrumSlam;
+				if (Pick == 5 && ShoveAnim) { Move = EHulkMove::BoulderShove; }
+			}
+			bRangThisAttack = false;
+			GetCharacterMovement()->StopMovementImmediately();
+			float Tell = SlamTell;
+			switch (Move)
+			{
+			case EHulkMove::QuakeSlam:
+				Tell = QuakeTell;
+				PlayOneShot(QuakeAnim ? QuakeAnim : SlamAnim, Tell + 0.5f + QuakeRecover * 0.4f, QuakeClipStart, QuakeClipRate);
+				break;
+			case EHulkMove::MossSweep:
+				Tell = SweepTell;
+				PlayOneShot(SweepAnim, Tell + 0.4f + SweepRecover * 0.4f, SweepClipStart, SweepClipRate);
+				break;
+			case EHulkMove::BoulderShove:
+				Tell = ShoveTell;
+				PlayOneShot(ShoveAnim, Tell + 0.4f + ShoveRecover * 0.4f, ShoveClipStart, ShoveClipRate);
+				break;
+			default:
 				PlayOneShot(SlamAnim, Tell + 0.4f + SlamRecover * 0.4f, SlamClipStart, SlamClipRate);
+				break;
 			}
 			EnterState(EHulkState::Telegraph, Tell);
 		}
@@ -441,12 +471,39 @@ void ABramblehulk::Tick(float DeltaTime)
 		if (!bRangThisAttack)
 		{
 			bRangThisAttack = true;
-			DeliverRing(Hero, Move == EHulkMove::QuakeSlam ? QuakeRingRadius : SlamRingRadius);
+			if (Move == EHulkMove::BoulderShove)
+			{
+				// THE ANTI-SOOTHE: clingers get hurled from his heart — light
+				// damage, massive distance. Mercy must walk back.
+				if (Hero)
+				{
+					FVector To = Hero->GetActorLocation() - GetActorLocation();
+					To.Z = 0.f;
+					const bool bInFront = FVector::DotProduct(To.GetSafeNormal(), GetActorForwardVector()) > 0.1f;
+					if (bInFront && To.Size() <= ShoveRange)
+					{
+						const FVector Away = To.GetSafeNormal();
+						Hero->LaunchCharacter(Away * ShoveKnockback + FVector(0.f, 0.f, ShoveLift), true, true);
+						Hero->TakeEmberHit(ShoveEmbers);
+						ASparkImpactBurst::Burst(this,
+							GetActorLocation() + GetActorForwardVector() * 120.f + FVector(0.f, 0.f, 60.f),
+							StormAmber * 2.6f, 1.4f, 5200.f);
+					}
+				}
+			}
+			else
+			{
+				DeliverRing(Hero,
+					Move == EHulkMove::QuakeSlam ? QuakeRingRadius :
+					Move == EHulkMove::MossSweep ? SweepRingRadius : SlamRingRadius);
+			}
 		}
 		if (Now() >= StateUntil)
 		{
 			EnterState(EHulkState::Recover,
-			           Move == EHulkMove::QuakeSlam ? QuakeRecover : SlamRecover);
+				Move == EHulkMove::QuakeSlam ? QuakeRecover :
+				Move == EHulkMove::MossSweep ? SweepRecover :
+				Move == EHulkMove::BoulderShove ? ShoveRecover : SlamRecover);
 		}
 		break;
 

@@ -31,7 +31,7 @@ enum class EHulkState : uint8
 };
 
 UENUM(BlueprintType)
-enum class EHulkMove : uint8 { None, TantrumSlam, QuakeSlam };
+enum class EHulkMove : uint8 { None, TantrumSlam, QuakeSlam, MossSweep, BoulderShove };
 
 UCLASS()
 class ABramblehulk : public ACharacter
@@ -60,22 +60,24 @@ public:
 	void OnBramblehulkSoothed();
 
 	// ---------------- The soothe ----------------
+	/** Halved June 12 (Adam: "a longer health bar") — the storm takes ~2x the
+	    presence to settle now; a proper boss fight, not a drive-by. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Soothe")
-	float CalmPerSecond = 12.f;
+	float CalmPerSecond = 6.f;
 
 	/** During his Recover/Dormant the light reaches deepest. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Soothe")
 	float CalmRecoverMultiplier = 1.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Soothe")
-	float CalmDecayPerSecond = 4.f;
+	float CalmDecayPerSecond = 3.f;
 
 	/** Every clang of violence undoes this much mercy. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Soothe")
 	float CalmLostPerClang = 8.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Soothe")
-	float WaveCalmBonus = 12.f;
+	float WaveCalmBonus = 8.f;
 
 	// ---------------- The storm ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
@@ -121,6 +123,35 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
 	float AttackTriggerRange = 360.f;
 
+	// ---------------- Moss Sweep (fast low arc — JUMP it) ----------------
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float SweepTell = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float SweepRingRadius = 380.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float SweepRecover = 1.2f;
+
+	// ---------------- Boulder Shove (the ANTI-SOOTHE: he hurls you from his heart) ----------------
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float ShoveTell = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float ShoveRange = 300.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float ShoveRecover = 1.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float ShoveKnockback = 1450.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float ShoveLift = 520.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
+	float ShoveEmbers = 10.f;
+
 	// ---------------- Clip windows (scan-solved June 12; all live) ----------------
 	/** Slam: window the loop's back half — warning stomp at 0.36s into the tell,
 	    payoff stomp (beat frac 0.83) lands EXACTLY on the 0.9s ring. */
@@ -138,6 +169,22 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim")
 	float QuakeClipRate = 1.08f;
+
+	/** Sweep scan: arm arcs low through ground level at frac 0.57-0.64 — the
+	    low pass lands exactly on the 0.7s ring. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float SweepClipStart = 0.32f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim")
+	float SweepClipRate = 1.0f;
+
+	/** Shove scan: draw-back at frac 0.11, push-out at 0.21 — the push lands
+	    on the 0.6s commit. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float ShoveClipStart = 0.05f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim")
+	float ShoveClipRate = 1.26f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Anim")
 	float SkelMeshYaw = -90.f;
@@ -193,6 +240,8 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> RoarAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> SoothedAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> SweepAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> ShoveAnim;
 	bool bHasSkeletalModel = false;
 	TObjectPtr<UAnimSequence> CurrentLoop;
 
