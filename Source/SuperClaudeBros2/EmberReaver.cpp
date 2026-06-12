@@ -49,7 +49,7 @@ AEmberReaver::AEmberReaver()
 	ReaverBody->SetupAttachment(VisualRoot);
 	ReaverBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ReaverBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	ReaverBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;   // LOAD LAW
+	ReaverBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);

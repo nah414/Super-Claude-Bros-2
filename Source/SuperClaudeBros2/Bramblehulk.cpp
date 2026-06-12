@@ -1,6 +1,6 @@
-// The Bramblehulk — the boss you cannot punch. The fourth voice of the roster
+﻿// The Bramblehulk â€” the boss you cannot punch. The fourth voice of the roster
 // answers the other three: Kraken tests reading, Reaver tests geometry,
-// Stalker tests courage — the Hulk tests RESTRAINT. The proven skeleton
+// Stalker tests courage â€” the Hulk tests RESTRAINT. The proven skeleton
 // (states, tells, rings, solid bodies) carries a brand-new win condition.
 
 #include "Bramblehulk.h"
@@ -50,8 +50,11 @@ ABramblehulk::ABramblehulk()
 	HulkBody->SetupAttachment(VisualRoot);
 	HulkBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HulkBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	// LOAD LAW: 80k-quad poses don't tick off-screen.
-	HulkBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
+	// ALWAYS tick the pose. OnlyTickPoseWhenRendered froze big bodies solid:
+	// visibility is judged by pose-derived bounds, so a large skeleton can fall
+	// out of its own stale bounds -> "off-screen" -> pose stops -> bounds never
+	// refresh -> frozen forever (Adam's slowed-then-froze report, June 12).
+	HulkBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
@@ -68,7 +71,7 @@ ABramblehulk::ABramblehulk()
 	ContactProfile.bStompImmune = true;
 	ContactProfile.bDashImmune = true;
 	ContactProfile.ContactDamageEmbers = 20.f;
-	ContactProfile.bHasHP = false;   // there is no HP — only weather
+	ContactProfile.bHasHP = false;   // there is no HP â€” only weather
 
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Model(TEXT("/Game/Art/BrambleSkelV1/SCB2Bramble.SCB2Bramble"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDormant(TEXT("/Game/Art/BrambleSkelV1/A_Bramble_Dormant_Anim.A_Bramble_Dormant_Anim"));
@@ -131,7 +134,7 @@ void ABramblehulk::PlayLoop(UAnimSequence* Clip, float Rate)
 {
 	if (!bHasSkeletalModel || !Clip || !HulkBody) { return; }
 	// THE ONE-SHOT GUARD: a loop may not stomp a one-shot mid-flight. (The
-	// Recover loop was replacing every slam ONE TICK in — the follow-through
+	// Recover loop was replacing every slam ONE TICK in â€” the follow-through
 	// never existed, and a colossus without follow-through reads as mush.)
 	if (Now() < OneShotHoldUntil) { return; }
 	if (CurrentLoop == Clip) { HulkBody->SetPlayRate(Rate); return; }
@@ -174,7 +177,7 @@ void ABramblehulk::Wake()
 {
 	if (State != EHulkState::Dormant) { return; }
 	bEverWoken = true;
-	// Roar window: the 7.17s clip blurred through at 4.5x — show the mid-clip
+	// Roar window: the 7.17s clip blurred through at 4.5x â€” show the mid-clip
 	// rear-up and head-throw at a readable pace instead.
 	PlayOneShot(RoarAnim ? RoarAnim : AlertAnim, 1.6f, 0.28f, 1.8f);
 	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 90.f),
@@ -191,7 +194,7 @@ void ABramblehulk::TakeStrikeClang(ASparkHeroCharacter* Striker, bool bCharged)
 	if (State == EHulkState::Soothed) { return; }
 
 	// CLANG: stone refuses the fist. Zero damage; the STRIKER rebounds
-	// (the pre-W4 armor law, 400 uu/s self-rebound) — and mercy is undone.
+	// (the pre-W4 armor law, 400 uu/s self-rebound) â€” and mercy is undone.
 	if (Striker)
 	{
 		FVector Away = Striker->GetActorLocation() - GetActorLocation();
@@ -223,7 +226,7 @@ void ABramblehulk::AddCalm(float Amount)
 	if (CalmProgress >= 100.f)
 	{
 		// THE FINAL TOUCH must land in a deep window (his spent Recover or his
-		// sleep) — accidental drive-by soothes mid-brawl read as freezes
+		// sleep) â€” accidental drive-by soothes mid-brawl read as freezes
 		// (Adam's second report: boss #2 arrived, the drain stopped, the
 		// passive aura quietly finished him). The meter holds at the brink
 		// until the player is THERE for the last beat.
@@ -246,7 +249,7 @@ void ABramblehulk::BecomeSoothed()
 	GetCharacterMovement()->DisableMovement();
 	if (SoothedAnim)
 	{
-		// The settle... and then he BREATHES — at a rate that READS (0.45 was
+		// The settle... and then he BREATHES â€” at a rate that READS (0.45 was
 		// visually near-still: Adam's "froze again"). The win must look alive.
 		const float SettleSeconds = 1.0f;
 		PlayOneShot(SoothedAnim, SettleSeconds);
@@ -260,11 +263,11 @@ void ABramblehulk::BecomeSoothed()
 	{
 		PlayLoop(DormantAnim, 0.85f);
 	}
-	// THE WIN MUST ANNOUNCE ITSELF — soothed and frozen cannot look alike.
+	// THE WIN MUST ANNOUNCE ITSELF â€” soothed and frozen cannot look alike.
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(7, 6.f, FColor::Green,
-			TEXT("THE BRAMBLEHULK IS SOOTHED — the storm rests. Mercy wins."));
+			TEXT("THE BRAMBLEHULK IS SOOTHED â€” the storm rests. Mercy wins."));
 	}
 	// The bloom: the storm exhales, green.
 	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 100.f),
@@ -333,7 +336,7 @@ void ABramblehulk::TickSoothe(float DeltaTime, ASparkHeroCharacter* Hero)
 			ASparkImpactBurst::Burst(this, GetActorLocation() + Drift, MossGreen, 0.5f, 1200.f, 0.45f);
 		}
 	}
-	// LOAD LAW: mood is weather, not lightning — 10Hz is visually identical
+	// LOAD LAW: mood is weather, not lightning â€” 10Hz is visually identical
 	// and saves per-frame light-state churn under multi-boss load.
 	MoodClock += DeltaTime;
 	if (MoodLight && State != EHulkState::Soothed && MoodClock >= 0.1f)
@@ -363,7 +366,7 @@ void ABramblehulk::Tick(float DeltaTime)
 		return;
 	}
 
-	// Solid-body law — a hill does not share its footprint.
+	// Solid-body law â€” a hill does not share its footprint.
 	if (Hero)
 	{
 		const float PersonalSpace = GetCapsuleComponent()->GetScaledCapsuleRadius()
@@ -383,7 +386,7 @@ void ABramblehulk::Tick(float DeltaTime)
 	{
 	case EHulkState::Dormant:
 		PlayLoop(DormantAnim, 0.6f);   // INTENT: sleep is the one place slow = alive
-		// Hysteresis fix: once angry, he re-wakes at a wider ring — a hulk who
+		// Hysteresis fix: once angry, he re-wakes at a wider ring â€” a hulk who
 		// forgot mid-arena must not nap through a fight happening at 600uu.
 		if (Dist <= (bEverWoken ? WakeRadius * 1.9f : WakeRadius)) { Wake(); }
 		break;
@@ -404,7 +407,7 @@ void ABramblehulk::Tick(float DeltaTime)
 			break;
 		}
 		FaceHero(Hero, DeltaTime);
-		PlayLoop(WalkAnim, 1.8f);   // strides own the 380uu/s — 0.9 skated
+		PlayLoop(WalkAnim, 1.8f);   // strides own the 380uu/s â€” 0.9 skated
 		GetCharacterMovement()->MaxWalkSpeed = ApproachSpeed;
 		AddMovementInput((Hero->GetActorLocation() - GetActorLocation()).GetSafeNormal2D());
 		if (Dist <= AttackTriggerRange)
@@ -427,7 +430,7 @@ void ABramblehulk::Tick(float DeltaTime)
 	}
 
 	case EHulkState::Telegraph:
-		if (Hero) { FaceHero(Hero, DeltaTime * 0.5f); }   // slow tracking — mass is honest
+		if (Hero) { FaceHero(Hero, DeltaTime * 0.5f); }   // slow tracking â€” mass is honest
 		if (Now() >= StateUntil)
 		{
 			EnterState(EHulkState::Attack, 0.35f);
@@ -448,7 +451,7 @@ void ABramblehulk::Tick(float DeltaTime)
 		break;
 
 	case EHulkState::Recover:
-		PlayLoop(AlertAnim ? AlertAnim : DormantAnim, 1.4f);   // a full visible heave: SPENT — soothe NOW
+		PlayLoop(AlertAnim ? AlertAnim : DormantAnim, 1.4f);   // a full visible heave: SPENT â€” soothe NOW
 		if (Now() >= StateUntil)
 		{
 			Move = EHulkMove::None;

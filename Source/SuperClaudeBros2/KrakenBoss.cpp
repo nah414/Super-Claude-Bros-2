@@ -63,7 +63,7 @@ AKrakenBoss::AKrakenBoss()
 	KrakenBody->SetupAttachment(VisualRoot);
 	KrakenBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	KrakenBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;   // LOAD LAW
+	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
