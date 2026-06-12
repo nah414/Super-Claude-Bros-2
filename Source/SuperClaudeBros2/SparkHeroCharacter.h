@@ -462,6 +462,7 @@ protected:
 	void HandlePowerPressed();
 	void HandlePowerReleased();
 	void HandleGuardPressed();
+	void HandleSwitchHero();
 	void HandleFastFallPressed();
 	void HandleFastFallReleased();
 	void HandleQuit();
@@ -482,6 +483,7 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputAction> StrikeAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> PowerAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> GuardAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> SwitchHeroAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> FastFallAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> QuitAction;
 
@@ -535,7 +537,9 @@ private:
 	// True when the imported SparkHero model loaded in the constructor.
 	bool bHasRealModel = false;
 
-	// Skeletal hero + clips (constructor-loaded; all optional).
+protected:
+	// Skeletal hero + clips (constructor-loaded; all optional). PROTECTED so the
+	// heroine subclass can swap in her own body and clips (full parity by code).
 	UPROPERTY() TObjectPtr<UAnimSequence> IdleAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> WalkAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> RunAnim;
@@ -549,6 +553,7 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> CrouchAnim;
 	bool bHasSkeletalModel = false;
 
+private:
 	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump, Crouch, Climb };
 	EHeroAnimState AnimState = EHeroAnimState::None;
 	void UpdateHeroAnimation();

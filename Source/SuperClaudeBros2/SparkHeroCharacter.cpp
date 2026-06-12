@@ -13,6 +13,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "GlimmerEnemy.h"
 #include "SparkBlastProjectile.h"
+#include "SparkHeroineCharacter.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/OverlapResult.h"
@@ -296,7 +297,7 @@ void ASparkHeroCharacter::BeginPlay()
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(1, 12.f, FColor::Orange,
-			FString::Printf(TEXT("SPARK HERO L%d  |  LMB strike(x3/hold=CHARGED)  RMB hand-blast(hold=NOVA)  Q fire ring  SPACE jump x2  SHIFT dash  C/CTRL crouch  air+push wall=CLIMB  WHEEL zoom"), PowerLevel));
+			FString::Printf(TEXT("SPARK HERO L%d  |  LMB strike(x3/hold=CHARGED)  RMB blast(hold=NOVA)  Q fire ring  P switch hero  SPACE jump x2  SHIFT dash  C/CTRL crouch  wall=CLIMB  WHEEL zoom"), PowerLevel));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -476,6 +477,9 @@ void ASparkHeroCharacter::BuildInputObjects()
 	GuardAction = NewObject<UInputAction>(this, TEXT("IA_Guard"));
 	GuardAction->ValueType = EInputActionValueType::Boolean;
 
+	SwitchHeroAction = NewObject<UInputAction>(this, TEXT("IA_SwitchHero"));
+	SwitchHeroAction->ValueType = EInputActionValueType::Boolean;
+
 	FastFallAction = NewObject<UInputAction>(this, TEXT("IA_FastFall"));
 	FastFallAction->ValueType = EInputActionValueType::Boolean;
 
@@ -527,6 +531,10 @@ void ASparkHeroCharacter::BuildInputObjects()
 	// Ember Guard: the flame armors itself.
 	MappingContext->MapKey(GuardAction, EKeys::Q);
 	MappingContext->MapKey(GuardAction, EKeys::Gamepad_LeftShoulder);
+
+	// Hero select: P swaps between Claude and Sonnet, anywhere, instantly.
+	MappingContext->MapKey(SwitchHeroAction, EKeys::P);
+	MappingContext->MapKey(SwitchHeroAction, EKeys::Gamepad_Special_Left);
 	MappingContext->MapKey(FastFallAction, EKeys::LeftControl);
 	MappingContext->MapKey(FastFallAction, EKeys::C);   // crouch's second home
 	MappingContext->MapKey(FastFallAction, EKeys::Gamepad_RightShoulder);
@@ -570,6 +578,7 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(PowerAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandlePowerPressed);
 		EIC->BindAction(PowerAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandlePowerReleased);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleGuardPressed);
+		EIC->BindAction(SwitchHeroAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleSwitchHero);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleFastFallPressed);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleFastFallReleased);
 		EIC->BindAction(QuitAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleQuit);
@@ -1108,6 +1117,35 @@ void ASparkHeroCharacter::DoBeaconWave()
 		}
 	}
 	// TODO(M0.2): ILightResponsive sweep — relight every lantern in WaveRadius.
+}
+
+void ASparkHeroCharacter::HandleSwitchHero()
+{
+	// P — hero select, anywhere, instantly: Claude ⇄ Sonnet. Same spot, same
+	// facing, same power level; the flame relights full on the fresh body.
+	AController* C = GetController();
+	if (!C) { return; }
+
+	UClass* NewClass = (GetClass() == ASparkHeroineCharacter::StaticClass())
+		? ASparkHeroCharacter::StaticClass()
+		: ASparkHeroineCharacter::StaticClass();
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ASparkHeroCharacter* NewHero = GetWorld()->SpawnActor<ASparkHeroCharacter>(
+		NewClass, GetActorLocation(), GetActorRotation(), Params);
+	if (!NewHero) { return; }
+
+	NewHero->PowerLevel = PowerLevel;
+	C->Possess(NewHero);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(2, 3.f, FColor::Orange,
+			NewClass == ASparkHeroineCharacter::StaticClass()
+				? TEXT("SONNET — Keeper of the First Lantern")
+				: TEXT("CLAUDE — the Spark of the Under-stacks"));
+	}
+	Destroy();
 }
 
 void ASparkHeroCharacter::HandleGuardPressed()
