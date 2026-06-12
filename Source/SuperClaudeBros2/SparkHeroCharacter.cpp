@@ -1387,6 +1387,23 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 				? 900.f + 250.f * FMath::Sin(T * 9.f)
 				: 0.f);
 		}
+
+		// THE FIRE BURNS (Adam's round-8 ruling: shield AND close-range weapon) —
+		// any Mote that touches the ring is squashed by the flames.
+		if (bGuardBurning)
+		{
+			TArray<FOverlapResult> Burned;
+			FCollisionQueryParams BurnParams(TEXT("GuardBurn"), false, this);
+			GetWorld()->OverlapMultiByChannel(Burned, GetActorLocation(), FQuat::Identity,
+				ECC_Pawn, FCollisionShape::MakeSphere(135.f), BurnParams);
+			for (const FOverlapResult& Hit : Burned)
+			{
+				if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
+				{
+					Glimmer->TakeStrike();
+				}
+			}
+		}
 	}
 
 	// Power pulse animation: the disc races outward and the flash decays.

@@ -28,6 +28,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Blast")
 	TObjectPtr<UStaticMeshComponent> Ball;
 
+	/** Faint outer energy shell — the glow VOLUME around the hot core. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Blast")
+	TObjectPtr<UStaticMeshComponent> Halo;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Blast")
 	TObjectPtr<UPointLightComponent> Light;
 
@@ -42,6 +46,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	UFUNCTION()
 	void OnBlastOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,

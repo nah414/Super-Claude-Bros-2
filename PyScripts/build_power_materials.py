@@ -24,14 +24,14 @@ mat.set_editor_property("two_sided", True)
 
 # Fresnel: 0 facing the camera (the hot core), 1 at the rim (the soft edge).
 fres = mel.create_material_expression(mat, unreal.MaterialExpressionFresnel, -700, 0)
-fres.set_editor_property("exponent", 2.4)
-fres.set_editor_property("base_reflect_fraction", 0.02)
+fres.set_editor_property("exponent", 3.2)            # tighter core, faster falloff
+fres.set_editor_property("base_reflect_fraction", 0.0)
 
 core = mel.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -700, -250)
-core.set_editor_property("constant", unreal.LinearColor(12.0, 6.0, 2.0, 1.0))   # white-hot heart
+core.set_editor_property("constant", unreal.LinearColor(18.0, 9.0, 3.0, 1.0))   # white-hot heart (bloom blowout)
 
 edge = mel.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -700, -120)
-edge.set_editor_property("constant", unreal.LinearColor(0.6, 0.18, 0.02, 1.0))  # dim amber halo
+edge.set_editor_property("constant", unreal.LinearColor(0.04, 0.012, 0.001, 1.0))  # edges DISSOLVE (additive black = invisible — no more oval silhouette)
 
 lerp = mel.create_material_expression(mat, unreal.MaterialExpressionLinearInterpolate, -450, -100)
 ok = []
