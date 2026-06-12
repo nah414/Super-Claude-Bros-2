@@ -170,6 +170,10 @@ private:
 	float CalmProgress = 0.f;
 	float WispClock = 0.f;
 	bool bRangThisAttack = false;
+	/** Calm filled mid-move: he finishes the swing FIRST, then sits (a soothe
+	    that interrupts an attack freezes the pose — Adam's June 12 report). */
+	bool bSoothePending = false;
+	FTimerHandle SettleTimer;
 
 	UPROPERTY() TObjectPtr<UAnimSequence> DormantAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> AlertAnim;

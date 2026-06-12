@@ -209,15 +209,44 @@ void ABramblehulk::AddCalm(float Amount)
 {
 	if (State == EHulkState::Soothed) { return; }
 	CalmProgress = FMath::Clamp(CalmProgress + Amount, 0.f, 100.f);
-	if (CalmProgress >= 100.f) { BecomeSoothed(); }
+	if (CalmProgress >= 100.f)
+	{
+		// Mid-move calm DEFERS: a storm finishes its last thunder, then sits.
+		// (Soothing mid-swing froze his pose — Adam's first soothe, June 12.)
+		if (State == EHulkState::Telegraph || State == EHulkState::Attack
+			|| State == EHulkState::Waking)
+		{
+			bSoothePending = true;
+		}
+		else
+		{
+			BecomeSoothed();
+		}
+	}
 }
 
 void ABramblehulk::BecomeSoothed()
 {
 	if (State == EHulkState::Soothed) { return; }
+	bSoothePending = false;
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
-	if (SoothedAnim) { PlayOneShot(SoothedAnim, SoothedAnim->GetPlayLength()); }
+	if (SoothedAnim)
+	{
+		// The settle... and then he BREATHES. A soothed hill is alive — the
+		// dormant sleep-cycle loops forever after the settle lands (a held
+		// final frame reads as a freeze, never as peace).
+		const float SettleSeconds = 1.4f;
+		PlayOneShot(SoothedAnim, SettleSeconds);
+		GetWorldTimerManager().SetTimer(SettleTimer, [this]()
+		{
+			PlayLoop(DormantAnim, 0.45f);
+		}, SettleSeconds, false);
+	}
+	else
+	{
+		PlayLoop(DormantAnim, 0.45f);
+	}
 	// The bloom: the storm exhales, green.
 	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 100.f),
 	                         MossGreen * 2.4f, 2.6f, 9000.f, 0.7f);
@@ -302,6 +331,14 @@ void ABramblehulk::Tick(float DeltaTime)
 
 	TickSoothe(DeltaTime, Hero);
 	if (State == EHulkState::Soothed) { return; }
+
+	// A deferred soothe lands the moment the current move is spent.
+	if (bSoothePending && State != EHulkState::Telegraph
+		&& State != EHulkState::Attack && State != EHulkState::Waking)
+	{
+		BecomeSoothed();
+		return;
+	}
 
 	// Solid-body law — a hill does not share its footprint.
 	if (Hero)

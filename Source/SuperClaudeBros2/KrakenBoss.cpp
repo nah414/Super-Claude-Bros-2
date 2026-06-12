@@ -367,6 +367,7 @@ void AKrakenBoss::FinishAttack(float RecoverSeconds)
 {
 	GetCharacterMovement()->StopMovementImmediately();
 	bGripHolding = false;
+	bSlamAirborne = false;   // a cancelled slam must not ring on a later step-down
 	if (GripTether) { GripTether->SetVisibility(false); }
 	if (TelegraphLight) { TelegraphLight->SetIntensity(0.f); }
 	EnterState(EKrakenState::Recover, RecoverSeconds);
