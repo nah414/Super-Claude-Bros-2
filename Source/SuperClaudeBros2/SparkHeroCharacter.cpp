@@ -15,6 +15,7 @@
 #include "SparkBlastProjectile.h"
 #include "SparkHeroineCharacter.h"
 #include "KrakenBoss.h"
+#include "EmberReaver.h"
 #include "SparkImpactBurst.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -940,6 +941,12 @@ void ASparkHeroCharacter::StrikeHitCheck()
 		{
 			Rival->TakeStrike(ComboBeat, bChargedStrike);
 			OnHeroStrikeHit(Rival, ComboBeat);
+			bThisOneHit = true;
+		}
+		else if (AEmberReaver* Reaver = Cast<AEmberReaver>(Hit.GetActor()))
+		{
+			Reaver->TakeStrike(ComboBeat, bChargedStrike);
+			OnHeroStrikeHit(Reaver, ComboBeat);
 			bThisOneHit = true;
 		}
 		if (bThisOneHit)

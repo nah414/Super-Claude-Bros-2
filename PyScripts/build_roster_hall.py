@@ -104,6 +104,16 @@ try:
 except Exception as e:
     print(f"LIVE_KRAKEN_SKIPPED: {e}")
 
+# ---- a LIVE EMBER REAVER (rival #2, opposite wing — pick your duel) ----
+try:
+    reaver_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.EmberReaver")
+    rv = eas.spawn_actor_from_class(reaver_cls, unreal.Vector(-1500, -700, 90))
+    rv.set_actor_rotation(unreal.Rotator(0.0, 0.0, 0.0), False)
+    rv.set_actor_label("LiveEmberReaver")
+    print("LIVE_REAVER_PLACED")
+except Exception as e:
+    print(f"LIVE_REAVER_SKIPPED: {e}")
+
 # ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
 # Both playable heroes stand front-center, breathing their idle clips, so a
 # walk through the Hall always shows the true current state of every rig.

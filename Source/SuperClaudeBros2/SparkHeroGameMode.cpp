@@ -1,4 +1,5 @@
 #include "SparkHeroGameMode.h"
+#include "EmberReaver.h"
 #include "KrakenBoss.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
@@ -103,6 +104,23 @@ void ASparkHeroGameMode::BeginPlay()
 				if (Kraken && Pawn)
 				{
 					Kraken->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2ReaverNear: same trick for rival #2 (dash trails want a camera).
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2ReaverNear")))
+		{
+			FTimerHandle ReaverTimer;
+			GetWorldTimerManager().SetTimer(ReaverTimer, [this]()
+			{
+				AEmberReaver* Reaver = Cast<AEmberReaver>(
+					UGameplayStatics::GetActorOfClass(this, AEmberReaver::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Reaver && Pawn)
+				{
+					Reaver->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);

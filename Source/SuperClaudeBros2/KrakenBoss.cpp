@@ -88,14 +88,10 @@ AKrakenBoss::AKrakenBoss()
 	GripTether->SetCastShadow(false);
 	GripTether->SetVisibility(false);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Plasma(TEXT("/Game/Art/FX/M_SparkPlasma.M_SparkPlasma"));
 	if (Cyl.Succeeded()) { GripTether->SetStaticMesh(Cyl.Object); }
-	if (Plasma.Succeeded())
-	{
-		TetherMID = UMaterialInstanceDynamic::Create(Plasma.Object, this);
-		TetherMID->SetVectorParameterValue(TEXT("Tint"), KrakenViolet * 2.2f);
-		GripTether->SetMaterial(0, TetherMID);
-	}
+	// NOTE: the tether's MID is created at BeginPlay — a constructor MID lives
+	// on the CDO and makes every level holding a placed Kraken UNSAVABLE
+	// ("Illegal reference to private object", the June 12 Hall save failure).
 
 	ContactProfile.MassClass = EMassClass::Champion;
 	ContactProfile.bStompImmune = true;
@@ -154,6 +150,16 @@ void AKrakenBoss::BeginPlay()
 	if (DuelMeter)
 	{
 		DuelMeter->OnFlameOut.AddDynamic(this, &AKrakenBoss::HandleDuelMeterEmpty);
+	}
+	if (GripTether && !TetherMID)
+	{
+		if (UMaterialInterface* Plasma = LoadObject<UMaterialInterface>(
+				nullptr, TEXT("/Game/Art/FX/M_SparkPlasma.M_SparkPlasma")))
+		{
+			TetherMID = UMaterialInstanceDynamic::Create(Plasma, this);
+			TetherMID->SetVectorParameterValue(TEXT("Tint"), KrakenViolet * 2.2f);
+			GripTether->SetMaterial(0, TetherMID);
+		}
 	}
 	PlayLoop(IdleAnim);
 }
