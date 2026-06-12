@@ -460,6 +460,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
 	float HaymakerClipRate = 0.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float ChargedClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float ChargedClipRate = 0.f;
+
 	/** Ground speed above which the run cycle replaces the walk cycle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
 	float RunAnimSpeedThreshold = 420.f;
@@ -574,6 +580,9 @@ protected:
 	UPROPERTY() TObjectPtr<UAnimSequence> Strike1Anim;
 	UPROPERTY() TObjectPtr<UAnimSequence> Strike2Anim;
 	UPROPERTY() TObjectPtr<UAnimSequence> HaymakerAnim;
+	/** Optional split: the CHARGED strike's own clip (falls back to HaymakerAnim).
+	    Lets a character kick the combo finisher but still punch the charged one. */
+	UPROPERTY() TObjectPtr<UAnimSequence> ChargedStrikeAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> RelightAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> CrouchAnim;

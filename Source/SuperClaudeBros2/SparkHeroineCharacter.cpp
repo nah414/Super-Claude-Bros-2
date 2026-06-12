@@ -34,6 +34,10 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerCombo1(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Combo1_Anim.A_Heroine_Combo1_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerCombo2(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Combo2_Anim.A_Heroine_Combo2_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerCombo3(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Combo3_Anim.A_Heroine_Combo3_Anim"));
+	// Round 3 (Adam): the KICK combo — high kick / roundhouse / lunge spin kick.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerKick1(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Kick1_Anim.A_Heroine_Kick1_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerKick2(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Kick2_Anim.A_Heroine_Kick2_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerKick3(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Kick3_Anim.A_Heroine_Kick3_Anim"));
 
 	if (HerModel.Succeeded() && SkelBody)
 	{
@@ -51,9 +55,11 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	RelightAnim = Pick(HerRelight, RelightAnim);
 	CrouchAnim = Pick(HerCrouch, CrouchAnim);
 
-	// Signature combo wins over the jab scaffolding; windows are data-scanned
-	// (hand-extension peaks: hook impact frac 0.725, upper-hook 0.475, double
-	// drive 0.20) so the PUNCH plays inside the beat, not the wind-up.
+	// Punch fallbacks first (hooks beat jabs), then her SIGNATURE KICK COMBO
+	// wins outright — legs are her longest limbs, the biggest silhouette the
+	// catalog sells. Windows are data-scanned foot peaks: high kick z158 @frac
+	// 0.525, roundhouse z143 @0.525, spin kick z129 @0.775 — the IMPACT plays
+	// inside the beat, not the wind-up.
 	if (HerCombo1.Succeeded())
 	{
 		Strike1Anim = HerCombo1.Object.Get();
@@ -66,10 +72,36 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 		Strike2ClipStartFraction = 0.33f;
 		Strike2ClipRate = 1.8f;
 	}
-	if (HerCombo3.Succeeded())
+	if (HerKick1.Succeeded())
+	{
+		Strike1Anim = HerKick1.Object.Get();
+		Strike1ClipStartFraction = 0.40f;
+		Strike1ClipRate = 2.0f;
+	}
+	if (HerKick2.Succeeded())
+	{
+		Strike2Anim = HerKick2.Object.Get();
+		Strike2ClipStartFraction = 0.42f;
+		Strike2ClipRate = 2.5f;
+	}
+	if (HerKick3.Succeeded())
+	{
+		HaymakerAnim = HerKick3.Object.Get();
+		HaymakerClipStartFraction = 0.60f;
+		HaymakerClipRate = 1.3f;
+	}
+	else if (HerCombo3.Succeeded())
 	{
 		HaymakerAnim = HerCombo3.Object.Get();
 		HaymakerClipStartFraction = 0.12f;
 		HaymakerClipRate = 1.4f;
+	}
+	// The CHARGED strike stays a fist move — the both-fists drive, arms at full
+	// reach (Adam's note), while the regular finisher spins the kick.
+	if (HerCombo3.Succeeded())
+	{
+		ChargedStrikeAnim = HerCombo3.Object.Get();
+		ChargedClipStartFraction = 0.12f;
+		ChargedClipRate = 1.4f;
 	}
 }

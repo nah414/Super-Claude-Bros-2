@@ -856,7 +856,14 @@ void ASparkHeroCharacter::DoChargedStrike()
 	if (EmberMeter) { EmberMeter->FlashGlow(0.35f, 4.f); }
 	FirePulse(220.f, 0.35f, 2500.f);
 	OnHeroChargedStrike();
-	PlayActionClip(HaymakerAnim, 0.55f, HaymakerClipStartFraction, HaymakerClipRate);
+	if (ChargedStrikeAnim)
+	{
+		PlayActionClip(ChargedStrikeAnim, 0.55f, ChargedClipStartFraction, ChargedClipRate);
+	}
+	else
+	{
+		PlayActionClip(HaymakerAnim, 0.55f, HaymakerClipStartFraction, HaymakerClipRate);
+	}
 
 	GetWorldTimerManager().SetTimer(StrikeHitTimerHandle, this, &ASparkHeroCharacter::StrikeHitCheck,
 	                                0.22f, false);
