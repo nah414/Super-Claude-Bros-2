@@ -93,6 +93,32 @@ try:
 except Exception as e:
     print(f"LIVE_GLIMMER_SKIPPED: {e}")
 
+# ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
+# Both playable heroes stand front-center, breathing their idle clips, so a
+# walk through the Hall always shows the true current state of every rig.
+HEROES = [
+    ("Exhibit_ClaudeSpark", "/Game/Art/HeroSkelV4/SCB2Hero",
+     "/Game/Art/HeroSkelV4/A_Hero_Idle_Anim", -200.0),
+    ("Exhibit_Sonnet", "/Game/Art/HeroineSkelV2/SCB2Heroine",
+     "/Game/Art/HeroineSkelV2/A_Heroine_Idle_Anim", 200.0),
+]
+for label, mesh_path, idle_path, x in HEROES:
+    mesh = EAL.load_asset(mesh_path)
+    idle = EAL.load_asset(idle_path)
+    if not isinstance(mesh, unreal.SkeletalMesh):
+        print(f"HERO_EXHIBIT_SKIPPED: {mesh_path}")
+        continue
+    actor = eas.spawn_actor_from_class(
+        unreal.SkeletalMeshActor, unreal.Vector(x, 150.0, 0.0))
+    comp = actor.skeletal_mesh_component
+    comp.set_editor_property("skeletal_mesh_asset", mesh)
+    if isinstance(idle, unreal.AnimSequence):
+        comp.set_editor_property("animation_mode", unreal.AnimationMode.ANIMATION_SINGLE_NODE)
+        comp.override_animation_data(idle, is_looping=True, is_playing=True)
+    actor.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)
+    actor.set_actor_label(label)
+    print(f"HERO_EXHIBIT_PLACED: {label}")
+
 # ---- the visitor ----
 start = eas.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, -700, 100))
 start.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)  # look at the line

@@ -15,6 +15,8 @@ class ASparkHeroGameMode : public AGameModeBase
 public:
 	ASparkHeroGameMode();
 
+	virtual UClass* GetDefaultPawnClassForController_Implementation(AController* InController) override;
+
 protected:
 	virtual void BeginPlay() override;
 };

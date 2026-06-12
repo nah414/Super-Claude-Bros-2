@@ -10,7 +10,7 @@ namespace
 	UAnimSequence* Pick(const ConstructorHelpers::FObjectFinder<UAnimSequence>& Finder,
 	                    UAnimSequence* Fallback)
 	{
-		return Finder.Succeeded() ? Finder.Object : Fallback;
+		return Finder.Succeeded() ? Finder.Object.Get() : Fallback;
 	}
 }
 

@@ -1,5 +1,6 @@
 #include "SparkHeroGameMode.h"
 #include "SparkHeroCharacter.h"
+#include "SparkHeroineCharacter.h"
 
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -14,6 +15,17 @@
 ASparkHeroGameMode::ASparkHeroGameMode()
 {
 	DefaultPawnClass = ASparkHeroCharacter::StaticClass();
+}
+
+UClass* ASparkHeroGameMode::GetDefaultPawnClassForController_Implementation(AController* InController)
+{
+	// -SCB2Sonnet starts the run as the heroine (capture harness + player choice
+	// from a shortcut); in-game P still swaps freely either way.
+	if (FParse::Param(FCommandLine::Get(), TEXT("SCB2Sonnet")))
+	{
+		return ASparkHeroineCharacter::StaticClass();
+	}
+	return Super::GetDefaultPawnClassForController_Implementation(InController);
 }
 
 void ASparkHeroGameMode::BeginPlay()
