@@ -818,28 +818,22 @@ void ASparkHeroCharacter::HandleStrikePressed()
 	if (Now() < ComboCooldownUntil) { return; }       // post-haymaker breather
 	if (bStriking) { bStrikeQueued = true; return; }  // chain the next beat
 
-	// L3+: holding the button charges the haymaker; the strike fires on release.
+	// THE RESPONSIVENESS LAW (Adam's boss-fight verdict, June 12): the beat
+	// fires THE FRAME you press — release waits are lag. Keep holding and the
+	// charged haymaker auto-fires the instant its charge completes (see Tick).
 	bChargingStrike = true;
 	StrikeChargeStart = Now();
-}
-
-void ASparkHeroCharacter::HandleStrikeReleased()
-{
-	if (!bChargingStrike) { return; }
-	bChargingStrike = false;
-
-	const float Held = Now() - StrikeChargeStart;
-	if (Held >= StrikeChargeTime && HasPowerLevel(3) && !bStriking)
-	{
-		DoChargedStrike();
-		return;
-	}
-	if (bStriking || bIsDashing || Now() < ComboCooldownUntil) { return; }
 	if ((Now() - LastStrikeEndTime) > StrikeComboWindow)
 	{
 		ComboBeat = 0;                                // too slow — the string resets
 	}
 	DoStrike();
+}
+
+void ASparkHeroCharacter::HandleStrikeReleased()
+{
+	// Nothing fires on release anymore — letting go just stops the charge.
+	bChargingStrike = false;
 }
 
 void ASparkHeroCharacter::DoChargedStrike()
@@ -1071,24 +1065,20 @@ void ASparkHeroCharacter::FirePulse(float Radius, float Duration, float LightInt
 void ASparkHeroCharacter::HandlePowerPressed()
 {
 	if (!HasPowerLevel(4)) { return; }   // the burst is the kit's entry power
+	if (Now() < NextBlastTime) { return; }   // the rapid-fire governor
+
+	// THE RESPONSIVENESS LAW: the bolt leaves your hand THE FRAME you press.
+	// Keep holding and the Beacon Wave detonates the instant its 0.6s charge
+	// completes (see Tick) — on demand, never on release.
+	NextBlastTime = Now() + BlastCooldown;
 	bChargingPower = true;
 	PowerChargeStart = Now();
+	DoPrismBurst();
 }
 
 void ASparkHeroCharacter::HandlePowerReleased()
 {
-	if (!bChargingPower) { return; }
-	bChargingPower = false;
-
-	const float Held = Now() - PowerChargeStart;
-	if (Held >= WaveChargeTime && HasPowerLevel(6))
-	{
-		DoBeaconWave();
-	}
-	else
-	{
-		DoPrismBurst();
-	}
+	bChargingPower = false;   // letting go just abandons the wave charge
 }
 
 // Spawn one spark blast from the hero's hand, flying flat along Direction.
@@ -1428,6 +1418,22 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		TargetLen = FMath::Clamp(TargetLen * ZoomMultiplier, 60.f, 3000.f);
 		SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, TargetLen,
 		                                              DeltaSeconds, 4.f);
+	}
+
+	// THE RESPONSIVENESS LAW: charged moves fire the INSTANT their charge
+	// completes — held buttons deliver on demand, never on release.
+	if (bChargingStrike && !bStriking && !bIsDashing && HasPowerLevel(3)
+		&& Now() >= ComboCooldownUntil
+		&& Now() - StrikeChargeStart >= StrikeChargeTime)
+	{
+		bChargingStrike = false;
+		DoChargedStrike();
+	}
+	if (bChargingPower && HasPowerLevel(6)
+		&& Now() - PowerChargeStart >= WaveChargeTime)
+	{
+		bChargingPower = false;
+		DoBeaconWave();
 	}
 
 	// Drive the rigged hero's clips from movement state.

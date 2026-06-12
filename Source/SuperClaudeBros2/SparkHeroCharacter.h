@@ -228,9 +228,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
 	float AuraRadius = 400.f;
 
-	/** L3 — Charged Haymaker: hold strike at least this long, release to unleash. */
+	/** L3 — Charged Haymaker: hold strike this long and it AUTO-FIRES (the
+	    responsiveness law, June 12 — nothing in the kit waits for a release). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
 	float StrikeChargeTime = 0.45f;
+
+	/** Rapid-fire governor for the hand blast: taps this far apart all fire.
+	    The bolt leaves on PRESS; this is the only thing limiting the cadence. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float BlastCooldown = 0.18f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
 	float ChargedLunge = 700.f;
@@ -562,6 +568,7 @@ private:
 	float PulseTargetRadius = 450.f;
 	bool bChargingPower = false;
 	float PowerChargeStart = -1000.f;
+	float NextBlastTime = -1000.f;    // the rapid-fire governor's clock
 	float BurstReadyTime = -1000.f;
 	float WaveReadyTime = -1000.f;
 	float GuardReadyTime = -1000.f;
