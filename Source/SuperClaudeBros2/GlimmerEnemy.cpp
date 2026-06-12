@@ -168,6 +168,22 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 	}
 	if (bDead) { return; } // contact may have squashed us this frame
 
+	// The Spark Aura (hero power, L2+): kept-fire calms wild things. Inside the
+	// radius the Glimmer settles — no patrol, no bonks. Mercy as a mechanic.
+	if (const ASparkHeroCharacter* Hero = CachedHero.Get())
+	{
+		const bool bCalm = Hero->IsAuraActive()
+			&& FVector::DistSquared(Hero->GetActorLocation(), GetActorLocation())
+				<= FMath::Square(Hero->GetAuraRadius());
+		if (bCalm != bCalmedByAura)
+		{
+			bCalmedByAura = bCalm;
+			OnCalmChanged(bCalm);
+			if (bCalm) { GetCharacterMovement()->StopMovementImmediately(); }
+		}
+	}
+	if (bCalmedByAura) { return; }   // settled in the warm light
+
 	// Stunned after a bonk: stand still and let the hero get clear.
 	if (Now() < StunnedUntilTime) { return; }
 
@@ -258,6 +274,10 @@ void AGlimmerEnemy::HandleHeroContact(ASparkHeroCharacter* Hero)
 		return;
 	}
 
+	// A calmed Glimmer never bonks — docile contact is harmless both ways.
+	// (Stomp and dash above still work: the mercy stays the player's choice.)
+	if (bCalmedByAura) { return; }
+
 	// Side bonk: shove the hero away. Cooldown so contact can't re-trigger every frame.
 	if ((Now() - LastHitTime) < HitCooldown) { return; }
 	LastHitTime = Now();
@@ -282,6 +302,13 @@ void AGlimmerEnemy::TakeStrike()
 	{
 		Die(false);   // squashed sideways — same exit as a dash kill
 	}
+}
+
+void AGlimmerEnemy::TakeStagger(float Seconds)
+{
+	if (bDead) { return; }
+	StunnedUntilTime = FMath::Max(StunnedUntilTime, Now() + Seconds);
+	GetCharacterMovement()->StopMovementImmediately();
 }
 
 // ---------------------------------------------------------------------------

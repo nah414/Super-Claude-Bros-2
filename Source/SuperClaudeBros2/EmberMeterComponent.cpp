@@ -58,6 +58,18 @@ void UEmberMeterComponent::RefillFull()
 	OnEmbersChanged.Broadcast(1.f);
 }
 
+void UEmberMeterComponent::ActivateGuard(float Seconds)
+{
+	if (bFlameOut) { return; }
+	GraceUntilTime = FMath::Max(GraceUntilTime, Now() + Seconds);
+}
+
+void UEmberMeterComponent::FlashGlow(float Seconds, float IntensityBoost)
+{
+	GlowPulseUntil = Now() + Seconds;
+	GlowPulseBoost = IntensityBoost;
+}
+
 void UEmberMeterComponent::RegisterFlameVisuals(UStaticMeshComponent* InFlame, UPointLightComponent* InGlow)
 {
 	Flame = InFlame;
@@ -93,8 +105,9 @@ void UEmberMeterComponent::UpdateFlameVisuals(float DeltaTime)
 		const float XY = bFlameOut ? 0.01f : (0.08f + 0.06f * Fraction);
 		F->SetRelativeScale3D(FVector(XY, XY, FMath::Max(Z, 0.01f)));
 	}
+	const float Pulse = (Now() < GlowPulseUntil) ? GlowPulseBoost : 1.f;
 	if (UPointLightComponent* G = Glow.Get())
 	{
-		G->SetIntensity(bFlameOut ? 0.f : GlowFullIntensity * Fraction * Flicker * GraceBoost);
+		G->SetIntensity(bFlameOut ? 0.f : GlowFullIntensity * Fraction * Flicker * GraceBoost * Pulse);
 	}
 }

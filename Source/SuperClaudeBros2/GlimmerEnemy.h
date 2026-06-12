@@ -92,6 +92,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Glimmer")
 	void TakeStrike();
 
+	/** A power pulse (Prism Burst / Beacon Wave) staggered us — dazzled, not hurt. */
+	UFUNCTION(BlueprintCallable, Category = "Glimmer")
+	void TakeStagger(float Seconds);
+
+	/** Calm-state flips (entered/left the hero's Spark Aura) — VFX/SFX seam. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Glimmer|Events")
+	void OnCalmChanged(bool bCalm);
+
+	UFUNCTION(BlueprintPure, Category = "Glimmer")
+	bool IsCalmedByAura() const { return bCalmedByAura; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
@@ -117,6 +128,7 @@ private:
 	float LastHitTime = -1000.f;
 	float StunnedUntilTime = -1000.f;
 	bool bDead = false;
+	bool bCalmedByAura = false;   // settled inside the hero's Spark Aura (L2+)
 	FTimerHandle DestroyTimerHandle;
 
 	// Cached hero for the generous per-frame proximity backstop.

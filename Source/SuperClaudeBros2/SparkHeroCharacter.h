@@ -163,6 +163,65 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Strike")
 	float StrikeComboCooldown = 0.35f;
 
+	// ---------------- Crouch (Adam's round-3 verb) ----------------
+	/** Capsule half-height while crouched (standing: 72). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Crouch")
+	float CrouchHalfHeight = 44.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Crouch")
+	float CrouchSpeed = 260.f;
+
+	// ---------------- THE SPARK SURGE KIT (Powers Codex §2 — Adam: build the FULL
+	// hero now, stage per-world later) ----------------
+	/** The 1–10 staging gate. L1 verbs+combo · L2 Spark Aura · L3 Charged Haymaker ·
+	    L4 Prism Burst · L5 Ember Guard · L6 Beacon Wave · L7 Aura+combo amplified ·
+	    L8 Burst amplified · L9 Guard amplified + 2nd air dash · L10 Full Spark.
+	    Default 10 for Adam's playtests; world deployment stages this per relight. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power", meta = (ClampMin = "1", ClampMax = "10"))
+	int32 PowerLevel = 10;
+
+	/** L2 — Spark Aura: kept-fire radius that calms Mote-class wildlife. L7: ×1.5. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float AuraRadius = 400.f;
+
+	/** L3 — Charged Haymaker: hold strike at least this long, release to unleash. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float StrikeChargeTime = 0.45f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float ChargedLunge = 700.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float ChargedRadiusBonus = 45.f;
+
+	/** L4 — Prism Burst (tap power): a light pulse that staggers Motes in a ring. L8: ×1.3 radius. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float BurstRadius = 450.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float BurstStagger = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float BurstCooldown = 4.f;
+
+	/** L5 — Ember Guard (tap Q): the flame armors itself — grace extends. L9: 3 s. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float GuardDuration = 2.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float GuardCooldown = 8.f;
+
+	/** L6 — Beacon Wave (hold power, release): the big pulse — staggers wide, and
+	    relights every lantern in radius once the light-state system lands (M0.2). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float WaveRadius = 900.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float WaveChargeTime = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
+	float WaveCooldown = 12.f;
+
 	// ---------------- Camera feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
 	float BaseArmLength = 460.f;
@@ -250,6 +309,30 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SparkHero")
 	bool IsStriking() const { return bStriking; }
 
+	/** Staging gate check — the whole kit reads through this. */
+	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
+	bool HasPowerLevel(int32 Level) const { return PowerLevel >= Level; }
+
+	/** L2+ and the flame is lit: the Spark Aura calms wild things (read by fauna). */
+	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
+	bool IsAuraActive() const;
+
+	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
+	float GetAuraRadius() const { return AuraRadius * (HasPowerLevel(7) ? 1.5f : 1.f); }
+
+	// Power-cast VFX/SFX seams.
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroChargedStrike();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroPrismBurst(float Radius);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroEmberGuard();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
+	void OnHeroBeaconWave(float Radius);
+
 	/** A combo beat fired (0/1 = lash, 2 = haymaker) — VFX/SFX seam. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "SparkHero|Events")
 	void OnHeroStrike(int32 Beat);
@@ -295,11 +378,14 @@ public:
 	    a 1 s hop only ever showed the rigid lead-in (Adam: "knees should bend").
 	    Start the clip where the leap lives and play it fitted. Both EditAnywhere:
 	    tune by feel — earlier/later = fraction, snappier/slower = rate. */
+	/** Data-scanned values (hips-Z over the clip): the crouch dip sits at frac
+	    0.076, leap peak at 0.127, landed by ~0.18 — start at 0.06, rate 1.2 fits
+	    that window to a ~1 s hop. Knees bend at takeoff, tuck at apex. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
-	float JumpClipStartFraction = 0.30f;
+	float JumpClipStartFraction = 0.06f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
-	float JumpClipRate = 2.5f;
+	float JumpClipRate = 1.2f;
 
 	/** Ground speed above which the run cycle replaces the walk cycle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
@@ -325,9 +411,16 @@ protected:
 	void HandleJumpReleased();
 	void HandleDashPressed();
 	void HandleStrikePressed();
+	void HandleStrikeReleased();
+	void HandlePowerPressed();
+	void HandlePowerReleased();
+	void HandleGuardPressed();
 	void HandleFastFallPressed();
 	void HandleFastFallReleased();
 	void HandleQuit();
+
+	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
 
 private:
 	// Runtime-built Enhanced Input (no content assets needed).
@@ -340,6 +433,8 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputAction> JumpAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> DashAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> StrikeAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> PowerAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> GuardAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> FastFallAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> QuitAction;
 
@@ -358,17 +453,30 @@ private:
 	float LastDashEndTime = -1000.f;
 	FTimerHandle DashTimerHandle;
 
-	// Strike state (the Spark Combo)
+	// Strike state (the Spark Combo + the L3 charge)
 	void DoStrike();
+	void DoChargedStrike();
 	void StrikeHitCheck();
 	void EndStrike();
 	bool bStriking = false;
 	bool bStrikeQueued = false;
+	bool bChargingStrike = false;
+	bool bChargedStrike = false;         // current swing is the charged variant
+	float StrikeChargeStart = -1000.f;
 	int32 ComboBeat = 0;                 // 0/1 = lash, 2 = haymaker
 	float LastStrikeEndTime = -1000.f;
 	float ComboCooldownUntil = -1000.f;
 	FTimerHandle StrikeTimerHandle;
 	FTimerHandle StrikeHitTimerHandle;
+
+	// Power state (the Spark Surge kit)
+	void DoPrismBurst();
+	void DoBeaconWave();
+	bool bChargingPower = false;
+	float PowerChargeStart = -1000.f;
+	float BurstReadyTime = -1000.f;
+	float WaveReadyTime = -1000.f;
+	float GuardReadyTime = -1000.f;
 
 	// True when the imported SparkHero model loaded in the constructor.
 	bool bHasRealModel = false;
@@ -384,9 +492,10 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> HaymakerAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> RelightAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> CrouchAnim;
 	bool bHasSkeletalModel = false;
 
-	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump };
+	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump, Crouch };
 	EHeroAnimState AnimState = EHeroAnimState::None;
 	void UpdateHeroAnimation();
 

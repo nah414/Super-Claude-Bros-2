@@ -54,6 +54,11 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	Move->AirControl = AirControlAmount;
 	Move->BrakingDecelerationFalling = 200.f;
 
+	// Crouch (CTRL on the ground; in the air the same button fast-falls).
+	Move->GetNavAgentPropertiesRef().bCanCrouch = true;
+	Move->SetCrouchedHalfHeight(CrouchHalfHeight);
+	Move->MaxWalkSpeedCrouched = CrouchSpeed;
+
 	// --- Visual root so squash & stretch never touches collision ---
 	VisualRoot = CreateDefaultSubobject<USceneComponent>(TEXT("VisualRoot"));
 	VisualRoot->SetupAttachment(RootComponent);
@@ -113,6 +118,7 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HaymakerClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Haymaker_Anim.A_Hero_Haymaker_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HitReactClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_HitReact_Anim.A_Hero_HitReact_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> RelightClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Relight_Anim.A_Hero_Relight_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> CrouchClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_CrouchWalk_Anim.A_Hero_CrouchWalk_Anim"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -135,6 +141,7 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	HaymakerAnim = HaymakerClip.Succeeded() ? HaymakerClip.Object : nullptr;
 	HitReactAnim = HitReactClip.Succeeded() ? HitReactClip.Object : nullptr;
 	RelightAnim = RelightClip.Succeeded() ? RelightClip.Object : nullptr;
+	CrouchAnim = CrouchClip.Succeeded() ? CrouchClip.Object : nullptr;
 
 	// --- Camera rig: spring arm with collision probe + lag, free orbit ---
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -209,6 +216,12 @@ void ASparkHeroCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// L9 amplification: the spark learns a second air dash.
+	if (HasPowerLevel(9))
+	{
+		MaxAirDashes = FMath::Max(MaxAirDashes, 2);
+	}
+
 	AirJumpsRemaining = MaxAirJumps;
 	AirDashesRemaining = MaxAirDashes;
 	GetCharacterMovement()->GravityScale = BaseGravityScale;
@@ -230,7 +243,7 @@ void ASparkHeroCharacter::BeginPlay()
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(1, 10.f, FColor::Orange,
-			TEXT("SPARK HERO READY  |  WASD run   SPACE jump (x2)   SHIFT dash   LMB strike (x3 = combo)   WHEEL zoom   CTRL fast-fall"));
+			FString::Printf(TEXT("SPARK HERO L%d  |  WASD run  SPACE jump(x2)  SHIFT dash  LMB strike(x3 / hold=CHARGED)  RMB burst(hold=WAVE)  Q guard  CTRL crouch/fast-fall  WHEEL zoom"), PowerLevel));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -361,6 +374,12 @@ void ASparkHeroCharacter::BuildInputObjects()
 	StrikeAction = NewObject<UInputAction>(this, TEXT("IA_Strike"));
 	StrikeAction->ValueType = EInputActionValueType::Boolean;
 
+	PowerAction = NewObject<UInputAction>(this, TEXT("IA_Power"));
+	PowerAction->ValueType = EInputActionValueType::Boolean;
+
+	GuardAction = NewObject<UInputAction>(this, TEXT("IA_Guard"));
+	GuardAction->ValueType = EInputActionValueType::Boolean;
+
 	FastFallAction = NewObject<UInputAction>(this, TEXT("IA_FastFall"));
 	FastFallAction->ValueType = EInputActionValueType::Boolean;
 
@@ -404,6 +423,14 @@ void ASparkHeroCharacter::BuildInputObjects()
 	// Strike: the mouse button Adam reserved for combat on day one, finally spent.
 	MappingContext->MapKey(StrikeAction, EKeys::LeftMouseButton);
 	MappingContext->MapKey(StrikeAction, EKeys::Gamepad_FaceButton_Right);
+
+	// Powers: the OTHER reserved mouse button. Tap = Prism Burst, hold = Beacon Wave.
+	MappingContext->MapKey(PowerAction, EKeys::RightMouseButton);
+	MappingContext->MapKey(PowerAction, EKeys::Gamepad_RightTrigger);
+
+	// Ember Guard: the flame armors itself.
+	MappingContext->MapKey(GuardAction, EKeys::Q);
+	MappingContext->MapKey(GuardAction, EKeys::Gamepad_LeftShoulder);
 	MappingContext->MapKey(FastFallAction, EKeys::LeftControl);
 	MappingContext->MapKey(FastFallAction, EKeys::Gamepad_RightShoulder);
 
@@ -442,6 +469,10 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(JumpAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleJumpReleased);
 		EIC->BindAction(DashAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleDashPressed);
 		EIC->BindAction(StrikeAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleStrikePressed);
+		EIC->BindAction(StrikeAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleStrikeReleased);
+		EIC->BindAction(PowerAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandlePowerPressed);
+		EIC->BindAction(PowerAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandlePowerReleased);
+		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleGuardPressed);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleFastFallPressed);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleFastFallReleased);
 		EIC->BindAction(QuitAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleQuit);
@@ -651,11 +682,52 @@ void ASparkHeroCharacter::HandleStrikePressed()
 	if (Now() < ComboCooldownUntil) { return; }       // post-haymaker breather
 	if (bStriking) { bStrikeQueued = true; return; }  // chain the next beat
 
+	// L3+: holding the button charges the haymaker; the strike fires on release.
+	bChargingStrike = true;
+	StrikeChargeStart = Now();
+}
+
+void ASparkHeroCharacter::HandleStrikeReleased()
+{
+	if (!bChargingStrike) { return; }
+	bChargingStrike = false;
+
+	const float Held = Now() - StrikeChargeStart;
+	if (Held >= StrikeChargeTime && HasPowerLevel(3) && !bStriking)
+	{
+		DoChargedStrike();
+		return;
+	}
+	if (bStriking || bIsDashing || Now() < ComboCooldownUntil) { return; }
 	if ((Now() - LastStrikeEndTime) > StrikeComboWindow)
 	{
 		ComboBeat = 0;                                // too slow — the string resets
 	}
 	DoStrike();
+}
+
+void ASparkHeroCharacter::DoChargedStrike()
+{
+	// L3 — the CHARGED HAYMAKER: the fist arrives glowing. Bigger lunge, bigger
+	// sweep; flips Rolys and staggers Champions once they exist (Codex §2).
+	bStriking = true;
+	bChargedStrike = true;
+	ComboBeat = 2;                                    // counts as the heavy beat
+
+	FVector Dir = GetActorForwardVector();
+	Dir.Z = 0.f;
+	LaunchCharacter(Dir.GetSafeNormal() * ChargedLunge, true, false);
+
+	ApplySquash(1.16f);
+	PlaySfx(TEXT("/Game/Art/Audio/sfx_dash.sfx_dash"));
+	if (EmberMeter) { EmberMeter->FlashGlow(0.35f, 4.f); }
+	OnHeroChargedStrike();
+	PlayActionClip(HaymakerAnim, 0.55f);
+
+	GetWorldTimerManager().SetTimer(StrikeHitTimerHandle, this, &ASparkHeroCharacter::StrikeHitCheck,
+	                                0.22f, false);
+	GetWorldTimerManager().SetTimer(StrikeTimerHandle, this, &ASparkHeroCharacter::EndStrike,
+	                                0.5f, false);
 }
 
 void ASparkHeroCharacter::DoStrike()
@@ -693,7 +765,8 @@ void ASparkHeroCharacter::StrikeHitCheck()
 
 	const bool bHeavy = (ComboBeat >= 2);
 	const FVector Center = GetActorLocation() + GetActorForwardVector() * StrikeRange;
-	const float Radius = StrikeRadius + (bHeavy ? 15.f : 0.f);
+	const float Radius = StrikeRadius + (bHeavy ? 15.f : 0.f)
+	                   + (bChargedStrike ? ChargedRadiusBonus : 0.f);
 
 	TArray<FOverlapResult> Hits;
 	FCollisionQueryParams Params(TEXT("SparkStrike"), false, this);
@@ -723,6 +796,7 @@ void ASparkHeroCharacter::EndStrike()
 {
 	if (!bStriking) { return; }
 	bStriking = false;
+	bChargedStrike = false;
 	LastStrikeEndTime = Now();
 	GetWorldTimerManager().ClearTimer(StrikeTimerHandle);
 
@@ -747,6 +821,104 @@ void ASparkHeroCharacter::EndStrike()
 			EndActionClip();                          // string broken — resume locomotion
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// THE SPARK SURGE KIT (Powers Codex §2): Adam's directive — build the FULL hero
+// now; world deployment stages PowerLevel per Great-Lantern relight.
+// ---------------------------------------------------------------------------
+bool ASparkHeroCharacter::IsAuraActive() const
+{
+	return HasPowerLevel(2) && EmberMeter && !EmberMeter->IsFlameOut();
+}
+
+void ASparkHeroCharacter::HandlePowerPressed()
+{
+	if (!HasPowerLevel(4)) { return; }   // the burst is the kit's entry power
+	bChargingPower = true;
+	PowerChargeStart = Now();
+}
+
+void ASparkHeroCharacter::HandlePowerReleased()
+{
+	if (!bChargingPower) { return; }
+	bChargingPower = false;
+
+	const float Held = Now() - PowerChargeStart;
+	if (Held >= WaveChargeTime && HasPowerLevel(6))
+	{
+		DoBeaconWave();
+	}
+	else
+	{
+		DoPrismBurst();
+	}
+}
+
+void ASparkHeroCharacter::DoPrismBurst()
+{
+	// L4 — PRISM BURST: a ring of light that staggers Motes (and lures moths,
+	// once moths exist). Dazzles, never wounds — the kit keeps the kindness.
+	if (Now() < BurstReadyTime) { return; }
+	BurstReadyTime = Now() + BurstCooldown;
+
+	const float Radius = BurstRadius * (HasPowerLevel(8) ? 1.3f : 1.f);
+	if (EmberMeter) { EmberMeter->FlashGlow(0.4f, 8.f); }
+	PlayShake(USparkLandShake::StaticClass());
+	PlaySfx(TEXT("/Game/Art/Audio/sfx_doublejump.sfx_doublejump"));
+	OnHeroPrismBurst(Radius);
+
+	TArray<FOverlapResult> Hits;
+	FCollisionQueryParams Params(TEXT("PrismBurst"), false, this);
+	GetWorld()->OverlapMultiByChannel(Hits, GetActorLocation(), FQuat::Identity, ECC_Pawn,
+	                                  FCollisionShape::MakeSphere(Radius), Params);
+	for (const FOverlapResult& Hit : Hits)
+	{
+		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
+		{
+			Glimmer->TakeStagger(BurstStagger);
+		}
+	}
+}
+
+void ASparkHeroCharacter::DoBeaconWave()
+{
+	// L6 — BEACON WAVE: the big pulse. Staggers wide today; when the lantern
+	// light-state system lands (M0.2), this also relights every lamp in radius —
+	// the W5 territory mechanic in the hero's own hands.
+	if (Now() < WaveReadyTime) { return; }
+	WaveReadyTime = Now() + WaveCooldown;
+
+	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 16.f); }
+	PlayShake(USparkBigLandShake::StaticClass());
+	PlaySfx(TEXT("/Game/Art/Audio/sfx_land.sfx_land"));
+	OnHeroBeaconWave(WaveRadius);
+
+	TArray<FOverlapResult> Hits;
+	FCollisionQueryParams Params(TEXT("BeaconWave"), false, this);
+	GetWorld()->OverlapMultiByChannel(Hits, GetActorLocation(), FQuat::Identity, ECC_Pawn,
+	                                  FCollisionShape::MakeSphere(WaveRadius), Params);
+	for (const FOverlapResult& Hit : Hits)
+	{
+		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
+		{
+			Glimmer->TakeStagger(BurstStagger * 1.5f);
+		}
+	}
+	// TODO(M0.2): ILightResponsive sweep — relight every lantern in WaveRadius.
+}
+
+void ASparkHeroCharacter::HandleGuardPressed()
+{
+	// L5 — EMBER GUARD: the flame armors itself (extended grace; the white-hot
+	// flare is the telegraph). L9 holds it a second longer.
+	if (!HasPowerLevel(5) || !EmberMeter) { return; }
+	if (Now() < GuardReadyTime) { return; }
+	GuardReadyTime = Now() + GuardCooldown;
+
+	EmberMeter->ActivateGuard(HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration);
+	EmberMeter->FlashGlow(0.5f, 6.f);
+	OnHeroEmberGuard();
 }
 
 // ---------------------------------------------------------------------------
@@ -838,17 +1010,45 @@ void ASparkHeroCharacter::FellOutOfWorld(const UDamageType& DmgType)
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::HandleFastFallPressed()
 {
-	if (GetCharacterMovement()->IsMovingOnGround() || bIsDashing) { return; }
+	// One button, two verbs: CTRL crouches on the ground, fast-falls in the air.
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		if (!bIsDashing) { Crouch(); }
+		return;
+	}
+	if (bIsDashing) { return; }
 	bFastFalling = true;
 	GetCharacterMovement()->GravityScale = FastFallGravityScale;
 }
 
 void ASparkHeroCharacter::HandleFastFallReleased()
 {
+	UnCrouch();
 	bFastFalling = false;
 	if (!bIsDashing)
 	{
 		GetCharacterMovement()->GravityScale = BaseGravityScale;
+	}
+}
+
+// Crouch shrinks the capsule around its center; shift the visuals so the feet
+// stay planted (our art hangs on VisualRoot, not the stock Mesh the base class
+// adjusts).
+void ASparkHeroCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
+{
+	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	if (VisualRoot)
+	{
+		VisualRoot->AddRelativeLocation(FVector(0.f, 0.f, ScaledHalfHeightAdjust));
+	}
+}
+
+void ASparkHeroCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
+{
+	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
+	if (VisualRoot)
+	{
+		VisualRoot->AddRelativeLocation(FVector(0.f, 0.f, -ScaledHalfHeightAdjust));
 	}
 }
 
@@ -938,6 +1138,10 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 	{
 		Desired = EHeroAnimState::Jump;
 	}
+	else if (bIsCrouched)
+	{
+		Desired = EHeroAnimState::Crouch;
+	}
 	else if (GroundSpeed > RunAnimSpeedThreshold)
 	{
 		Desired = EHeroAnimState::Run;
@@ -966,6 +1170,12 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 				SkelBody->Play(false);
 			}
 			break;
+		case EHeroAnimState::Crouch:
+			if (CrouchAnim)
+			{
+				SkelBody->PlayAnimation(CrouchAnim, true);   // cautious sway, looped
+			}
+			break;
 		case EHeroAnimState::Run:
 			if (RunAnim) { SkelBody->PlayAnimation(RunAnim, true); }
 			break;
@@ -990,7 +1200,11 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 	}
 
 	// Scale locomotion playback to actual speed so feet slide less.
-	if (AnimState == EHeroAnimState::Walk)
+	if (AnimState == EHeroAnimState::Crouch)
+	{
+		SkelBody->SetPlayRate(FMath::Clamp(GroundSpeed / 220.f, 0.35f, 1.4f));
+	}
+	else if (AnimState == EHeroAnimState::Walk)
 	{
 		SkelBody->SetPlayRate(FMath::Clamp(GroundSpeed / 280.f, 0.6f, 1.8f));
 	}

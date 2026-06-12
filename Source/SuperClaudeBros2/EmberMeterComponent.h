@@ -90,6 +90,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Ember")
 	bool IsFlameOut() const { return bFlameOut; }
 
+	/** EMBER GUARD (hero power L5): extends the no-damage grace window — the
+	    flame armors itself. The existing grace flare IS the telegraph. */
+	UFUNCTION(BlueprintCallable, Category = "Ember")
+	void ActivateGuard(float Seconds);
+
+	/** Power-cast light pulse (Prism Burst / Beacon Wave): boosts the glow for a
+	    moment without fighting the per-tick intensity drive. */
+	UFUNCTION(BlueprintCallable, Category = "Ember")
+	void FlashGlow(float Seconds, float IntensityBoost);
+
 	/** The owner hands over its flame mesh + glow light; the meter animates them.
 	    Both nullptr-safe — the meter runs fine invisible (house pattern). */
 	void RegisterFlameVisuals(UStaticMeshComponent* InFlame, UPointLightComponent* InGlow);
@@ -102,6 +112,8 @@ protected:
 private:
 	float CurrentEmbers = 100.f;
 	float GraceUntilTime = -1000.f;
+	float GlowPulseUntil = -1000.f;
+	float GlowPulseBoost = 1.f;
 	bool bFlameOut = false;
 
 	TWeakObjectPtr<UStaticMeshComponent> Flame;
