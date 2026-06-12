@@ -56,6 +56,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Bramblehulk")
 	float GetCalmFraction() const { return CalmProgress / 100.f; }
 
+	bool IsAwake() const { return State != EHulkState::Dormant && State != EHulkState::Soothed; }
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Bramblehulk")
 	void OnBramblehulkSoothed();
 

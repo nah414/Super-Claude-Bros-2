@@ -75,6 +75,7 @@ AVoidStalker::AVoidStalker()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FStrike(TEXT("/Game/Art/StalkerSkelV1/A_Stalker_Strike_Anim.A_Stalker_Strike_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FCut(TEXT("/Game/Art/StalkerSkelV1/A_Stalker_Combo_Anim.A_Stalker_Combo_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FLunge(TEXT("/Game/Art/StalkerSkelV1/A_Stalker_Lunge_Anim.A_Stalker_Lunge_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSpiral(TEXT("/Game/Art/StalkerSkelV1/A_Stalker_Spiral_Anim.A_Stalker_Spiral_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FStagger(TEXT("/Game/Art/StalkerSkelV1/A_Stalker_Stagger_Anim.A_Stalker_Stagger_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/StalkerSkelV1/A_Stalker_HitReact_Anim.A_Stalker_HitReact_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDefeat(TEXT("/Game/Art/StalkerSkelV1/A_Stalker_Defeat_Anim.A_Stalker_Defeat_Anim"));
@@ -100,6 +101,7 @@ AVoidStalker::AVoidStalker()
 	StrikeAnim = StalkerClip(FStrike);
 	CutAnim = StalkerClip(FCut);
 	LungeAnim = StalkerClip(FLunge);
+	SpiralAnim = StalkerClip(FSpiral);
 	StaggerAnim = StalkerClip(FStagger);
 	HitReactAnim = StalkerClip(FHit);
 	DefeatAnim = StalkerClip(FDefeat);
@@ -190,6 +192,7 @@ void AVoidStalker::StartTelegraph()
 	CutHitsDone = 0;
 	BlinksThisAttack = 0;
 	bLungeStarted = false;
+	bSpiralArrival = false;
 	GetCharacterMovement()->StopMovementImmediately();
 
 	float Tell = StrikeTell;
@@ -248,8 +251,21 @@ void AVoidStalker::DoArrive()
 	// The arrival announces itself for one honest beat â€” vulnerable, violet.
 	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
 	                         StalkerViolet * 2.8f, 1.4f, 7000.f, 0.32f);
-	PlayOneShot(LungeAnim, RematerializeSeconds + BlinkLungeActive + 0.3f, LungeClipStart, LungeClipRate);
-	EnterState(EStalkerState::Attack, RematerializeSeconds + BlinkLungeActive);
+	// Phase 2+: sometimes the ARRIVAL is the weapon. He rematerializes already
+	// winding the spin, and the whole ring around him becomes the strike zone.
+	// The lunge teaches "watch your flank"; the spiral teaches "GET OFF the flank".
+	bSpiralArrival = (Phase >= 2 && SpiralAnim && FMath::FRand() < SpiralChance);
+	if (bSpiralArrival)
+	{
+		bLungeStarted = false;   // reused as the spiral's one-detonation latch
+		PlayOneShot(SpiralAnim, RematerializeSeconds + SpiralActive + 0.3f, SpiralClipStart, SpiralClipRate);
+		EnterState(EStalkerState::Attack, RematerializeSeconds + SpiralActive);
+	}
+	else
+	{
+		PlayOneShot(LungeAnim, RematerializeSeconds + BlinkLungeActive + 0.3f, LungeClipStart, LungeClipRate);
+		EnterState(EStalkerState::Attack, RematerializeSeconds + BlinkLungeActive);
+	}
 }
 
 void AVoidStalker::StartAttack()
@@ -335,6 +351,25 @@ void AVoidStalker::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 
 	case EStalkerMove::BlinkFeint:
 	{
+		if (bSpiralArrival)
+		{
+			// VOID SPIRAL: the honest beat still happens — then the spin
+			// detonates a full circle. No safe angle; only distance answers.
+			const float SpinElapsed = (RematerializeSeconds + SpiralActive) - (StateUntil - Now());
+			if (SpinElapsed >= RematerializeSeconds + SpiralActive * 0.5f && !bLungeStarted)
+			{
+				bLungeStarted = true;   // detonate exactly once
+				ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 40.f),
+				                         StalkerViolet * 2.4f, 1.6f, 6200.f, 0.25f);
+				if (Hero && !bHitThisAttack
+					&& FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= SpiralRadius)
+				{
+					bHitThisAttack = true;
+					LandDuelHit(Hero, DuelHitEmbers);
+				}
+			}
+			break;
+		}
 		// Sub-phases: rematerialize beat (vulnerable, still) -> the lunge.
 		const float Elapsed = (RematerializeSeconds + BlinkLungeActive) - (StateUntil - Now());
 		if (Elapsed >= RematerializeSeconds)
@@ -545,3 +580,8 @@ void AVoidStalker::Tick(float DeltaTime)
 	}
 }
 
+
+float AVoidStalker::GetDuelFraction() const
+{
+	return DuelMeter ? DuelMeter->GetFraction() : 1.f;
+}

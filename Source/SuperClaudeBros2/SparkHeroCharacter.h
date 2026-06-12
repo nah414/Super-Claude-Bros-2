@@ -391,6 +391,14 @@ public:
 	/** Seconds until the given power is ready (0 = ready now). */
 	float GetPowerReadyIn(ESparkPower Power) const;
 	UEmberMeterComponent* GetEmberMeter() const { return EmberMeter; }
+	bool IsCarrying() const { return CarriedProp.IsValid(); }
+
+	/** E reaches this far for a prop; LMB hurls it this fast. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Interact")
+	float GrabRange = 240.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Interact")
+	float ThrowSpeed = 1400.f;
 
 	/** Staging gate check — the whole kit reads through this. */
 	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
@@ -616,6 +624,9 @@ private:
 	ESparkPower SelectedPower = ESparkPower::Bolt;
 	float PowerScrollAccum = 0.f;
 	int32 ZoomPresetIndex = 1;           // {near, default, far}
+	// The carried prop (E grabs, E drops, LMB throws).
+	TWeakObjectPtr<AGrabbableProp> CarriedProp;
+	void ThrowCarried();
 	float LastStrikeEndTime = -1000.f;
 	float ComboCooldownUntil = -1000.f;
 	FTimerHandle StrikeTimerHandle;

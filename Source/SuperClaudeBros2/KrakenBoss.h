@@ -40,7 +40,8 @@ enum class EKrakenMove : uint8
 	ShowSwing,     // wide haymaker, 0.6s wind-up, big whiff window
 	PauldronRush,  // 0.8s crouch-tell -> 1100 uu/s line -> 1.4s recovery
 	ChampionsSlam, // leaping ground-pound; ring-shock answer = JUMP
-	IronGrip       // the signature: seize, hold 1s, slam
+	IronGrip,      // the signature: seize, hold 1s, slam
+	TideSweep      // the LOW tentacle arc (June 12 variety round) — JUMP it
 };
 
 UCLASS()
@@ -61,6 +62,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Kraken")
 	bool IsDefeated() const { return State == EKrakenState::Defeated; }
+
+	// Dashboard getters (implemented in cpp where the meter type is known).
+	bool IsDueling() const { return State != EKrakenState::Waiting && State != EKrakenState::Defeated; }
+	float GetDuelFraction() const;
 
 	/** Story seam: he tears the orange strip from his pauldron (W2 C3). */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Kraken")
@@ -160,6 +165,26 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Moves")
 	float SlamLeapLift = 680.f;
+
+	// ---------------- Tide Sweep (low arc — jump it) ----------------
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Moves")
+	float TideTell = 0.7f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Moves")
+	float TideActive = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Moves")
+	float TideRecover = 1.1f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Moves")
+	float TideRingRadius = 330.f;
+
+	/** Tide scan: the wide sweep peaks frac 0.42 — lands on the tell end. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float TideClipStart = 0.10f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|Anim")
+	float TideClipRate = 1.12f;
 
 	// ---------------- IRON GRIP (the unique power) ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Kraken|IronGrip")
@@ -283,6 +308,7 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> DefeatAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> TauntAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> TideAnim;
 	bool bHasSkeletalModel = false;
 	TObjectPtr<UAnimSequence> CurrentLoop;
 

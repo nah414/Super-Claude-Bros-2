@@ -82,6 +82,7 @@ AEmberReaver::AEmberReaver()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/ReaverSkelV1/A_Reaver_HitReact_Anim.A_Reaver_HitReact_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDefeat(TEXT("/Game/Art/ReaverSkelV1/A_Reaver_Defeat_Anim.A_Reaver_Defeat_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FTaunt(TEXT("/Game/Art/ReaverSkelV1/A_Reaver_Taunt_Anim.A_Reaver_Taunt_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FCrescent(TEXT("/Game/Art/ReaverSkelV1/A_Reaver_Crescent_Anim.A_Reaver_Crescent_Anim"));
 
 	if (Model.Succeeded())
 	{
@@ -107,6 +108,7 @@ AEmberReaver::AEmberReaver()
 	HitReactAnim = ReaverClip(FHit);
 	DefeatAnim = ReaverClip(FDefeat);
 	TauntAnim = ReaverClip(FTaunt);
+	CrescentAnim = ReaverClip(FCrescent);
 }
 
 void AEmberReaver::BeginPlay()
@@ -179,6 +181,7 @@ void AEmberReaver::SelectMove(float DistToHero)
 	// own their full kit from the first bell; phases change pressure, not kit).
 	TArray<EReaverMove> Pool = { EReaverMove::FeintSlash, EReaverMove::EmberDash };
 	if (Phase >= 2) { Pool.Add(EReaverMove::CrossingFlurry); }
+	if (Phase >= 2 && CrescentAnim) { Pool.Add(EReaverMove::CinderCrescent); }
 	if (Phase >= 3) { Pool.Add(EReaverMove::EmberDash); }   // double weight: fire everywhere
 	EReaverMove Picked = Pool[FMath::RandRange(0, Pool.Num() - 1)];
 	if (Picked == Move && Pool.Num() > 1)
@@ -198,12 +201,16 @@ void AEmberReaver::StartTelegraph()
 	float Tell = SlashTell;
 	if (Move == EReaverMove::CrossingFlurry) { Tell = FlurryTell; }
 	else if (Move == EReaverMove::EmberDash) { Tell = DashTell; }
+	else if (Move == EReaverMove::CinderCrescent) { Tell = CrescentTell; }
 	Tell *= TellScale();
 
 	switch (Move)
 	{
 	case EReaverMove::FeintSlash:
 		PlayOneShot(SlashAnim, Tell + SlashActive + SlashRecover * 0.4f, SlashClipStart, SlashClipRate);
+		break;
+	case EReaverMove::CinderCrescent:
+		PlayOneShot(CrescentAnim, Tell + CrescentActive + 0.3f, 0.f, CrescentClipRate);
 		break;
 	case EReaverMove::CrossingFlurry:
 		PlayOneShot(FlurryAnim, Tell + FlurryActive + FlurryRecover * 0.4f, FlurryClipStart, FlurryClipRate);
@@ -247,6 +254,16 @@ void AEmberReaver::StartAttack()
 	case EReaverMove::CrossingFlurry:
 		EnterState(EReaverState::Attack, FlurryActive);
 		break;
+	case EReaverMove::CinderCrescent:
+	{
+		// The rising arc: he leaps INTO you — the apex kick hits airborne
+		// heroes too, and his landing line catches fire.
+		FVector Fwd = Hero ? (Hero->GetActorLocation() - GetActorLocation()).GetSafeNormal2D()
+		                   : GetActorForwardVector();
+		LaunchCharacter(Fwd * 320.f + FVector(0.f, 0.f, 520.f), true, true);
+		EnterState(EReaverState::Attack, CrescentActive);
+		break;
+	}
 	case EReaverMove::EmberDash:
 		StartDashLeg(Hero);
 		EnterState(EReaverState::Attack, DashMaxSeconds * (Phase >= 2 ? 2.3f : 1.1f));
@@ -317,6 +334,24 @@ void AEmberReaver::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 		}
 		break;
 	}
+
+	case EReaverMove::CinderCrescent:
+		if (Hero && !bHitThisAttack
+			&& FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= CrescentReach)
+		{
+			bHitThisAttack = true;
+			LandDuelHit(Hero, DuelHitEmbers);
+		}
+		// The apex line ignites beneath him as he comes down.
+		if (GetCharacterMovement()->IsMovingOnGround() && DashesThisAttack == 0)
+		{
+			++DashesThisAttack;   // reuse as a one-shot latch for the landing fire
+			const FVector Feet = GetActorLocation()
+				- FVector(0.f, 0.f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight() - 6.f);
+			AEmberTrailPatch::Plant(this, Feet);
+			AEmberTrailPatch::Plant(this, Feet + GetActorForwardVector() * 110.f);
+		}
+		break;
 
 	case EReaverMove::EmberDash:
 	{
@@ -509,6 +544,7 @@ void AEmberReaver::Tick(float DeltaTime)
 			float Recover = SlashRecover;
 			if (Move == EReaverMove::CrossingFlurry) { Recover = FlurryRecover; }
 			else if (Move == EReaverMove::EmberDash) { Recover = DashRecover; }
+			else if (Move == EReaverMove::CinderCrescent) { Recover = CrescentRecover; }
 			FinishAttack(Recover);
 		}
 		break;
@@ -534,3 +570,8 @@ void AEmberReaver::Tick(float DeltaTime)
 	}
 }
 
+
+float AEmberReaver::GetDuelFraction() const
+{
+	return DuelMeter ? DuelMeter->GetFraction() : 1.f;
+}

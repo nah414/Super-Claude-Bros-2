@@ -1,4 +1,5 @@
 #include "SparkHeroGameMode.h"
+#include "SparkHeroHUD.h"
 #include "Bramblehulk.h"
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
@@ -21,6 +22,7 @@
 ASparkHeroGameMode::ASparkHeroGameMode()
 {
 	DefaultPawnClass = ASparkHeroCharacter::StaticClass();
+	HUDClass = ASparkHeroHUD::StaticClass();   // THE DASHBOARD (June 12)
 }
 
 UClass* ASparkHeroGameMode::GetDefaultPawnClassForController_Implementation(AController* InController)

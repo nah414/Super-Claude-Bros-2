@@ -33,7 +33,8 @@ enum class EReaverMove : uint8
 	None,
 	FeintSlash,      // quick counter-slash; recover 0.7s = THE canon opening
 	CrossingFlurry,  // a three-beat pressure string; sidestep or guard
-	EmberDash        // the SIGNATURE: he crosses you at speed, ground ignites
+	EmberDash,       // the SIGNATURE: he crosses you at speed, ground ignites
+	CinderCrescent   // aerial rising arc that leaves fire at the apex line (P2+)
 };
 
 UCLASS()
@@ -54,6 +55,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Reaver")
 	bool IsDefeated() const { return State == EReaverState::Defeated; }
+
+	bool IsDueling() const { return State != EReaverState::Waiting && State != EReaverState::Defeated; }
+	float GetDuelFraction() const;
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Reaver")
 	void OnReaverDefeated();
@@ -159,6 +163,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reaver|EmberDash")
 	float TrailSpacing = 75.f;
 
+	// ---------------- Cinder Crescent (variety round) ----------------
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reaver|Moves")
+	float CrescentTell = 0.45f;
+
+	/** Full leap arc at gravity 1.9 with Z 520 is ~0.56s — the window must
+	    outlast the landing or the cinder line never ignites. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reaver|Moves")
+	float CrescentActive = 0.75f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reaver|Moves")
+	float CrescentRecover = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reaver|Moves")
+	float CrescentReach = 290.f;
+
+	/** Crescent scan: airborne kick apex at frac 0.25-0.33 — rate 1.0 lands it
+	    at the tell end; the descent fills the active window. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Reaver|Anim")
+	float CrescentClipRate = 1.0f;
+
 	// ---------------- Clip windows (data-scanned June 12; all live) ----------------
 	/** Slash scan: the counter-slash is a body-drop + max arm reach at frac
 	    0.75-0.81 of the long routine — start at the coil before it. */
@@ -240,6 +264,7 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> DefeatAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> TauntAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> CrescentAnim;
 	bool bHasSkeletalModel = false;
 	TObjectPtr<UAnimSequence> CurrentLoop;
 

@@ -134,6 +134,17 @@ try:
 except Exception as e:
     print(f"LIVE_BRAMBLE_SKIPPED: {e}")
 
+# ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
+try:
+    prop_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.GrabbableProp")
+    spots = [(180, -550), (-220, -480), (420, -780), (-450, -850), (90, -950), (-120, -350)]
+    for i, (px, py) in enumerate(spots):
+        pr = eas.spawn_actor_from_class(prop_cls, unreal.Vector(px, py, 60))
+        pr.set_actor_label(f"GrabCrate_{i}")
+    print(f"PROPS_PLACED: {len(spots)}")
+except Exception as e:
+    print(f"PROPS_SKIPPED: {e}")
+
 # ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
 # Both playable heroes stand front-center, breathing their idle clips, so a
 # walk through the Hall always shows the true current state of every rig.

@@ -18,6 +18,7 @@
 #include "EmberReaver.h"
 #include "VoidStalker.h"
 #include "Bramblehulk.h"
+#include "GrabbableProp.h"
 #include "SparkImpactBurst.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -312,10 +313,12 @@ void ASparkHeroCharacter::BeginPlay()
 
 	// Proof-of-possession + controls card (also instantly tells us if Play put the
 	// player into a spectator pawn instead of the hero).
+	// (The old debug controls card retired June 12 — the DASHBOARD's framed
+	// hints panel carries the layout now. A short boot banner remains.)
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(1, 12.f, FColor::Orange,
-			FString::Printf(TEXT("SPARK HERO L%d  |  LMB punch x3  RMB kick x3 (hold=CHARGED)  F fire power  WHEEL select power  Q ring  E grab  Z zoom  P switch hero  SPACE jump x2  SHIFT dash  C crouch  wall=CLIMB"), PowerLevel));
+		GEngine->AddOnScreenDebugMessage(1, 4.f, FColor::Orange,
+			FString::Printf(TEXT("SPARK HERO L%d — the dashboard is live"), PowerLevel));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -852,6 +855,12 @@ void ASparkHeroCharacter::EndDash()
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::HandleStrikePressed()
 {
+	// Carrying something? LMB HURLS it — the throw outranks the punch.
+	if (CarriedProp.IsValid())
+	{
+		ThrowCarried();
+		return;
+	}
 	BeginStrikeFamily(EStrikeFamily::Punch);
 }
 
@@ -1217,7 +1226,52 @@ void ASparkHeroCharacter::HandleZoomPreset()
 
 void ASparkHeroCharacter::HandleInteractPressed()
 {
-	// Phase C fills this: grab / drop the nearest GrabbableProp.
+	// E: drop what you hold, or grab the nearest prop in reach.
+	if (CarriedProp.IsValid())
+	{
+		CarriedProp->OnDropped();
+		CarriedProp = nullptr;
+		return;
+	}
+	UWorld* World = GetWorld();
+	if (!World) { return; }
+	TArray<FOverlapResult> Hits;
+	FCollisionQueryParams Params(TEXT("SparkGrab"), false, this);
+	FCollisionObjectQueryParams Obj;
+	Obj.AddObjectTypesToQuery(ECC_PhysicsBody);
+	Obj.AddObjectTypesToQuery(ECC_WorldDynamic);
+	const FVector Center = GetActorLocation() + GetActorForwardVector() * (GrabRange * 0.5f);
+	World->OverlapMultiByObjectType(Hits, Center, FQuat::Identity, Obj,
+	                                FCollisionShape::MakeSphere(GrabRange), Params);
+	AGrabbableProp* Best = nullptr;
+	float BestDist = 1e9f;
+	for (const FOverlapResult& Hit : Hits)
+	{
+		if (AGrabbableProp* Prop = Cast<AGrabbableProp>(Hit.GetActor()))
+		{
+			if (Prop->IsHeld()) { continue; }
+			const float D = FVector::DistSquared(Prop->GetActorLocation(), GetActorLocation());
+			if (D < BestDist) { BestDist = D; Best = Prop; }
+		}
+	}
+	if (Best)
+	{
+		Best->OnGrabbed();
+		Best->AttachToComponent(VisualRoot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		Best->SetActorRelativeLocation(FVector(95.f, 0.f, 15.f));
+		CarriedProp = Best;
+	}
+}
+
+void ASparkHeroCharacter::ThrowCarried()
+{
+	if (!CarriedProp.IsValid()) { return; }
+	const float Yaw = Controller ? static_cast<float>(Controller->GetControlRotation().Yaw)
+	                             : static_cast<float>(GetActorRotation().Yaw);
+	const FVector Dir = FRotator(0.f, Yaw, 0.f).Vector();
+	CarriedProp->OnThrown(Dir * ThrowSpeed + FVector(0.f, 0.f, 320.f), this);
+	CarriedProp = nullptr;
+	ApplySquash(1.08f);   // the heave reads in the body
 }
 
 float ASparkHeroCharacter::GetPowerReadyIn(ESparkPower Power) const

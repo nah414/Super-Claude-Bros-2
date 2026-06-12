@@ -56,6 +56,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stalker")
 	bool IsDefeated() const { return State == EStalkerState::Defeated; }
 
+	bool IsDueling() const { return State != EStalkerState::Waiting && State != EStalkerState::Defeated; }
+	float GetDuelFraction() const;
+
 	UFUNCTION(BlueprintImplementableEvent, Category = "Stalker")
 	void OnStalkerDefeated();
 
@@ -155,6 +158,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Blink")
 	float BlinkRecover = 1.0f;
 
+	// ---------------- VOID SPIRAL (phase 2+: sometimes the ARRIVAL is the weapon) ----------------
+	/** Chance a blink arrival detonates as the spinning ring instead of the lunge. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Blink")
+	float SpiralChance = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Blink")
+	float SpiralActive = 0.5f;
+
+	/** Full-circle strike zone — no safe angle; distance is the answer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Blink")
+	float SpiralRadius = 270.f;
+
 	// ---------------- Clip windows (scan after import; all live) ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
 	float StrikeClipStart = 0.f;
@@ -173,6 +188,13 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim")
 	float LungeClipRate = 0.f;
+
+	/** Scan (360 power spin): explosive rotation peaks 0.50-0.52 — start 0.30, rate 1.5. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float SpiralClipStart = 0.30f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim")
+	float SpiralClipRate = 1.5f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim")
 	float SkelMeshYaw = -90.f;
@@ -219,6 +241,7 @@ private:
 	int32 CutHitsDone = 0;
 	int32 BlinksThisAttack = 0;
 	bool bLungeStarted = false;
+	bool bSpiralArrival = false;
 	FVector LungeDirection = FVector::ForwardVector;
 
 	UPROPERTY() TObjectPtr<UAnimSequence> IdleAnim;
@@ -226,6 +249,7 @@ private:
 	UPROPERTY() TObjectPtr<UAnimSequence> StrikeAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> CutAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> LungeAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> SpiralAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> StaggerAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> DefeatAnim;

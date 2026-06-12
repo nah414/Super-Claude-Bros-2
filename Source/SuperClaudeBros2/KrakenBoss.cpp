@@ -110,6 +110,7 @@ AKrakenBoss::AKrakenBoss()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/KrakenSkelV1/A_Kraken_HitReact_Anim.A_Kraken_HitReact_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDefeat(TEXT("/Game/Art/KrakenSkelV1/A_Kraken_Defeat_Anim.A_Kraken_Defeat_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FTaunt(TEXT("/Game/Art/KrakenSkelV1/A_Kraken_Taunt_Anim.A_Kraken_Taunt_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FTide(TEXT("/Game/Art/KrakenSkelV1/A_Kraken_TideSweep_Anim.A_Kraken_TideSweep_Anim"));
 
 	if (Model.Succeeded())
 	{
@@ -137,6 +138,7 @@ AKrakenBoss::AKrakenBoss()
 	HitReactAnim = KrakenClip(FHit);
 	DefeatAnim = KrakenClip(FDefeat);
 	TauntAnim = KrakenClip(FTaunt);
+	TideAnim = KrakenClip(FTide);
 }
 
 void AKrakenBoss::BeginPlay()
@@ -242,6 +244,7 @@ void AKrakenBoss::SelectMove(float DistToHero)
 	}
 	// Phase rotation (spec Â§6.3: new move per threshold; tells stay honest).
 	TArray<EKrakenMove> Pool = { EKrakenMove::ShowSwing };
+	if (TideAnim) { Pool.Add(EKrakenMove::TideSweep); }   // the low arc, phase 1+
 	if (DistToHero > 450.f || Phase >= 2) { Pool.Add(EKrakenMove::PauldronRush); }
 	if (Phase >= 2) { Pool.Add(EKrakenMove::ChampionsSlam); }
 	if (Phase >= 3) { Pool.Add(EKrakenMove::IronGrip); }
@@ -266,6 +269,7 @@ void AKrakenBoss::StartTelegraph()
 	case EKrakenMove::PauldronRush:  Tell = RushTell; break;
 	case EKrakenMove::ChampionsSlam: Tell = SlamTell; break;
 	case EKrakenMove::IronGrip:      Tell = GripTell; break;
+	case EKrakenMove::TideSweep:     Tell = TideTell; break;
 	default: break;
 	}
 	Tell *= TellScale();
@@ -292,6 +296,9 @@ void AKrakenBoss::StartTelegraph()
 	case EKrakenMove::IronGrip:
 		PlayOneShot(GripAnim, Tell + GripHoldSeconds + 0.6f, GripClipStart, GripClipRate);
 		break;
+	case EKrakenMove::TideSweep:
+		PlayOneShot(TideAnim, Tell + TideActive + TideRecover * 0.4f, TideClipStart, TideClipRate);
+		break;
 	default: break;
 	}
 	EnterState(EKrakenState::Telegraph, Tell);
@@ -313,6 +320,10 @@ void AKrakenBoss::StartAttack()
 	{
 	case EKrakenMove::ShowSwing:
 		EnterState(EKrakenState::Attack, SwingActive);
+		break;
+
+	case EKrakenMove::TideSweep:
+		EnterState(EKrakenState::Attack, TideActive);
 		break;
 
 	case EKrakenMove::PauldronRush:
@@ -424,6 +435,16 @@ void AKrakenBoss::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 		{
 			LandDuelHit(Hero, DuelHitEmbers);
 			FinishAttack(RushRecover);
+		}
+		break;
+
+	case EKrakenMove::TideSweep:
+		// The LOW arc: grounded heroes inside the ring are swept — JUMP it.
+		if (Hero && !bHitThisAttack
+			&& Hero->GetCharacterMovement()->IsMovingOnGround()
+			&& FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= TideRingRadius)
+		{
+			LandDuelHit(Hero, DuelHitEmbers);
 		}
 		break;
 
@@ -667,6 +688,7 @@ void AKrakenBoss::Tick(float DeltaTime)
 			float Recover = SwingRecover;
 			if (Move == EKrakenMove::PauldronRush) { Recover = RushRecover; }
 			else if (Move == EKrakenMove::ChampionsSlam) { Recover = SlamRecover; }
+			else if (Move == EKrakenMove::TideSweep) { Recover = TideRecover; }
 			else if (Move == EKrakenMove::IronGrip)
 			{
 				if (bGripHolding && Hero)
@@ -707,3 +729,8 @@ void AKrakenBoss::Tick(float DeltaTime)
 	}
 }
 
+
+float AKrakenBoss::GetDuelFraction() const
+{
+	return DuelMeter ? DuelMeter->GetFraction() : 1.f;
+}
