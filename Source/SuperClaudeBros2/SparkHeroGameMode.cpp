@@ -89,6 +89,21 @@ void ASparkHeroGameMode::BeginPlay()
 			}
 		}
 
+		// -SCB2ShotStrike throws a combo beat just before the shutter so the
+		// capture catches the punch at its data-scanned impact frame.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2ShotStrike")))
+		{
+			FTimerHandle StrikeTimer;
+			GetWorldTimerManager().SetTimer(StrikeTimer, [this]()
+			{
+				if (ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(
+						UGameplayStatics::GetPlayerPawn(this, 0)))
+				{
+					Hero->CaptureStrike();
+				}
+			}, FMath::Max(Delay - 0.15f, 0.05f), false);
+		}
+
 		FTimerHandle ShotTimer;
 		GetWorldTimerManager().SetTimer(ShotTimer, [this, ShotPath]()
 		{

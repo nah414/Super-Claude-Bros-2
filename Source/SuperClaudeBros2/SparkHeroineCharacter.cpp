@@ -29,6 +29,11 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerHitReact(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_HitReact_Anim.A_Heroine_HitReact_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerRelight(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Relight_Anim.A_Heroine_Relight_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerCrouch(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_CrouchWalk_Anim.A_Heroine_CrouchWalk_Anim"));
+	// Her SIGNATURE combo (Adam's custom-moves law: jabs read as hand-waving on
+	// her frame): left hook / rising upper-hook / both-fists drive.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerCombo1(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Combo1_Anim.A_Heroine_Combo1_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerCombo2(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Combo2_Anim.A_Heroine_Combo2_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerCombo3(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Combo3_Anim.A_Heroine_Combo3_Anim"));
 
 	if (HerModel.Succeeded() && SkelBody)
 	{
@@ -45,4 +50,26 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	HitReactAnim = Pick(HerHitReact, HitReactAnim);
 	RelightAnim = Pick(HerRelight, RelightAnim);
 	CrouchAnim = Pick(HerCrouch, CrouchAnim);
+
+	// Signature combo wins over the jab scaffolding; windows are data-scanned
+	// (hand-extension peaks: hook impact frac 0.725, upper-hook 0.475, double
+	// drive 0.20) so the PUNCH plays inside the beat, not the wind-up.
+	if (HerCombo1.Succeeded())
+	{
+		Strike1Anim = HerCombo1.Object.Get();
+		Strike1ClipStartFraction = 0.40f;
+		Strike1ClipRate = 2.2f;
+	}
+	if (HerCombo2.Succeeded())
+	{
+		Strike2Anim = HerCombo2.Object.Get();
+		Strike2ClipStartFraction = 0.33f;
+		Strike2ClipRate = 1.8f;
+	}
+	if (HerCombo3.Succeeded())
+	{
+		HaymakerAnim = HerCombo3.Object.Get();
+		HaymakerClipStartFraction = 0.12f;
+		HaymakerClipRate = 1.4f;
+	}
 }

@@ -856,12 +856,17 @@ void ASparkHeroCharacter::DoChargedStrike()
 	if (EmberMeter) { EmberMeter->FlashGlow(0.35f, 4.f); }
 	FirePulse(220.f, 0.35f, 2500.f);
 	OnHeroChargedStrike();
-	PlayActionClip(HaymakerAnim, 0.55f);
+	PlayActionClip(HaymakerAnim, 0.55f, HaymakerClipStartFraction, HaymakerClipRate);
 
 	GetWorldTimerManager().SetTimer(StrikeHitTimerHandle, this, &ASparkHeroCharacter::StrikeHitCheck,
 	                                0.22f, false);
 	GetWorldTimerManager().SetTimer(StrikeTimerHandle, this, &ASparkHeroCharacter::EndStrike,
 	                                0.5f, false);
+}
+
+void ASparkHeroCharacter::CaptureStrike()
+{
+	if (!bStriking) { DoStrike(); }
 }
 
 void ASparkHeroCharacter::DoStrike()
@@ -884,7 +889,9 @@ void ASparkHeroCharacter::DoStrike()
 	// The body acts the beat: clip fitted to the beat window (plus a little
 	// follow-through into recovery) — fighting-game speed from library clips.
 	UAnimSequence* StrikeClip = bHeavy ? HaymakerAnim : (ComboBeat == 1 ? Strike2Anim : Strike1Anim);
-	PlayActionClip(StrikeClip, Duration * 1.35f);
+	const float StartFrac = bHeavy ? HaymakerClipStartFraction : (ComboBeat == 1 ? Strike2ClipStartFraction : Strike1ClipStartFraction);
+	const float ClipRate = bHeavy ? HaymakerClipRate : (ComboBeat == 1 ? Strike2ClipRate : Strike1ClipRate);
+	PlayActionClip(StrikeClip, Duration * 1.35f, StartFrac, ClipRate);
 
 	GetWorldTimerManager().SetTimer(StrikeHitTimerHandle, this, &ASparkHeroCharacter::StrikeHitCheck,
 	                                Duration * 0.45f, false);
@@ -1167,14 +1174,22 @@ void ASparkHeroCharacter::HandleGuardPressed()
 // Action-override animation layer: one-shot clips take the body, the locomotion
 // state machine waits, then resumes through the None sentinel.
 // ---------------------------------------------------------------------------
-void ASparkHeroCharacter::PlayActionClip(UAnimSequence* Clip, float FitDuration)
+void ASparkHeroCharacter::PlayActionClip(UAnimSequence* Clip, float FitDuration, float StartFraction, float OverrideRate)
 {
 	if (!bEnableClipPlayback) { return; } // TEMP: juice carries strikes until then
 	if (!bHasSkeletalModel || !Clip || !SkelBody) { return; }
 	bActionAnimActive = true;
 	SkelBody->PlayAnimation(Clip, false);
-	const float Rate = Clip->GetPlayLength() / FMath::Max(FitDuration, 0.05f);
+	// Auto-fit fits the REMAINING clip past the start point; an explicit rate
+	// (the data-scanned window) wins outright.
+	const float Rate = (OverrideRate > 0.f)
+		? OverrideRate
+		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitDuration, 0.05f);
 	SkelBody->SetPlayRate(FMath::Clamp(Rate, 0.5f, 5.f));
+	if (StartFraction > 0.f)
+	{
+		SkelBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
+	}
 }
 
 void ASparkHeroCharacter::EndActionClip()

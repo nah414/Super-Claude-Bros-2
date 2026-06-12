@@ -266,6 +266,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
 	float WaveCooldown = 12.f;
 
+	/** Capture-harness hook: throw a combo beat on command (the GameMode's
+	    -SCB2ShotStrike flag uses this to photograph strikes headlessly). */
+	void CaptureStrike();
+
 	// ---------------- Camera feel ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
 	float BaseArmLength = 460.f;
@@ -434,6 +438,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
 	float JumpClipRate = 1.2f;
 
+	/** Per-strike clip windows (the jump-fix pattern, combat edition): library
+	    punch clips are routines with wind-up and recovery — start mid-clip at
+	    the swing and play at a chosen rate so the IMPACT lands inside the beat.
+	    StartFraction 0 + Rate 0 = legacy auto-fit (the hero's default). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float Strike1ClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float Strike1ClipRate = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float Strike2ClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float Strike2ClipRate = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float HaymakerClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float HaymakerClipRate = 0.f;
+
 	/** Ground speed above which the run cycle replaces the walk cycle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
 	float RunAnimSpeedThreshold = 420.f;
@@ -560,7 +586,7 @@ private:
 
 	// Action-override layer: one-shot clips (strikes, hit-react) take the body;
 	// the locomotion state machine waits, then resumes via the None sentinel.
-	void PlayActionClip(UAnimSequence* Clip, float FitDuration);
+	void PlayActionClip(UAnimSequence* Clip, float FitDuration, float StartFraction = 0.f, float OverrideRate = 0.f);
 	void EndActionClip();
 	bool bActionAnimActive = false;
 	FTimerHandle HitReactTimerHandle;
