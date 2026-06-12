@@ -126,6 +126,11 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HitReactClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_HitReact_Anim.A_Hero_HitReact_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> RelightClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Relight_Anim.A_Hero_Relight_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> CrouchClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_CrouchWalk_Anim.A_Hero_CrouchWalk_Anim"));
+	// Claude's KICK family (boxer-brawler set: straight kick / knee / lunge
+	// roundhouse) — nullptr-safe: RMB falls back to punches until imported.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Kick1Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Kick1_Anim.A_Hero_Kick1_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Kick2Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Kick2_Anim.A_Hero_Kick2_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> KickHeavyClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_KickHeavy_Anim.A_Hero_KickHeavy_Anim"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -149,6 +154,14 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	HitReactAnim = HitReactClip.Succeeded() ? HitReactClip.Object : nullptr;
 	RelightAnim = RelightClip.Succeeded() ? RelightClip.Object : nullptr;
 	CrouchAnim = CrouchClip.Succeeded() ? CrouchClip.Object : nullptr;
+	Kick1Anim = Kick1Clip.Succeeded() ? Kick1Clip.Object : nullptr;
+	Kick2Anim = Kick2Clip.Succeeded() ? Kick2Clip.Object : nullptr;
+	KickHeavyAnim = KickHeavyClip.Succeeded() ? KickHeavyClip.Object : nullptr;
+	// Scan-set windows (June 12): straight-kick impact frac 0.50, knee drive
+	// 0.21, roundhouse foot at head height 0.73 — each lands mid-beat.
+	Kick1ClipStartFraction = 0.30f;  Kick1ClipRate = 2.3f;
+	Kick2ClipStartFraction = 0.08f;  Kick2ClipRate = 2.7f;
+	KickHeavyClipStartFraction = 0.58f;  KickHeavyClipRate = 2.25f;
 
 	// --- Camera rig: spring arm with collision probe + lag, free orbit ---
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -302,7 +315,7 @@ void ASparkHeroCharacter::BeginPlay()
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(1, 12.f, FColor::Orange,
-			FString::Printf(TEXT("SPARK HERO L%d  |  LMB strike(x3/hold=CHARGED)  RMB blast(hold=NOVA)  Q fire ring  P switch hero  SPACE jump x2  SHIFT dash  C/CTRL crouch  wall=CLIMB  WHEEL zoom"), PowerLevel));
+			FString::Printf(TEXT("SPARK HERO L%d  |  LMB punch x3  RMB kick x3 (hold=CHARGED)  F fire power  WHEEL select power  Q ring  E grab  Z zoom  P switch hero  SPACE jump x2  SHIFT dash  C crouch  wall=CLIMB"), PowerLevel));
 	}
 
 	// Visual pecking order: rigged skeletal hero > imported static hero > placeholder.
@@ -476,8 +489,20 @@ void ASparkHeroCharacter::BuildInputObjects()
 	StrikeAction = NewObject<UInputAction>(this, TEXT("IA_Strike"));
 	StrikeAction->ValueType = EInputActionValueType::Boolean;
 
+	KickAction = NewObject<UInputAction>(this, TEXT("IA_Kick"));
+	KickAction->ValueType = EInputActionValueType::Boolean;
+
 	PowerAction = NewObject<UInputAction>(this, TEXT("IA_Power"));
 	PowerAction->ValueType = EInputActionValueType::Boolean;
+
+	PowerScrollAction = NewObject<UInputAction>(this, TEXT("IA_PowerScroll"));
+	PowerScrollAction->ValueType = EInputActionValueType::Axis1D;
+
+	ZoomPresetAction = NewObject<UInputAction>(this, TEXT("IA_ZoomPreset"));
+	ZoomPresetAction->ValueType = EInputActionValueType::Boolean;
+
+	InteractAction = NewObject<UInputAction>(this, TEXT("IA_Interact"));
+	InteractAction->ValueType = EInputActionValueType::Boolean;
 
 	GuardAction = NewObject<UInputAction>(this, TEXT("IA_Guard"));
 	GuardAction->ValueType = EInputActionValueType::Boolean;
@@ -514,10 +539,12 @@ void ASparkHeroCharacter::BuildInputObjects()
 	MappingContext->MapKey(LookAction, EKeys::Mouse2D);
 	MappingContext->MapKey(LookAction, EKeys::Gamepad_Right2D);
 
-	// Zoom: mouse wheel (up = closer) + d-pad up/down.
-	MappingContext->MapKey(ZoomAction, EKeys::MouseWheelAxis);
+	// Zoom: d-pad keeps analog zoom; Z cycles presets; THE WHEEL NOW SCROLLS
+	// POWERS (Adam's RPG layout, June 12).
 	MappingContext->MapKey(ZoomAction, EKeys::Gamepad_DPad_Up);
 	AddNegate(MappingContext->MapKey(ZoomAction, EKeys::Gamepad_DPad_Down));
+	MappingContext->MapKey(ZoomPresetAction, EKeys::Z);
+	MappingContext->MapKey(PowerScrollAction, EKeys::MouseWheelAxis);
 
 	// Jump / dash / fast-fall.
 	MappingContext->MapKey(JumpAction, EKeys::SpaceBar);
@@ -525,15 +552,21 @@ void ASparkHeroCharacter::BuildInputObjects()
 	MappingContext->MapKey(DashAction, EKeys::LeftShift);
 	MappingContext->MapKey(DashAction, EKeys::Gamepad_FaceButton_Left);
 
-	// Adam's round-6 layout (the classic): LEFT = strikes (tap combo / hold
-	// charged), RIGHT = powers (tap hand-blast / hold Beacon Wave).
+	// ADAM'S RPG LAYOUT (June 12): LMB punches, RMB kicks, F fires the selected
+	// power, wheel scrolls the power wheel, Z cycles zoom, E interacts.
 	MappingContext->MapKey(StrikeAction, EKeys::LeftMouseButton);
 	MappingContext->MapKey(StrikeAction, EKeys::Gamepad_FaceButton_Right);
 
-	MappingContext->MapKey(PowerAction, EKeys::RightMouseButton);
+	MappingContext->MapKey(KickAction, EKeys::RightMouseButton);
+	MappingContext->MapKey(KickAction, EKeys::Gamepad_FaceButton_Top);
+
+	MappingContext->MapKey(PowerAction, EKeys::F);
 	MappingContext->MapKey(PowerAction, EKeys::Gamepad_RightTrigger);
 
-	// Ember Guard: the flame armors itself.
+	MappingContext->MapKey(InteractAction, EKeys::E);
+	MappingContext->MapKey(InteractAction, EKeys::Gamepad_DPad_Right);
+
+	// Ember Guard: Q stays the quick reflex (the ring also lives in the wheel).
 	MappingContext->MapKey(GuardAction, EKeys::Q);
 	MappingContext->MapKey(GuardAction, EKeys::Gamepad_LeftShoulder);
 
@@ -580,8 +613,12 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(DashAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleDashPressed);
 		EIC->BindAction(StrikeAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleStrikePressed);
 		EIC->BindAction(StrikeAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleStrikeReleased);
-		EIC->BindAction(PowerAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandlePowerPressed);
-		EIC->BindAction(PowerAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandlePowerReleased);
+		EIC->BindAction(KickAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleKickPressed);
+		EIC->BindAction(KickAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleKickReleased);
+		EIC->BindAction(PowerAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleFirePressed);
+		EIC->BindAction(PowerScrollAction, ETriggerEvent::Triggered, this, &ASparkHeroCharacter::HandlePowerScroll);
+		EIC->BindAction(ZoomPresetAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleZoomPreset);
+		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleInteractPressed);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleGuardPressed);
 		EIC->BindAction(SwitchHeroAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleSwitchHero);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleFastFallPressed);
@@ -815,27 +852,47 @@ void ASparkHeroCharacter::EndDash()
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::HandleStrikePressed()
 {
-	if (bClimbing) { return; }                        // both hands are busy
-	if (bIsDashing) { return; }                       // the dash owns its moment
-	if (Now() < ComboCooldownUntil) { return; }       // post-haymaker breather
-	if (bStriking) { bStrikeQueued = true; return; }  // chain the next beat
-
-	// THE RESPONSIVENESS LAW (Adam's boss-fight verdict, June 12): the beat
-	// fires THE FRAME you press — release waits are lag. Keep holding and the
-	// charged haymaker auto-fires the instant its charge completes (see Tick).
-	bChargingStrike = true;
-	StrikeChargeStart = Now();
-	if ((Now() - LastStrikeEndTime) > StrikeComboWindow)
-	{
-		ComboBeat = 0;                                // too slow — the string resets
-	}
-	DoStrike();
+	BeginStrikeFamily(EStrikeFamily::Punch);
 }
 
 void ASparkHeroCharacter::HandleStrikeReleased()
 {
-	// Nothing fires on release anymore — letting go just stops the charge.
-	bChargingStrike = false;
+	if (ChargingFamily == EStrikeFamily::Punch) { bChargingStrike = false; }
+}
+
+void ASparkHeroCharacter::HandleKickPressed()
+{
+	BeginStrikeFamily(EStrikeFamily::Kick);
+}
+
+void ASparkHeroCharacter::HandleKickReleased()
+{
+	if (ChargingFamily == EStrikeFamily::Kick) { bChargingStrike = false; }
+}
+
+void ASparkHeroCharacter::BeginStrikeFamily(EStrikeFamily Family)
+{
+	if (bClimbing) { return; }                        // both hands are busy
+	if (bIsDashing) { return; }                       // the dash owns its moment
+	if (Now() < ComboCooldownUntil) { return; }       // post-heavy breather
+	if (bStriking)
+	{
+		bStrikeQueued = true;                         // chain the next beat
+		QueuedFamily = Family;                        // family swap resets the chain
+		return;
+	}
+
+	// THE RESPONSIVENESS LAW: the beat fires THE FRAME you press. Keep holding
+	// and this family's charged heavy auto-fires when the charge completes.
+	bChargingStrike = true;
+	ChargingFamily = Family;
+	StrikeChargeStart = Now();
+	if (Family != CurrentFamily || (Now() - LastStrikeEndTime) > StrikeComboWindow)
+	{
+		ComboBeat = 0;                                // new family or too slow — reset
+	}
+	CurrentFamily = Family;
+	DoStrike();
 }
 
 void ASparkHeroCharacter::DoChargedStrike()
@@ -855,7 +912,12 @@ void ASparkHeroCharacter::DoChargedStrike()
 	if (EmberMeter) { EmberMeter->FlashGlow(0.35f, 4.f); }
 	FirePulse(220.f, 0.35f, 2500.f);
 	OnHeroChargedStrike();
-	if (ChargedStrikeAnim)
+	if (CurrentFamily == EStrikeFamily::Kick && KickHeavyAnim)
+	{
+		// The charged KICK: this family's heavy, charged mechanics.
+		PlayActionClip(KickHeavyAnim, 0.55f, KickHeavyClipStartFraction, KickHeavyClipRate);
+	}
+	else if (ChargedStrikeAnim)
 	{
 		PlayActionClip(ChargedStrikeAnim, 0.55f, ChargedClipStartFraction, ChargedClipRate);
 	}
@@ -894,9 +956,24 @@ void ASparkHeroCharacter::DoStrike()
 
 	// The body acts the beat: clip fitted to the beat window (plus a little
 	// follow-through into recovery) — fighting-game speed from library clips.
-	UAnimSequence* StrikeClip = bHeavy ? HaymakerAnim : (ComboBeat == 1 ? Strike2Anim : Strike1Anim);
-	const float StartFrac = bHeavy ? HaymakerClipStartFraction : (ComboBeat == 1 ? Strike2ClipStartFraction : Strike1ClipStartFraction);
-	const float ClipRate = bHeavy ? HaymakerClipRate : (ComboBeat == 1 ? Strike2ClipRate : Strike1ClipRate);
+	// Dual families: the kick set drives RMB chains (falls back to the punch
+	// clips until a hero's kicks are imported — RMB always works).
+	const bool bKickFam = (CurrentFamily == EStrikeFamily::Kick) && Kick1Anim;
+	UAnimSequence* StrikeClip;
+	float StartFrac, ClipRate;
+	if (bKickFam)
+	{
+		StrikeClip = bHeavy ? (KickHeavyAnim ? KickHeavyAnim : HaymakerAnim).Get()
+		           : (ComboBeat == 1 ? Kick2Anim : Kick1Anim).Get();
+		StartFrac = bHeavy ? KickHeavyClipStartFraction : (ComboBeat == 1 ? Kick2ClipStartFraction : Kick1ClipStartFraction);
+		ClipRate = bHeavy ? KickHeavyClipRate : (ComboBeat == 1 ? Kick2ClipRate : Kick1ClipRate);
+	}
+	else
+	{
+		StrikeClip = (bHeavy ? HaymakerAnim : (ComboBeat == 1 ? Strike2Anim : Strike1Anim)).Get();
+		StartFrac = bHeavy ? HaymakerClipStartFraction : (ComboBeat == 1 ? Strike2ClipStartFraction : Strike1ClipStartFraction);
+		ClipRate = bHeavy ? HaymakerClipRate : (ComboBeat == 1 ? Strike2ClipRate : Strike1ClipRate);
+	}
 	PlayActionClip(StrikeClip, Duration * 1.35f, StartFrac, ClipRate);
 
 	GetWorldTimerManager().SetTimer(StrikeHitTimerHandle, this, &ASparkHeroCharacter::StrikeHitCheck,
@@ -996,6 +1073,11 @@ void ASparkHeroCharacter::EndStrike()
 		if (bStrikeQueued)
 		{
 			bStrikeQueued = false;
+			if (QueuedFamily != CurrentFamily)
+			{
+				CurrentFamily = QueuedFamily;         // punch->kick mid-string
+				ComboBeat = 0;                        // new family, fresh chain
+			}
 			DoStrike();                               // the chained beat fires immediately
 		}
 		else
@@ -1077,23 +1159,76 @@ void ASparkHeroCharacter::FirePulse(float Radius, float Duration, float LightInt
 	}
 }
 
-void ASparkHeroCharacter::HandlePowerPressed()
+// ---------------------------------------------------------------------------
+// THE POWER WHEEL (Adam's RPG layout): wheel scrolls, F fires, on demand.
+// ---------------------------------------------------------------------------
+static const TCHAR* SparkPowerName(ESparkPower P)
 {
-	if (!HasPowerLevel(4)) { return; }   // the burst is the kit's entry power
-	if (Now() < NextBlastTime) { return; }   // the rapid-fire governor
-
-	// THE RESPONSIVENESS LAW: the bolt leaves your hand THE FRAME you press.
-	// Keep holding and the Beacon Wave detonates the instant its 0.6s charge
-	// completes (see Tick) — on demand, never on release.
-	NextBlastTime = Now() + BlastCooldown;
-	bChargingPower = true;
-	PowerChargeStart = Now();
-	DoPrismBurst();
+	switch (P)
+	{
+	case ESparkPower::Nova:     return TEXT("BEACON NOVA");
+	case ESparkPower::FireRing: return TEXT("EMBER RING");
+	default:                    return TEXT("SPARK BOLT");
+	}
 }
 
-void ASparkHeroCharacter::HandlePowerReleased()
+void ASparkHeroCharacter::HandleFirePressed()
 {
-	bChargingPower = false;   // letting go just abandons the wave charge
+	switch (SelectedPower)
+	{
+	case ESparkPower::Bolt:
+		if (!HasPowerLevel(4) || Now() < NextBlastTime) { return; }
+		NextBlastTime = Now() + BlastCooldown;
+		DoPrismBurst();
+		break;
+	case ESparkPower::Nova:
+		if (!HasPowerLevel(6)) { return; }
+		DoBeaconWave();                        // its own cooldown gates inside
+		break;
+	case ESparkPower::FireRing:
+		HandleGuardPressed();
+		break;
+	default: break;
+	}
+}
+
+void ASparkHeroCharacter::HandlePowerScroll(const FInputActionValue& Value)
+{
+	PowerScrollAccum += Value.Get<float>();
+	if (FMath::Abs(PowerScrollAccum) < 1.f) { return; }
+	const int32 Step = PowerScrollAccum > 0.f ? 1 : -1;
+	PowerScrollAccum = 0.f;
+	const int32 N = static_cast<int32>(ESparkPower::COUNT);
+	const int32 Idx = ((static_cast<int32>(SelectedPower) + Step) % N + N) % N;
+	SelectedPower = static_cast<ESparkPower>(Idx);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(3, 2.f, FColor::Cyan,
+			FString::Printf(TEXT("POWER: %s"), SparkPowerName(SelectedPower)));
+	}
+}
+
+void ASparkHeroCharacter::HandleZoomPreset()
+{
+	static const float Presets[3] = { 0.55f, 1.0f, 1.8f };
+	ZoomPresetIndex = (ZoomPresetIndex + 1) % 3;
+	ZoomMultiplier = Presets[ZoomPresetIndex];
+}
+
+void ASparkHeroCharacter::HandleInteractPressed()
+{
+	// Phase C fills this: grab / drop the nearest GrabbableProp.
+}
+
+float ASparkHeroCharacter::GetPowerReadyIn(ESparkPower Power) const
+{
+	switch (Power)
+	{
+	case ESparkPower::Bolt:     return FMath::Max3(0.f, BurstReadyTime - Now(), NextBlastTime - Now());
+	case ESparkPower::Nova:     return FMath::Max(0.f, WaveReadyTime - Now());
+	case ESparkPower::FireRing: return FMath::Max(0.f, GuardReadyTime - Now());
+	default:                    return 0.f;
+	}
 }
 
 // Spawn one spark blast from the hero's hand, flying flat along Direction.
@@ -1446,14 +1581,10 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		&& Now() - StrikeChargeStart >= StrikeChargeTime)
 	{
 		bChargingStrike = false;
+		CurrentFamily = ChargingFamily;   // the held button's family delivers
 		DoChargedStrike();
 	}
-	if (bChargingPower && HasPowerLevel(6)
-		&& Now() - PowerChargeStart >= WaveChargeTime)
-	{
-		bChargingPower = false;
-		DoBeaconWave();
-	}
+	// (The Nova hold-charge retired June 12 — the power wheel + F replaced it.)
 
 	// Drive the rigged hero's clips from movement state.
 	if (bHasSkeletalModel)

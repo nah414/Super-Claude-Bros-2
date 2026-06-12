@@ -55,11 +55,9 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	RelightAnim = Pick(HerRelight, RelightAnim);
 	CrouchAnim = Pick(HerCrouch, CrouchAnim);
 
-	// Punch fallbacks first (hooks beat jabs), then her SIGNATURE KICK COMBO
-	// wins outright — legs are her longest limbs, the biggest silhouette the
-	// catalog sells. Windows are data-scanned foot peaks: high kick z158 @frac
-	// 0.525, roundhouse z143 @0.525, spin kick z129 @0.775 — the IMPACT plays
-	// inside the beat, not the wind-up.
+	// DUAL FAMILIES (Adam's RPG layout): LMB = her HOOK punches, RMB = her
+	// signature KICKS. All windows data-scanned (hooks: impact 0.725/0.475/
+	// both-fists 0.20; kicks: foot peaks 0.525/0.525/0.775).
 	if (HerCombo1.Succeeded())
 	{
 		Strike1Anim = HerCombo1.Object.Get();
@@ -72,36 +70,32 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 		Strike2ClipStartFraction = 0.33f;
 		Strike2ClipRate = 1.8f;
 	}
-	if (HerKick1.Succeeded())
-	{
-		Strike1Anim = HerKick1.Object.Get();
-		Strike1ClipStartFraction = 0.40f;
-		Strike1ClipRate = 2.0f;
-	}
-	if (HerKick2.Succeeded())
-	{
-		Strike2Anim = HerKick2.Object.Get();
-		Strike2ClipStartFraction = 0.42f;
-		Strike2ClipRate = 2.5f;
-	}
-	if (HerKick3.Succeeded())
-	{
-		HaymakerAnim = HerKick3.Object.Get();
-		HaymakerClipStartFraction = 0.60f;
-		HaymakerClipRate = 1.3f;
-	}
-	else if (HerCombo3.Succeeded())
+	if (HerCombo3.Succeeded())
 	{
 		HaymakerAnim = HerCombo3.Object.Get();
 		HaymakerClipStartFraction = 0.12f;
 		HaymakerClipRate = 1.4f;
-	}
-	// The CHARGED strike stays a fist move — the both-fists drive, arms at full
-	// reach (Adam's note), while the regular finisher spins the kick.
-	if (HerCombo3.Succeeded())
-	{
+		// The CHARGED punch stays the both-fists drive, arms at full reach.
 		ChargedStrikeAnim = HerCombo3.Object.Get();
 		ChargedClipStartFraction = 0.12f;
 		ChargedClipRate = 1.4f;
+	}
+	if (HerKick1.Succeeded())
+	{
+		Kick1Anim = HerKick1.Object.Get();
+		Kick1ClipStartFraction = 0.40f;
+		Kick1ClipRate = 2.0f;
+	}
+	if (HerKick2.Succeeded())
+	{
+		Kick2Anim = HerKick2.Object.Get();
+		Kick2ClipStartFraction = 0.42f;
+		Kick2ClipRate = 2.5f;
+	}
+	if (HerKick3.Succeeded())
+	{
+		KickHeavyAnim = HerKick3.Object.Get();
+		KickHeavyClipStartFraction = 0.60f;
+		KickHeavyClipRate = 1.3f;
 	}
 }

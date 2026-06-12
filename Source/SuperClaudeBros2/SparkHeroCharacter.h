@@ -21,6 +21,22 @@ class UInputMappingContext;
 class UAnimSequence;
 class UEmberMeterComponent;
 class UPointLightComponent;
+class AGrabbableProp;
+
+/** THE POWER WHEEL (Adam's RPG layout, June 12): the mouse wheel scrolls the
+    selection, F fires it. Future powers (Keeper's Craft…) append here. */
+UENUM(BlueprintType)
+enum class ESparkPower : uint8
+{
+	Bolt      UMETA(DisplayName = "Spark Bolt"),
+	Nova      UMETA(DisplayName = "Beacon Nova"),
+	FireRing  UMETA(DisplayName = "Ember Ring"),
+	COUNT     UMETA(Hidden)
+};
+
+/** Dual combat families: LMB chains punches, RMB chains kicks. */
+UENUM(BlueprintType)
+enum class EStrikeFamily : uint8 { Punch, Kick };
 
 UCLASS()
 class ASparkHeroCharacter : public ACharacter
@@ -367,6 +383,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "SparkHero")
 	bool IsStriking() const { return bStriking; }
 
+	// ---- Dashboard getters (the HUD reads, never writes) ----
+	ESparkPower GetSelectedPower() const { return SelectedPower; }
+	EStrikeFamily GetStrikeFamily() const { return CurrentFamily; }
+	int32 GetComboBeat() const { return ComboBeat; }
+	bool IsChargingStrike() const { return bChargingStrike; }
+	/** Seconds until the given power is ready (0 = ready now). */
+	float GetPowerReadyIn(ESparkPower Power) const;
+	UEmberMeterComponent* GetEmberMeter() const { return EmberMeter; }
+
 	/** Staging gate check — the whole kit reads through this. */
 	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
 	bool HasPowerLevel(int32 Level) const { return PowerLevel >= Level; }
@@ -476,6 +501,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
 	float ChargedClipRate = 0.f;
 
+	// Kick-family windows (scan-set per hero; 0/0 = auto-fit fallback).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float Kick1ClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float Kick1ClipRate = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float Kick2ClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float Kick2ClipRate = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
+	float KickHeavyClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float KickHeavyClipRate = 0.f;
+
 	/** Ground speed above which the run cycle replaces the walk cycle. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
 	float RunAnimSpeedThreshold = 420.f;
@@ -501,8 +545,13 @@ protected:
 	void HandleDashPressed();
 	void HandleStrikePressed();
 	void HandleStrikeReleased();
-	void HandlePowerPressed();
-	void HandlePowerReleased();
+	void BeginStrikeFamily(EStrikeFamily Family);
+	void HandleKickPressed();
+	void HandleKickReleased();
+	void HandleFirePressed();                          // F: fire the selected power
+	void HandlePowerScroll(const FInputActionValue& Value);   // wheel: scroll the wheel
+	void HandleZoomPreset();                           // Z: near / default / far
+	void HandleInteractPressed();                      // E: grab / drop (Phase C)
 	void HandleGuardPressed();
 	void HandleSwitchHero();
 	void HandleFastFallPressed();
@@ -518,6 +567,10 @@ private:
 
 	UPROPERTY(Transient) TObjectPtr<UInputMappingContext> MappingContext;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> MoveAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> KickAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> PowerScrollAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> ZoomPresetAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> InteractAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> LookAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> ZoomAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> JumpAction;
@@ -555,6 +608,14 @@ private:
 	bool bChargedStrike = false;         // current swing is the charged variant
 	float StrikeChargeStart = -1000.f;
 	int32 ComboBeat = 0;                 // 0/1 = lash, 2 = haymaker
+	// Dual families: which chain is live, which is held charging, which queued.
+	EStrikeFamily CurrentFamily = EStrikeFamily::Punch;
+	EStrikeFamily ChargingFamily = EStrikeFamily::Punch;
+	EStrikeFamily QueuedFamily = EStrikeFamily::Punch;
+	// The power wheel.
+	ESparkPower SelectedPower = ESparkPower::Bolt;
+	float PowerScrollAccum = 0.f;
+	int32 ZoomPresetIndex = 1;           // {near, default, far}
 	float LastStrikeEndTime = -1000.f;
 	float ComboCooldownUntil = -1000.f;
 	FTimerHandle StrikeTimerHandle;
@@ -594,6 +655,10 @@ protected:
 	/** Optional split: the CHARGED strike's own clip (falls back to HaymakerAnim).
 	    Lets a character kick the combo finisher but still punch the charged one. */
 	UPROPERTY() TObjectPtr<UAnimSequence> ChargedStrikeAnim;
+	// The KICK family (RMB chains; per-hero signature sets — custom-moves law).
+	UPROPERTY() TObjectPtr<UAnimSequence> Kick1Anim;
+	UPROPERTY() TObjectPtr<UAnimSequence> Kick2Anim;
+	UPROPERTY() TObjectPtr<UAnimSequence> KickHeavyAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> RelightAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> CrouchAnim;
