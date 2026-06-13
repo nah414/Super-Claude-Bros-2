@@ -4,6 +4,7 @@
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
 #include "RustWarlord.h"
+#include "HollowWarden.h"
 #include "VoidStalker.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
@@ -205,6 +206,23 @@ void ASparkHeroGameMode::BeginPlay()
 				{
 					Warlord->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 540.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2WardenNear: the Lamp-Eater wants a camera (watch the lights die).
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2WardenNear")))
+		{
+			FTimerHandle WardenTimer;
+			GetWorldTimerManager().SetTimer(WardenTimer, [this]()
+			{
+				AHollowWarden* Warden = Cast<AHollowWarden>(
+					UGameplayStatics::GetActorOfClass(this, AHollowWarden::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Warden && Pawn)
+				{
+					Warden->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);
 		}

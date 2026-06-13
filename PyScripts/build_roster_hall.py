@@ -176,6 +176,19 @@ except Exception as e:
     live["warlord"] = False
     print(f"LIVE_WARLORD_SKIPPED: {e}")
 
+# ---- a LIVE HOLLOW WARDEN (the Lamp-Eater knight — far south row) ----
+# Walk into his ring; his wide arcs eat the Hall's lights as you fight.
+try:
+    warden_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.HollowWarden")
+    wd = eas.spawn_actor_from_class(warden_cls, unreal.Vector(1500, -3400, 100))
+    wd.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)
+    wd.set_actor_label("LiveHollowWarden")
+    live["warden"] = True
+    print("LIVE_WARDEN_PLACED")
+except Exception as e:
+    live["warden"] = False
+    print(f"LIVE_WARDEN_SKIPPED: {e}")
+
 # ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
 props_placed = 0
 try:
