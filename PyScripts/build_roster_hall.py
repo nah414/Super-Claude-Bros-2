@@ -189,6 +189,18 @@ except Exception as e:
     live["warden"] = False
     print(f"LIVE_WARDEN_SKIPPED: {e}")
 
+# ---- THE LUMEN DRAGONLORD (the final boss — far back, the long walk to him) ----
+try:
+    dragon_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.LumenDragonlord")
+    dl = eas.spawn_actor_from_class(dragon_cls, unreal.Vector(0, 1500, 130))
+    dl.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)   # face the visitor
+    dl.set_actor_label("LiveLumenDragonlord")
+    live["dragonlord"] = True
+    print("LIVE_DRAGONLORD_PLACED")
+except Exception as e:
+    live["dragonlord"] = False
+    print(f"LIVE_DRAGONLORD_SKIPPED: {e}")
+
 # ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
 props_placed = 0
 try:

@@ -5,6 +5,7 @@
 #include "KrakenBoss.h"
 #include "RustWarlord.h"
 #include "HollowWarden.h"
+#include "LumenDragonlord.h"
 #include "VoidStalker.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
@@ -223,6 +224,23 @@ void ASparkHeroGameMode::BeginPlay()
 				{
 					Warden->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2DragonNear: the final boss wants a camera (the lantern, the sanctuary).
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2DragonNear")))
+		{
+			FTimerHandle DragonTimer;
+			GetWorldTimerManager().SetTimer(DragonTimer, [this]()
+			{
+				ALumenDragonlord* Dragon = Cast<ALumenDragonlord>(
+					UGameplayStatics::GetActorOfClass(this, ALumenDragonlord::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Dragon && Pawn)
+				{
+					Dragon->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 600.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);
 		}
