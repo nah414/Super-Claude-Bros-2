@@ -26,7 +26,7 @@ assert les.new_level("/Game/Maps/RosterHall"), "NEW_HALL_FAILED"
 cube = unreal.load_asset("/Engine/BasicShapes/Cube")
 floor = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(0, 0, -50))
 floor.static_mesh_component.set_static_mesh(cube)
-floor.set_actor_scale3d(unreal.Vector(220.0, 90.0, 1.0))
+floor.set_actor_scale3d(unreal.Vector(280.0, 200.0, 1.0))   # 28000 x 20000 uu — room to stage all 17 with big-character spacing + knockback run-off
 floor.set_actor_label("HallFloor")
 
 # DUSK now, not noon — the environment grows with the cast: a low warm sun so
@@ -50,8 +50,8 @@ skylight.set_actor_label("SkyLight")
 try:
     lantern_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.Lantern")
     lant = 0
-    for lx in (-2200, -1100, 0, 1100, 2200):
-        for ly in (-2200, -1100, 0, 1100):
+    for lx in (-6000, -3000, 0, 3000, 6000):
+        for ly in (-5000, -2500, 0, 2500, 5000):
             eas.spawn_actor_from_class(lantern_cls, unreal.Vector(lx, ly, 0))
             lant += 1
     print(f"LANTERNS_PLACED: {lant}")
@@ -69,7 +69,7 @@ assets.sort()
 assert assets, "ROSTER_SOURCE_EMPTY: no /SM_ assets under /Game/Art/Roster"
 n = len(assets)
 roster_seen = n  # SM_ paths discovered (some may not load as StaticMesh)
-spacing = 260.0
+spacing = 700.0   # widened so big silhouettes (dragon/hulk/king statues) don't overlap
 x0 = -spacing * (n - 1) / 2.0
 count = 0
 for i, path in enumerate(assets):
@@ -77,7 +77,7 @@ for i, path in enumerate(assets):
     if not isinstance(sm, unreal.StaticMesh):
         continue
     actor = eas.spawn_actor_from_class(
-        unreal.StaticMeshActor, unreal.Vector(x0 + i * spacing, 500.0, 0.0))
+        unreal.StaticMeshActor, unreal.Vector(x0 + i * spacing, 8500.0, 0.0))   # display row, far back behind the Dragonlord
     actor.static_mesh_component.set_static_mesh(sm)
     actor.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)  # face the visitor
     actor.set_actor_label(sm.get_name())
@@ -124,7 +124,7 @@ live = {}
 # ---- a LIVE Glimmer (the real enemy, crystal-sprite body) for behavior review ----
 try:
     glimmer_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy")
-    g = eas.spawn_actor_from_class(glimmer_cls, unreal.Vector(350, -400, 60))
+    g = eas.spawn_actor_from_class(glimmer_cls, unreal.Vector(-1800, 1400, 60))   # critter pen, >900uu off PlayerStart so it doesn't trip engage on step one
     g.set_actor_label("LiveGlimmer")
     live["glimmer"] = True
     print("LIVE_GLIMMER_PLACED")
@@ -136,7 +136,7 @@ except Exception as e:
 # Placed beyond his 900uu duel-start ring: walk toward him and the duel begins.
 try:
     kraken_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.KrakenBoss")
-    k = eas.spawn_actor_from_class(kraken_cls, unreal.Vector(1500, -700, 90))
+    k = eas.spawn_actor_from_class(kraken_cls, unreal.Vector(3500, -700, 90))
     k.set_actor_rotation(unreal.Rotator(0.0, 0.0, 180.0), False)
     k.set_actor_label("LiveIronKraken")
     live["kraken"] = True
@@ -148,7 +148,7 @@ except Exception as e:
 # ---- a LIVE EMBER REAVER (rival #2, opposite wing — pick your duel) ----
 try:
     reaver_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.EmberReaver")
-    rv = eas.spawn_actor_from_class(reaver_cls, unreal.Vector(-1500, -700, 90))
+    rv = eas.spawn_actor_from_class(reaver_cls, unreal.Vector(-3500, -700, 90))
     rv.set_actor_rotation(unreal.Rotator(0.0, 0.0, 0.0), False)
     rv.set_actor_label("LiveEmberReaver")
     live["reaver"] = True
@@ -160,7 +160,7 @@ except Exception as e:
 # ---- a LIVE VOID STALKER (rival #3, the south wing — three duels now) ----
 try:
     stalker_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.VoidStalker")
-    vs = eas.spawn_actor_from_class(stalker_cls, unreal.Vector(0, -2400, 90))
+    vs = eas.spawn_actor_from_class(stalker_cls, unreal.Vector(0, -3500, 90))
     vs.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)
     vs.set_actor_label("LiveVoidStalker")
     live["stalker"] = True
@@ -172,7 +172,7 @@ except Exception as e:
 # ---- a LIVE BRAMBLEHULK (the SOOTHE boss — asleep in the SE corner) ----
 try:
     hulk_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.Bramblehulk")
-    bh = eas.spawn_actor_from_class(hulk_cls, unreal.Vector(2500, -2400, 120))
+    bh = eas.spawn_actor_from_class(hulk_cls, unreal.Vector(5000, -3800, 120))
     bh.set_actor_rotation(unreal.Rotator(0.0, 0.0, 135.0), False)
     bh.set_actor_label("LiveBramblehulk")
     live["bramblehulk"] = True
@@ -185,7 +185,7 @@ except Exception as e:
 # Walk into his 900uu ring and the duel begins; break his armor to see the vent.
 try:
     warlord_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RustWarlord")
-    wl = eas.spawn_actor_from_class(warlord_cls, unreal.Vector(-2500, -2400, 100))
+    wl = eas.spawn_actor_from_class(warlord_cls, unreal.Vector(-5000, -3800, 100))
     wl.set_actor_rotation(unreal.Rotator(0.0, 0.0, 45.0), False)
     wl.set_actor_label("LiveRustWarlord")
     live["warlord"] = True
@@ -198,7 +198,7 @@ except Exception as e:
 # Walk into his ring; his wide arcs eat the Hall's lights as you fight.
 try:
     warden_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.HollowWarden")
-    wd = eas.spawn_actor_from_class(warden_cls, unreal.Vector(1500, -3400, 100))
+    wd = eas.spawn_actor_from_class(warden_cls, unreal.Vector(2200, -5500, 100))
     wd.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)
     wd.set_actor_label("LiveHollowWarden")
     live["warden"] = True
@@ -210,7 +210,7 @@ except Exception as e:
 # ---- THE LUMEN DRAGONLORD (the final boss — far back, the long walk to him) ----
 try:
     dragon_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.LumenDragonlord")
-    dl = eas.spawn_actor_from_class(dragon_cls, unreal.Vector(0, 1500, 130))
+    dl = eas.spawn_actor_from_class(dragon_cls, unreal.Vector(0, 5500, 130))
     dl.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)   # face the visitor
     dl.set_actor_label("LiveLumenDragonlord")
     live["dragonlord"] = True
@@ -222,7 +222,7 @@ except Exception as e:
 # ---- THE FOUNDRY KING (W4 boss — the Warlord crowned, the cheap-boss ladder) ----
 try:
     king_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.FoundryKing")
-    fk = eas.spawn_actor_from_class(king_cls, unreal.Vector(3200, -1500, 130))
+    fk = eas.spawn_actor_from_class(king_cls, unreal.Vector(6500, -1800, 130))
     fk.set_actor_rotation(unreal.Rotator(0.0, 0.0, 150.0), False)
     fk.set_actor_label("LiveFoundryKing")
     live["foundryking"] = True
@@ -258,7 +258,7 @@ except Exception as e:
 
 try:
     shell_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RolyShellback")
-    for i, (sx, sy) in enumerate([(650, -950), (-650, -950)]):
+    for i, (sx, sy) in enumerate([(-1500, 1200), (-2100, 1200)]):   # critter pen (aggro radius kept off the start lane)
         s = eas.spawn_actor_from_class(shell_cls, unreal.Vector(sx, sy, 80))
         s.set_actor_label(f"RolyShellback_{i}")
     live["shellback"] = True
@@ -284,9 +284,9 @@ except Exception as e:
 # walk through the Hall always shows the true current state of every rig.
 HEROES = [
     ("Exhibit_ClaudeSpark", "/Game/Art/HeroSkelV4/SCB2Hero",
-     "/Game/Art/HeroSkelV4/A_Hero_Idle_Anim", -200.0),
+     "/Game/Art/HeroSkelV4/A_Hero_Idle_Anim", -300.0),
     ("Exhibit_Sonnet", "/Game/Art/HeroineSkelV2/SCB2Heroine",
-     "/Game/Art/HeroineSkelV2/A_Heroine_Idle_Anim", 200.0),
+     "/Game/Art/HeroineSkelV2/A_Heroine_Idle_Anim", 300.0),
 ]
 heroes_placed = 0
 for label, mesh_path, idle_path, x in HEROES:
@@ -299,6 +299,11 @@ for label, mesh_path, idle_path, x in HEROES:
         unreal.SkeletalMeshActor, unreal.Vector(x, 150.0, 0.0))
     comp = actor.skeletal_mesh_component
     comp.set_editor_property("skeletal_mesh_asset", mesh)
+    # The exhibits are animated skeletal bodies too — same cull-freeze trap if the
+    # camera pans off them during the walk-through. Belt + suspenders, per the audit.
+    comp.set_editor_property("visibility_based_anim_tick_option",
+                             unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
+    comp.set_editor_property("bounds_scale", 1.4)
     if isinstance(idle, unreal.AnimSequence):
         comp.set_editor_property("animation_mode", unreal.AnimationMode.ANIMATION_SINGLE_NODE)
         comp.override_animation_data(idle, is_looping=True, is_playing=True)

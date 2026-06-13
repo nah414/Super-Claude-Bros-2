@@ -64,6 +64,7 @@ AKrakenBoss::AKrakenBoss()
 	KrakenBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	KrakenBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	KrakenBody->SetBoundsScale(1.6f);   // cull-freeze insurance for the Champion's wide swing/slam
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);

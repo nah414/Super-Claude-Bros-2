@@ -40,6 +40,7 @@ ASparkRivalBase::ASparkRivalBase()
 	RivalBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	RivalBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	RivalBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	RivalBody->SetBoundsScale(1.6f);   // the cull-freeze insurance: the widest animated pose can never leave its bounds (covers Warlord/Warden/Dragonlord/FoundryKing by inheritance)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);

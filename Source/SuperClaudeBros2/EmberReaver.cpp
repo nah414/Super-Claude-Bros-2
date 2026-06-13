@@ -50,6 +50,7 @@ AEmberReaver::AEmberReaver()
 	ReaverBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ReaverBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	ReaverBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	ReaverBody->SetBoundsScale(1.4f);   // cull-freeze insurance (slender, but his dash/crescent reach is wide)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);

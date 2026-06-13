@@ -48,6 +48,7 @@ AVoidStalker::AVoidStalker()
 	StalkerBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	StalkerBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	StalkerBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	StalkerBody->SetBoundsScale(1.4f);   // cull-freeze insurance (the spiral/lunge spread)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);

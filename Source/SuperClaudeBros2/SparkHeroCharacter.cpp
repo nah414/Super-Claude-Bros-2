@@ -146,6 +146,10 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 		SkelBody->SetRelativeRotation(FRotator(0.f, SkelMeshYaw, 0.f));
 		SkelBody->SetRelativeScale3D(FVector(SkelMeshScale));
 		SkelBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+		// The heroes are animated skeletal bodies too — same cull-freeze trap if the
+		// camera pans off them in the Hall. Belt + suspenders (Sonnet inherits this).
+		SkelBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+		SkelBody->SetBoundsScale(1.4f);
 	}
 	IdleAnim = IdleClip.Succeeded() ? IdleClip.Object : nullptr;
 	WalkAnim = WalkClip.Succeeded() ? WalkClip.Object : nullptr;

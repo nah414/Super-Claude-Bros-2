@@ -55,6 +55,7 @@ ABramblehulk::ABramblehulk()
 	// out of its own stale bounds -> "off-screen" -> pose stops -> bounds never
 	// refresh -> frozen forever (Adam's slowed-then-froze report, June 12).
 	HulkBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	HulkBody->SetBoundsScale(2.0f);   // colossus reach (slam/sweep/quake) — the widest bounds in the game
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
