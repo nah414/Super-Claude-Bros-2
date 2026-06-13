@@ -69,7 +69,12 @@ assets.sort()
 assert assets, "ROSTER_SOURCE_EMPTY: no /SM_ assets under /Game/Art/Roster"
 n = len(assets)
 roster_seen = n  # SM_ paths discovered (some may not load as StaticMesh)
-spacing = 700.0   # widened so big silhouettes (dragon/hulk/king statues) don't overlap
+# THE CHARACTER LINE-UP is the heart of the Hall — a neat, walkable gallery row,
+# front-and-center, that Adam faces on spawn. (It got banished to the back during
+# the stage-all-17 expansion; never again — the live bosses live in the far zones,
+# but the LINE-UP stays right here.) 380 keeps big silhouettes from overlapping
+# while staying a tight, reviewable row.
+spacing = 380.0
 x0 = -spacing * (n - 1) / 2.0
 count = 0
 for i, path in enumerate(assets):
@@ -77,7 +82,7 @@ for i, path in enumerate(assets):
     if not isinstance(sm, unreal.StaticMesh):
         continue
     actor = eas.spawn_actor_from_class(
-        unreal.StaticMeshActor, unreal.Vector(x0 + i * spacing, 8500.0, 0.0))   # display row, far back behind the Dragonlord
+        unreal.StaticMeshActor, unreal.Vector(x0 + i * spacing, 700.0, 0.0))   # the line-up, front-and-center: the hero faces it on spawn
     actor.static_mesh_component.set_static_mesh(sm)
     actor.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)  # face the visitor
     actor.set_actor_label(sm.get_name())
@@ -346,7 +351,7 @@ try:
         skin_mat = EAL.load_asset(f"/Game/Art/HeroSkelV4/M_HeroSkin_{nm}")
         if not (isinstance(hero_mesh, unreal.SkeletalMesh) and skin_mat):
             continue
-        a = eas.spawn_actor_from_class(unreal.SkeletalMeshActor, unreal.Vector(sx, 700.0, 0.0))
+        a = eas.spawn_actor_from_class(unreal.SkeletalMeshActor, unreal.Vector(sx, 1700.0, 0.0))   # a second row, just behind the line-up
         c = a.skeletal_mesh_component
         c.set_editor_property("skeletal_mesh_asset", hero_mesh)
         c.set_editor_property("visibility_based_anim_tick_option",
