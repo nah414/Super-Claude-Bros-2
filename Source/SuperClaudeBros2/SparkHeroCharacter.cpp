@@ -19,6 +19,7 @@
 #include "VoidStalker.h"
 #include "SparkRivalBase.h"
 #include "RolyShellback.h"
+#include "Materials/MaterialInterface.h"
 #include "Bramblehulk.h"
 #include "GrabbableProp.h"
 #include "SparkImpactBurst.h"
@@ -151,6 +152,19 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 		SkelBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 		SkelBody->SetBoundsScale(1.4f);
 	}
+
+	// Hero SKINS — the guardians' aspects, granted to the Spark (default first).
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SkinDefault(TEXT("/Game/Art/HeroSkelV4/M_HeroPBR.M_HeroPBR"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SkinClassic(TEXT("/Game/Art/HeroSkelV4/M_HeroSkin_Classic.M_HeroSkin_Classic"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SkinKnight(TEXT("/Game/Art/HeroSkelV4/M_HeroSkin_Knight.M_HeroSkin_Knight"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SkinTank(TEXT("/Game/Art/HeroSkelV4/M_HeroSkin_Tank.M_HeroSkin_Tank"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SkinPower(TEXT("/Game/Art/HeroSkelV4/M_HeroSkin_Powerhouse.M_HeroSkin_Powerhouse"));
+	if (SkinDefault.Succeeded()) { HeroSkins.Add(SkinDefault.Object); }
+	if (SkinClassic.Succeeded()) { HeroSkins.Add(SkinClassic.Object); }
+	if (SkinKnight.Succeeded()) { HeroSkins.Add(SkinKnight.Object); }
+	if (SkinTank.Succeeded()) { HeroSkins.Add(SkinTank.Object); }
+	if (SkinPower.Succeeded()) { HeroSkins.Add(SkinPower.Object); }
+
 	IdleAnim = IdleClip.Succeeded() ? IdleClip.Object : nullptr;
 	WalkAnim = WalkClip.Succeeded() ? WalkClip.Object : nullptr;
 	RunAnim = RunClip.Succeeded() ? RunClip.Object : nullptr;
@@ -513,6 +527,9 @@ void ASparkHeroCharacter::BuildInputObjects()
 	InteractAction = NewObject<UInputAction>(this, TEXT("IA_Interact"));
 	InteractAction->ValueType = EInputActionValueType::Boolean;
 
+	SkinAction = NewObject<UInputAction>(this, TEXT("IA_Skin"));
+	SkinAction->ValueType = EInputActionValueType::Boolean;
+
 	GuardAction = NewObject<UInputAction>(this, TEXT("IA_Guard"));
 	GuardAction->ValueType = EInputActionValueType::Boolean;
 
@@ -574,6 +591,7 @@ void ASparkHeroCharacter::BuildInputObjects()
 
 	MappingContext->MapKey(InteractAction, EKeys::E);
 	MappingContext->MapKey(InteractAction, EKeys::Gamepad_DPad_Right);
+	MappingContext->MapKey(SkinAction, EKeys::B);   // cycle hero skins
 
 	// Ember Guard: Q stays the quick reflex (the ring also lives in the wheel).
 	MappingContext->MapKey(GuardAction, EKeys::Q);
@@ -628,6 +646,7 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(PowerScrollAction, ETriggerEvent::Triggered, this, &ASparkHeroCharacter::HandlePowerScroll);
 		EIC->BindAction(ZoomPresetAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleZoomPreset);
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleInteractPressed);
+		EIC->BindAction(SkinAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleCycleSkin);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleGuardPressed);
 		EIC->BindAction(SwitchHeroAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleSwitchHero);
 		EIC->BindAction(FastFallAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleFastFallPressed);
@@ -1242,6 +1261,23 @@ void ASparkHeroCharacter::HandleZoomPreset()
 	static const float Presets[3] = { 0.55f, 1.0f, 1.8f };
 	ZoomPresetIndex = (ZoomPresetIndex + 1) % 3;
 	ZoomMultiplier = Presets[ZoomPresetIndex];
+}
+
+void ASparkHeroCharacter::HandleCycleSkin()
+{
+	// B: wear the next guardian's aspect (the skins they grant the Spark).
+	if (!AllowSkins() || HeroSkins.Num() == 0) { return; }
+	CurrentSkin = (CurrentSkin + 1) % HeroSkins.Num();
+	ApplySkin(CurrentSkin);
+}
+
+void ASparkHeroCharacter::ApplySkin(int32 Index)
+{
+	if (!SkelBody || !HeroSkins.IsValidIndex(Index) || !HeroSkins[Index]) { return; }
+	SkelBody->SetMaterial(0, HeroSkins[Index]);
+	// a bright spark-flash sells the change of aspect
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 60.f),
+	                         FLinearColor(3.2f, 2.4f, 1.1f), 1.1f, 3200.f);
 }
 
 void ASparkHeroCharacter::HandleInteractPressed()

@@ -336,6 +336,33 @@ for label, mesh_path, idle_path, x in HEROES:
     heroes_placed += 1
     print(f"HERO_EXHIBIT_PLACED: {label}")
 
+# ---- HERO SKIN SHOWCASE (the guardians' aspects, worn by the Spark — press B) ----
+try:
+    hero_mesh = EAL.load_asset("/Game/Art/HeroSkelV4/SCB2Hero")
+    hero_idle = EAL.load_asset("/Game/Art/HeroSkelV4/A_Hero_Idle_Anim")
+    skins = [("Classic", -1050), ("Knight", -350), ("Tank", 350), ("Powerhouse", 1050)]
+    shown = 0
+    for nm, sx in skins:
+        skin_mat = EAL.load_asset(f"/Game/Art/HeroSkelV4/M_HeroSkin_{nm}")
+        if not (isinstance(hero_mesh, unreal.SkeletalMesh) and skin_mat):
+            continue
+        a = eas.spawn_actor_from_class(unreal.SkeletalMeshActor, unreal.Vector(sx, 700.0, 0.0))
+        c = a.skeletal_mesh_component
+        c.set_editor_property("skeletal_mesh_asset", hero_mesh)
+        c.set_editor_property("visibility_based_anim_tick_option",
+                              unreal.VisibilityBasedAnimTickOption.ALWAYS_TICK_POSE_AND_REFRESH_BONES)
+        c.set_editor_property("bounds_scale", 1.4)
+        c.set_material(0, skin_mat)
+        if isinstance(hero_idle, unreal.AnimSequence):
+            c.set_editor_property("animation_mode", unreal.AnimationMode.ANIMATION_SINGLE_NODE)
+            c.override_animation_data(hero_idle, is_looping=True, is_playing=True)
+        a.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)
+        a.set_actor_label(f"Skin_{nm}")
+        shown += 1
+    print(f"SKIN_SHOWCASE_PLACED: {shown}")
+except Exception as e:
+    print(f"SKIN_SHOWCASE_SKIPPED: {e}")
+
 # ---- RAY-TRACING BUDGET (Adam hit the RT instance threshold — the box-shrink) ----
 # The gallery's STATIC geometry (floor + ~15 roster statues + ~27 city-kit meshes)
 # was ALL feeding the ray-tracing scene — far over the instance budget, which

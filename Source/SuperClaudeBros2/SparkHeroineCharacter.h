@@ -16,4 +16,9 @@ class ASparkHeroineCharacter : public ASparkHeroCharacter
 
 public:
 	ASparkHeroineCharacter();
+
+protected:
+	/** The hero skins recolor HIS base texture (T_Hero_BaseColor) — wrong UVs for
+	    Sonnet's body, so she keeps her own look. Her skins are a separate pass. */
+	virtual bool AllowSkins() const override { return false; }
 };
