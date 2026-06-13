@@ -25,6 +25,7 @@ namespace
 ALumenDragonlord::ALumenDragonlord()
 {
 	GetCapsuleComponent()->SetCapsuleSize(72.f, 118.f);   // the grandest body in the game
+	RivalDisplayName = TEXT("LUMEN THE DRAGONLORD");
 
 	ApproachSpeed = 480.f;   // slow, regal, unhurried
 	TurnRate = 4.f;

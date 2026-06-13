@@ -10,6 +10,7 @@
 #include "KrakenBoss.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
+#include "SparkRivalBase.h"
 #include "VoidStalker.h"
 
 void ASparkHeroHUD::DrawBar(float X, float Y, float W, float H, float Fraction,
@@ -123,8 +124,9 @@ void ASparkHeroHUD::DrawHUD()
 		if (!Reaver.IsValid()) { Reaver = Cast<AEmberReaver>(UGameplayStatics::GetActorOfClass(this, AEmberReaver::StaticClass())); }
 		if (!Stalker.IsValid()) { Stalker = Cast<AVoidStalker>(UGameplayStatics::GetActorOfClass(this, AVoidStalker::StaticClass())); }
 		if (!Hulk.IsValid()) { Hulk = Cast<ABramblehulk>(UGameplayStatics::GetActorOfClass(this, ABramblehulk::StaticClass())); }
+		if (!AnyRival.IsValid()) { AnyRival = Cast<ASparkRivalBase>(UGameplayStatics::GetActorOfClass(this, ASparkRivalBase::StaticClass())); }
 	}
-	const TCHAR* BossName = nullptr;
+	FString BossName;
 	float BossFrac = 0.f;
 	FLinearColor BossColor = GutterColor;
 	if (Kraken.IsValid() && Kraken->IsDueling()) { BossName = TEXT("THE IRON KRAKEN"); BossFrac = Kraken->GetDuelFraction(); }
@@ -136,7 +138,15 @@ void ASparkHeroHUD::DrawHUD()
 		BossFrac = Hulk->GetCalmFraction();
 		BossColor = SootheColor;   // rising green = mercy winning
 	}
-	if (BossName)
+	// Generic: ANY ASparkRivalBase (Warlord/Warden/Dragonlord/Unlight/FoundryKing +
+	// the four guardians) — they read their own RivalDisplayName. Last so the legacy
+	// hand-checked rivals above keep precedence.
+	else if (AnyRival.IsValid() && AnyRival->IsDueling())
+	{
+		BossName = AnyRival->RivalDisplayName;
+		BossFrac = AnyRival->GetDuelFraction();
+	}
+	if (!BossName.IsEmpty())
 	{
 		const float BW = 420.f * S;
 		DrawText(BossName, FLinearColor::White, W * 0.5f - BW * 0.5f, 8.f * S, Medium, S);

@@ -27,6 +27,7 @@ ARustWarlord::ARustWarlord()
 	// The foundry brute: the tallest rival (below the Bramblehulk colossus),
 	// wide and slow. Capsule half-height ~ the 0.8-family mesh extent (~78).
 	GetCapsuleComponent()->SetCapsuleSize(58.f, 80.f);
+	RivalDisplayName = TEXT("THE RUST WARLORD");
 	GetCharacterMovement()->MaxWalkSpeed = 0.f;   // set from ApproachSpeed below
 
 	// --- pacing: heavy and deliberate ---

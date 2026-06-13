@@ -40,6 +40,7 @@ private:
 	TWeakObjectPtr<class AEmberReaver> Reaver;
 	TWeakObjectPtr<class AVoidStalker> Stalker;
 	TWeakObjectPtr<class ABramblehulk> Hulk;
+	TWeakObjectPtr<class ASparkRivalBase> AnyRival;   // generic: Warlord/Warden/Dragon/Unlight/guardians
 	float BossScanClock = 0.f;
 	double LastScanRealTime = 0.0;
 };

@@ -11,6 +11,7 @@ AFoundryKing::AFoundryKing()
 	// Roly→Shellback Alpha, Warlord→Foundry King: the inheritance ladder (Bible §11).
 	GetCapsuleComponent()->SetCapsuleSize(80.f, 112.f);   // ~1.4x the Warlord
 	SkelMeshScale = 1.4f;
+	RivalDisplayName = TEXT("THE FOUNDRY KING");
 
 	ApproachSpeed = 470.f;   // heavier, slower, more inevitable
 	TurnRate = 4.f;

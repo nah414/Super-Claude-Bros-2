@@ -260,6 +260,29 @@ except Exception as e:
     live["shellbackalpha"] = False
     print(f"LIVE_SHELLBACKALPHA_SKIPPED: {e}")
 
+# ---- THE FOUR GUARDIANS, now FULL FIGHTERS (Adam's "upgrade all characters" round) ----
+# Once they only granted hero skins; now each is a real AGuardianFighter duelist with
+# its own move table + a signature that fires on the phase break. They stand in the
+# mid-field gap between the two boss rows (the column gaps, so no body stacks), facing
+# the visitor — the sparring class you meet before the heavy bosses.
+GUARDIANS = [
+    ("SleekKnight",  -3600, "the agile crystal duelist (Crystal Spin signature)"),
+    ("Powerhouse",   -1200, "the grounded bruiser (Hammer Blow signature)"),
+    ("ClassicSpark",  1200, "the original boxer hero (One-Two Combo signature)"),
+    ("HeroicTank",    3600, "the heavy carrier (Shoulder Charge signature)"),
+]
+for cls_name, gx, blurb in GUARDIANS:
+    try:
+        g_cls = unreal.load_class(None, f"/Script/SuperClaudeBros2.{cls_name}")
+        gactor = eas.spawn_actor_from_class(g_cls, unreal.Vector(gx, 4150, 100))
+        gactor.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)   # face the visitor
+        gactor.set_actor_label(f"Live{cls_name}")
+        live[cls_name.lower()] = True
+        print(f"LIVE_{cls_name.upper()}_PLACED  # {blurb}")
+    except Exception as e:
+        live[cls_name.lower()] = False
+        print(f"LIVE_{cls_name.upper()}_SKIPPED: {e}")
+
 # ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
 props_placed = 0
 try:

@@ -8,6 +8,7 @@
 #include "LumenDragonlord.h"
 #include "Unlight.h"
 #include "VoidStalker.h"
+#include "GuardianFighter.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
 
@@ -259,6 +260,31 @@ void ASparkHeroGameMode::BeginPlay()
 				{
 					Unlight->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 600.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2GuardianNear=<ClassName> teleports the named guardian (SleekKnight /
+		// HeroicTank / Powerhouse / ClassicSpark) to dueling distance — one flag for
+		// all four, matched by class name on the live AGuardianFighter actors.
+		FString GuardianName;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2GuardianNear="), GuardianName))
+		{
+			FTimerHandle GuardianTimer;
+			GetWorldTimerManager().SetTimer(GuardianTimer, [this, GuardianName]()
+			{
+				TArray<AActor*> Guardians;
+				UGameplayStatics::GetAllActorsOfClass(this, AGuardianFighter::StaticClass(), Guardians);
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (!Pawn) { return; }
+				for (AActor* G : Guardians)
+				{
+					if (G && G->GetClass()->GetName() == GuardianName)
+					{
+						G->SetActorLocation(Pawn->GetActorLocation()
+							+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+						break;
+					}
 				}
 			}, 1.0f, false);
 		}

@@ -28,6 +28,7 @@ namespace
 AHollowWarden::AHollowWarden()
 {
 	GetCapsuleComponent()->SetCapsuleSize(52.f, 78.f);   // a tall knight
+	RivalDisplayName = TEXT("THE HOLLOW WARDEN — Lamp-Eater");
 
 	ApproachSpeed = 600.f;
 	TurnRate = 6.f;

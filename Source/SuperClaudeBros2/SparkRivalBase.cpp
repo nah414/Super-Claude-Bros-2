@@ -265,6 +265,12 @@ void ASparkRivalBase::Tick(float DeltaTime)
 		Phase = 1;
 		SetActorHiddenInGame(false);
 		GetCharacterMovement()->StopMovementImmediately();
+		// Walk-away is the FIFTH exit path — it must purge per-move state like the
+		// other four (FinishAttack/phase-roar/stagger/flame-out), or a move
+		// interrupted mid-flight leaks its latches into the next engagement (the
+		// Guardian's bGuarding 0.4x soak; the Kraken's grip/tether).
+		ClearActiveMoveState();
+		ClearMove();
 		PlayLoop(IdleAnim);
 		State = ERivalState::Waiting;
 		return;

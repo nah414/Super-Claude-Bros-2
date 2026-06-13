@@ -76,6 +76,13 @@ public:
 	bool IsDueling() const { return State != ERivalState::Waiting && State != ERivalState::Defeated; }
 	float GetDuelFraction() const;
 
+	/** The name the HUD boss-bar shows while this rival is dueling. Each subclass
+	    sets it in its constructor; the generic bar reads it for ANY ASparkRivalBase
+	    (so the Warlord/Warden/Dragonlord/Unlight/guardians all get a bar, not just
+	    the three hand-checked legacy rivals). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Duel")
+	FString RivalDisplayName = TEXT("CHALLENGER");
+
 	// ---------------- Duel tuning (shared across all rivals) ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Duel")
 	float DuelStartRadius = 900.f;

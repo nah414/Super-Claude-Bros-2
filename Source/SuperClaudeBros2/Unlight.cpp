@@ -27,6 +27,7 @@ namespace
 AUnlight::AUnlight()
 {
 	GetCapsuleComponent()->SetCapsuleSize(72.f, 118.f);   // the Dragon's frame, worn by the dark
+	RivalDisplayName = TEXT("THE UNLIGHT");
 
 	ApproachSpeed = 540.f;   // faster than the kind Dragon — it comes for you
 	TurnRate = 5.f;
