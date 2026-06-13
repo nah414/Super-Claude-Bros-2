@@ -3,6 +3,7 @@
 #include "Bramblehulk.h"
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
+#include "RustWarlord.h"
 #include "VoidStalker.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
@@ -187,6 +188,23 @@ void ASparkHeroGameMode::BeginPlay()
 				{
 					Hulk->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 430.f + FVector(0.f, 0.f, 50.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2WarlordNear: rival #4's furnace wants a camera too.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2WarlordNear")))
+		{
+			FTimerHandle WarlordTimer;
+			GetWorldTimerManager().SetTimer(WarlordTimer, [this]()
+			{
+				ARustWarlord* Warlord = Cast<ARustWarlord>(
+					UGameplayStatics::GetActorOfClass(this, ARustWarlord::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Warlord && Pawn)
+				{
+					Warlord->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 540.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);
 		}

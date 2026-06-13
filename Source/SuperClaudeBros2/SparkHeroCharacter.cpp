@@ -17,6 +17,7 @@
 #include "KrakenBoss.h"
 #include "EmberReaver.h"
 #include "VoidStalker.h"
+#include "SparkRivalBase.h"
 #include "Bramblehulk.h"
 #include "GrabbableProp.h"
 #include "SparkImpactBurst.h"
@@ -1035,6 +1036,14 @@ void ASparkHeroCharacter::StrikeHitCheck()
 		{
 			Stalker->TakeStrike(ComboBeat, bChargedStrike);
 			OnHeroStrikeHit(Stalker, ComboBeat);
+			bThisOneHit = true;
+		}
+		// Every ASparkRivalBase subclass (Rust Warlord and beyond) routes here.
+		// When the three above migrate onto the base, their branches collapse in.
+		else if (ASparkRivalBase* AnyRival = Cast<ASparkRivalBase>(Hit.GetActor()))
+		{
+			AnyRival->TakeStrike(ComboBeat, bChargedStrike);
+			OnHeroStrikeHit(AnyRival, ComboBeat);
 			bThisOneHit = true;
 		}
 		// COLOSSUS CLANG: the Bramblehulk cannot be punched — stone refuses the

@@ -163,6 +163,19 @@ except Exception as e:
     live["bramblehulk"] = False
     print(f"LIVE_BRAMBLE_SKIPPED: {e}")
 
+# ---- a LIVE RUST WARLORD (rival #4, SW corner — first ASparkRivalBase subclass) ----
+# Walk into his 900uu ring and the duel begins; break his armor to see the vent.
+try:
+    warlord_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RustWarlord")
+    wl = eas.spawn_actor_from_class(warlord_cls, unreal.Vector(-2500, -2400, 100))
+    wl.set_actor_rotation(unreal.Rotator(0.0, 0.0, 45.0), False)
+    wl.set_actor_label("LiveRustWarlord")
+    live["warlord"] = True
+    print("LIVE_WARLORD_PLACED")
+except Exception as e:
+    live["warlord"] = False
+    print(f"LIVE_WARLORD_SKIPPED: {e}")
+
 # ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
 props_placed = 0
 try:
