@@ -230,6 +230,20 @@ for label, mesh_path, idle_path, x in HEROES:
     heroes_placed += 1
     print(f"HERO_EXHIBIT_PLACED: {label}")
 
+# ---- RAY-TRACING BUDGET (Adam hit the RT instance threshold — the box-shrink) ----
+# The gallery's STATIC geometry (floor + ~15 roster statues + ~27 city-kit meshes)
+# was ALL feeding the ray-tracing scene — far over the instance budget, which
+# stalls the GPU and collapses the window. Pull every StaticMeshActor off RT; the
+# LIVE skeletal cast (only ~8) stays ray-traced, so reflections/GI still read.
+rt_off = 0
+for a in eas.get_all_level_actors():
+    if isinstance(a, unreal.StaticMeshActor):
+        smc = a.static_mesh_component
+        if smc:
+            smc.set_editor_property("visible_in_ray_tracing", False)
+            rt_off += 1
+print(f"RT_OFF: {rt_off} static meshes pulled off ray tracing")
+
 # ---- the visitor ----
 start = eas.spawn_actor_from_class(unreal.PlayerStart, unreal.Vector(0, -700, 100))
 start.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)  # look at the line
