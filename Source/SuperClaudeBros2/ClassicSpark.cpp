@@ -65,6 +65,7 @@ AClassicSpark::AClassicSpark()
 	Jab.Clip = LoadRivalClip(FJab);
 	Jab.Kind = EGuardianMoveKind::Cone;
 	Jab.Tell = 0.30f; Jab.Active = 0.22f; Jab.Recover = 0.55f; Jab.Reach = 200.f; Jab.EmberMul = 0.7f;
+	Jab.ClipStart = 0.15f; Jab.ClipRate = 1.33f;   // scanned: extension @0.35 of 2.00s
 	AddMove(Jab);
 
 	FGuardianMove Upper;
@@ -72,6 +73,7 @@ AClassicSpark::AClassicSpark()
 	Upper.Clip = LoadRivalClip(FUpper);
 	Upper.Kind = EGuardianMoveKind::Cone;
 	Upper.Tell = 0.50f; Upper.Active = 0.30f; Upper.Recover = 0.9f; Upper.Reach = 210.f; Upper.EmberMul = 1.1f;
+	Upper.ClipStart = 0.55f; Upper.ClipRate = 0.56f;   // scanned: rising-fist apex @0.823 of 1.03s
 	AddMove(Upper);
 
 	FGuardianMove Counter;
@@ -86,6 +88,7 @@ AClassicSpark::AClassicSpark()
 	Combo.Clip = LoadRivalClip(FCombo);
 	Combo.Kind = EGuardianMoveKind::ConeTwice;
 	Combo.Tell = 0.50f; Combo.Active = 0.45f; Combo.Recover = 0.85f; Combo.Reach = 210.f; Combo.EmberMul = 0.8f;
+	Combo.ClipStart = 0.22f; Combo.ClipRate = 1.80f;   // scanned: first beat @~0.40 of 5.00s
 	Combo.MinPhase = 2; Combo.bSignature = true;
 	SignatureIdx = AddMove(Combo);
 }

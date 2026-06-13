@@ -65,6 +65,7 @@ ASleekKnight::ASleekKnight()
 	Slash1.Clip = LoadRivalClip(FSlash1);
 	Slash1.Kind = EGuardianMoveKind::Cone;
 	Slash1.Tell = 0.40f; Slash1.Active = 0.30f; Slash1.Recover = 0.70f; Slash1.Reach = 230.f; Slash1.EmberMul = 1.0f;
+	Slash1.ClipStart = 0.20f; Slash1.ClipRate = 1.39f;   // scanned: blade peak @0.375 of 3.17s
 	AddMove(Slash1);
 
 	FGuardianMove Slash2;
@@ -72,6 +73,7 @@ ASleekKnight::ASleekKnight()
 	Slash2.Clip = LoadRivalClip(FSlash2);
 	Slash2.Kind = EGuardianMoveKind::ConeTwice;
 	Slash2.Tell = 0.48f; Slash2.Active = 0.45f; Slash2.Recover = 0.78f; Slash2.Reach = 240.f; Slash2.EmberMul = 0.8f;
+	Slash2.ClipStart = 0.15f; Slash2.ClipRate = 0.78f;   // scanned: first cut @~0.40 of 1.50s
 	AddMove(Slash2);
 
 	FGuardianMove Dodge;
@@ -86,6 +88,7 @@ ASleekKnight::ASleekKnight()
 	Spin.Clip = LoadRivalClip(FSpin);
 	Spin.Kind = EGuardianMoveKind::Ring;
 	Spin.Tell = 0.55f; Spin.Active = 0.40f; Spin.Recover = 1.0f; Spin.Reach = 300.f; Spin.EmberMul = 1.1f;
+	Spin.ClipStart = 0.10f; Spin.ClipRate = 1.55f;   // scanned: sweep @0.25 of 5.67s
 	Spin.MinPhase = 2; Spin.bSignature = true;
 	SignatureIdx = AddMove(Spin);
 }

@@ -113,8 +113,17 @@ protected:
 	int32 SignatureIdx = INDEX_NONE;   // subclass sets this to a Moves index (-1 = none)
 	bool bSignatureQueued = false;     // armed by a phase break; fires next SelectMove
 
+	/** Richer move VFX: a periodic shaped plasma burst painted during an active move
+	    (the Knight's spin ring, the Tank's charge trail) — throttled, not per-frame. */
+	void TickMoveVfx(const FGuardianMove& M, float DeltaTime);
+
+	/** Land a hit AND, for the signature move, add a bigger signature-color flourish. */
+	void LandGuardianHit(ASparkHeroCharacter* Hero, const FGuardianMove& M);
+
 private:
 	FVector LungeDir = FVector::ForwardVector;
 	bool bGuarding = false;
 	bool bComboReArmed = false;
+	float NextVfxTime = 0.f;     // throttle for TickMoveVfx
+	float VfxSpin = 0.f;         // rolling angle for the ring sweep
 };

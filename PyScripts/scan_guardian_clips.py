@@ -11,6 +11,10 @@ GUARDIANS = {
     "ClassicSpark": ["Jab", "Uppercut", "Counter", "Combo"],
 }
 
+# UE headless print() does not reliably reach stdout — also write to a file we can read.
+OUT_FILE = r"C:\Users\Atomn\mario2\_prep\guardian_scan_results.txt"
+_results = []
+
 opts = unreal.AnimPoseEvaluationOptions()
 opts.evaluation_type = unreal.AnimDataEvalType.RAW
 
@@ -48,6 +52,11 @@ for camel, clips in GUARDIANS.items():
             if reach > peak_reach:
                 peak_reach, peak_reach_frac = reach, frac
             t += step
-        print(f"GSCAN {camel}/{clip}_PEAKS: len={length:.2f}s handZ peak={peak_z:.1f} @frac {peak_z_frac:.3f} | "
-              f"reach peak={peak_reach:.1f} @frac {peak_reach_frac:.3f}")
-print("GSCAN_DONE")
+        line = (f"{camel}/{clip} len={length:.3f} handZ_frac={peak_z_frac:.3f} "
+                f"reach_frac={peak_reach_frac:.3f} (handZ={peak_z:.1f} reach={peak_reach:.1f})")
+        print("GSCAN " + line)
+        _results.append(line)
+
+with open(OUT_FILE, "w") as f:
+    f.write("\n".join(_results) + "\n")
+print(f"GSCAN_DONE -> {OUT_FILE}")

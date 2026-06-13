@@ -68,6 +68,7 @@ AHeroicTank::AHeroicTank()
 	Swing.Clip = LoadRivalClip(FSwing);
 	Swing.Kind = EGuardianMoveKind::Cone;
 	Swing.Tell = 0.70f; Swing.Active = 0.40f; Swing.Recover = 1.1f; Swing.Reach = 280.f; Swing.EmberMul = 1.2f;
+	Swing.ClipStart = 0.55f; Swing.ClipRate = 0.99f;   // scanned: full extension @0.93 of 1.83s
 	AddMove(Swing);
 
 	FGuardianMove Push;
@@ -75,6 +76,7 @@ AHeroicTank::AHeroicTank()
 	Push.Clip = LoadRivalClip(FPush);
 	Push.Kind = EGuardianMoveKind::Cone;
 	Push.Tell = 0.50f; Push.Active = 0.30f; Push.Recover = 0.9f; Push.Reach = 220.f; Push.EmberMul = 0.8f;
+	Push.ClipStart = 0.40f; Push.ClipRate = 1.17f;   // scanned: shove @0.625 of 2.60s
 	AddMove(Push);
 
 	FGuardianMove Block;

@@ -66,6 +66,7 @@ APowerhouse::APowerhouse()
 	Jab.Clip = LoadRivalClip(FJab);
 	Jab.Kind = EGuardianMoveKind::Cone;
 	Jab.Tell = 0.35f; Jab.Active = 0.25f; Jab.Recover = 0.6f; Jab.Reach = 210.f; Jab.EmberMul = 0.7f;
+	Jab.ClipStart = 0.12f; Jab.ClipRate = 0.96f;   // scanned: extension @0.31 of 1.77s
 	AddMove(Jab);
 
 	FGuardianMove Hook;
@@ -73,6 +74,7 @@ APowerhouse::APowerhouse()
 	Hook.Clip = LoadRivalClip(FHook);
 	Hook.Kind = EGuardianMoveKind::Cone;
 	Hook.Tell = 0.50f; Hook.Active = 0.30f; Hook.Recover = 0.85f; Hook.Reach = 230.f; Hook.EmberMul = 1.0f;
+	Hook.ClipStart = 0.10f; Hook.ClipRate = 0.40f;   // scanned: connect @0.30 of 1.00s
 	AddMove(Hook);
 
 	FGuardianMove Combo;
@@ -80,6 +82,7 @@ APowerhouse::APowerhouse()
 	Combo.Clip = LoadRivalClip(FCombo);
 	Combo.Kind = EGuardianMoveKind::ConeTwice;
 	Combo.Tell = 0.55f; Combo.Active = 0.50f; Combo.Recover = 0.95f; Combo.Reach = 230.f; Combo.EmberMul = 0.8f;
+	Combo.ClipStart = 0.25f; Combo.ClipRate = 1.01f;   // scanned: first beat @0.475 of 2.47s
 	AddMove(Combo);
 
 	FGuardianMove Both;
@@ -87,6 +90,7 @@ APowerhouse::APowerhouse()
 	Both.Clip = LoadRivalClip(FBoth);
 	Both.Kind = EGuardianMoveKind::Cone;
 	Both.Tell = 0.65f; Both.Active = 0.40f; Both.Recover = 1.1f; Both.Reach = 240.f; Both.EmberMul = 1.5f;
+	Both.ClipStart = 0.50f; Both.ClipRate = 1.17f;   // scanned: fists-apex @0.70 of 3.47s, slam just after
 	Both.MinPhase = 2; Both.bSignature = true;
 	SignatureIdx = AddMove(Both);
 }

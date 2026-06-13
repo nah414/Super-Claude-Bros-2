@@ -140,7 +140,7 @@ bool AGuardianFighter::TryConeHit(ASparkHeroCharacter* Hero, const FGuardianMove
 		&& To.Size() <= M.Reach)
 	{
 		bHitThisAttack = true;
-		LandDuelHit(Hero, DuelHitEmbers * M.EmberMul);
+		LandGuardianHit(Hero, M);
 		return true;
 	}
 	return false;
@@ -150,6 +150,8 @@ void AGuardianFighter::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 {
 	if (!Moves.IsValidIndex(MoveIdx)) { return; }
 	const FGuardianMove& M = Moves[MoveIdx];
+
+	TickMoveVfx(M, DeltaTime);   // spin ring / charge trail, throttled internally
 
 	switch (M.Kind)
 	{
@@ -172,7 +174,7 @@ void AGuardianFighter::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 			&& FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= M.Reach)
 		{
 			bHitThisAttack = true;
-			LandDuelHit(Hero, DuelHitEmbers * M.EmberMul);
+			LandGuardianHit(Hero, M);
 		}
 		break;
 
@@ -191,7 +193,7 @@ void AGuardianFighter::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 				{
 					bHitThisAttack = true;
 					GetCharacterMovement()->StopMovementImmediately();
-					LandDuelHit(Hero, DuelHitEmbers * M.EmberMul);
+					LandGuardianHit(Hero, M);
 				}
 			}
 		}
@@ -204,6 +206,47 @@ void AGuardianFighter::TickAttack(float DeltaTime, ASparkHeroCharacter* Hero)
 
 	default:
 		break;
+	}
+}
+
+void AGuardianFighter::LandGuardianHit(ASparkHeroCharacter* Hero, const FGuardianMove& M)
+{
+	LandDuelHit(Hero, DuelHitEmbers * M.EmberMul);
+	if (M.bSignature && Hero)
+	{
+		// The signature connects with a bigger flourish in the signature color.
+		const float Scale = (M.Kind == EGuardianMoveKind::Ring) ? 1.9f : 1.4f;
+		ASparkImpactBurst::Burst(this, Hero->GetActorLocation() + FVector(0.f, 0.f, 42.f),
+			SignatureColor * 2.6f, Scale, 5200.f, 0.3f);
+	}
+}
+
+void AGuardianFighter::TickMoveVfx(const FGuardianMove& M, float DeltaTime)
+{
+	// Only the two big spatial moves get a painted effect; cone punches read off the
+	// existing launch + on-hit bursts. Throttled so we never spawn per-frame.
+	if (Now() < NextVfxTime) { return; }
+	const FLinearColor C = M.bSignature ? SignatureColor : BodyGlowColor;
+
+	if (M.Kind == EGuardianMoveKind::Ring)
+	{
+		NextVfxTime = Now() + 0.06f;
+		VfxSpin += 75.f;   // degrees per burst — the ring sweeps as it spins
+		for (int32 i = 0; i < 3; ++i)
+		{
+			const float Ang = FMath::DegreesToRadians(VfxSpin + i * 120.f);
+			const FVector Edge = GetActorLocation()
+				+ FVector(FMath::Cos(Ang), FMath::Sin(Ang), 0.f) * (M.Reach * 0.7f)
+				+ FVector(0.f, 0.f, 30.f);
+			ASparkImpactBurst::Burst(this, Edge, C * 1.8f, 0.5f, 1800.f, 0.18f);
+		}
+	}
+	else if (M.Kind == EGuardianMoveKind::Lunge)
+	{
+		NextVfxTime = Now() + 0.05f;
+		const FVector Trail = GetActorLocation()
+			- GetActorForwardVector() * 30.f + FVector(0.f, 0.f, 12.f);
+		ASparkImpactBurst::Burst(this, Trail, C * 1.4f, 0.45f, 1500.f, 0.16f);
 	}
 }
 
