@@ -18,6 +18,7 @@
 #include "EmberReaver.h"
 #include "VoidStalker.h"
 #include "SparkRivalBase.h"
+#include "RolyShellback.h"
 #include "Bramblehulk.h"
 #include "GrabbableProp.h"
 #include "SparkImpactBurst.h"
@@ -1016,6 +1017,12 @@ void ASparkHeroCharacter::StrikeHitCheck()
 		{
 			Glimmer->TakeStrike();
 			OnHeroStrikeHit(Glimmer, ComboBeat);
+			bThisOneHit = true;
+		}
+		else if (ARolyShellback* Shell = Cast<ARolyShellback>(Hit.GetActor()))
+		{
+			Shell->TakeStrike();   // a Mote pops to any beat
+			OnHeroStrikeHit(Shell, ComboBeat);
 			bThisOneHit = true;
 		}
 		// Rivals CLASH: duel meters take 8/8/15 per beat (spec §5). When the

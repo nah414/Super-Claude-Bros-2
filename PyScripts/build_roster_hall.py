@@ -202,6 +202,29 @@ try:
 except Exception as e:
     print(f"PROPS_SKIPPED: {e}")
 
+# ---- LIVE CRITTERS (the cheap, charming roster: Lightlove + Cannonball) ----
+try:
+    moth_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.FlitMoth")
+    for i, (mx, my) in enumerate([(-260, -300), (260, -320), (-90, -180), (140, -120)]):
+        m = eas.spawn_actor_from_class(moth_cls, unreal.Vector(mx, my, 160))
+        m.set_actor_label(f"FlitMoth_{i}")
+    live["flitmoth"] = True
+    print("LIVE_MOTHS_PLACED: 4")
+except Exception as e:
+    live["flitmoth"] = False
+    print(f"LIVE_MOTHS_SKIPPED: {e}")
+
+try:
+    shell_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RolyShellback")
+    for i, (sx, sy) in enumerate([(650, -950), (-650, -950)]):
+        s = eas.spawn_actor_from_class(shell_cls, unreal.Vector(sx, sy, 80))
+        s.set_actor_label(f"RolyShellback_{i}")
+    live["shellback"] = True
+    print("LIVE_SHELLBACKS_PLACED: 2")
+except Exception as e:
+    live["shellback"] = False
+    print(f"LIVE_SHELLBACKS_SKIPPED: {e}")
+
 # ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
 # Both playable heroes stand front-center, breathing their idle clips, so a
 # walk through the Hall always shows the true current state of every rig.

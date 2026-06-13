@@ -6,6 +6,7 @@
 #include "Engine/StaticMesh.h"
 #include "GlimmerEnemy.h"
 #include "KrakenBoss.h"
+#include "RolyShellback.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "SparkImpactBurst.h"
@@ -88,6 +89,7 @@ void AGrabbableProp::HandleHit(UPrimitiveComponent*, AActor* OtherActor,
 	else if (AEmberReaver* R = Cast<AEmberReaver>(OtherActor))    { R->TakeStrike(0, false); bDamaged = true; }
 	else if (AVoidStalker* S = Cast<AVoidStalker>(OtherActor))    { S->TakeStrike(0, false); bDamaged = true; }
 	else if (ASparkRivalBase* RV = Cast<ASparkRivalBase>(OtherActor)) { RV->TakeStrike(0, false); bDamaged = true; }
+	else if (ARolyShellback* SB = Cast<ARolyShellback>(OtherActor)) { SB->TakeStrike(); bDamaged = true; }
 	else if (ABramblehulk* B = Cast<ABramblehulk>(OtherActor))    { B->TakeStrikeClang(nullptr, false); bDamaged = true; }
 
 	if (bDamaged)
