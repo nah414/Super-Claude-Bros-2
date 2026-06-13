@@ -5,6 +5,8 @@
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
@@ -88,9 +90,25 @@ void ALantern::Tick(float DeltaSeconds)
 		// A small living flicker — desynced per lantern by its position.
 		const float Phase = GetActorLocation().X * 0.01f + GetActorLocation().Y * 0.013f;
 		Light->SetIntensity(LitIntensity * (0.9f + 0.1f * FMath::Sin(Now() * 6.f + Phase)));
+		return;
 	}
-	else if (AutoRelightSeconds > 0.f && Now() >= RelightAt)
+
+	// Snuffed. The hero's own light rekindles it the moment he comes near — the
+	// relight verb, and the live counter to the Warden's spreading dark. (Only
+	// snuffed lanterns ever run this proximity check, so it stays cheap.)
+	if (RelightByHeroRadius > 0.f)
 	{
-		Relight();   // the world slowly re-warms
+		if (APawn* Hero = UGameplayStatics::GetPlayerPawn(this, 0))
+		{
+			if (FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= RelightByHeroRadius)
+			{
+				Relight();
+				return;
+			}
+		}
+	}
+	if (AutoRelightSeconds > 0.f && Now() >= RelightAt)
+	{
+		Relight();   // otherwise the world slowly re-warms on its own
 	}
 }

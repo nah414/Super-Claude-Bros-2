@@ -50,6 +50,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
 	float AutoRelightSeconds = 9.f;
 
+	/** The hero IS light — his presence rekindles a snuffed lantern he passes.
+	    The relight verb, automatic; and the live counter to the Warden's dark
+	    (stay in the light, or lose the arena to him). 0 disables. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
+	float RelightByHeroRadius = 300.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
