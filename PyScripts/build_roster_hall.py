@@ -231,6 +231,18 @@ except Exception as e:
     live["foundryking"] = False
     print(f"LIVE_FOUNDRYKING_SKIPPED: {e}")
 
+# ---- THE UNLIGHT (the TRUE final boss — beside the Dragonlord, his dark form) ----
+try:
+    unlight_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.Unlight")
+    ul = eas.spawn_actor_from_class(unlight_cls, unreal.Vector(3200, 5000, 130))
+    ul.set_actor_rotation(unreal.Rotator(0.0, 0.0, -110.0), False)   # faces the long walk
+    ul.set_actor_label("LiveUnlight")
+    live["unlight"] = True
+    print("LIVE_UNLIGHT_PLACED")
+except Exception as e:
+    live["unlight"] = False
+    print(f"LIVE_UNLIGHT_SKIPPED: {e}")
+
 # ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
 props_placed = 0
 try:

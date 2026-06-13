@@ -6,6 +6,7 @@
 #include "RustWarlord.h"
 #include "HollowWarden.h"
 #include "LumenDragonlord.h"
+#include "Unlight.h"
 #include "VoidStalker.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
@@ -240,6 +241,23 @@ void ASparkHeroGameMode::BeginPlay()
 				if (Dragon && Pawn)
 				{
 					Dragon->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 600.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2UnlightNear: the true final boss wants a camera (the violet void).
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2UnlightNear")))
+		{
+			FTimerHandle UnlightTimer;
+			GetWorldTimerManager().SetTimer(UnlightTimer, [this]()
+			{
+				AUnlight* Unlight = Cast<AUnlight>(
+					UGameplayStatics::GetActorOfClass(this, AUnlight::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Unlight && Pawn)
+				{
+					Unlight->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 600.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);
