@@ -219,6 +219,18 @@ except Exception as e:
     live["dragonlord"] = False
     print(f"LIVE_DRAGONLORD_SKIPPED: {e}")
 
+# ---- THE FOUNDRY KING (W4 boss — the Warlord crowned, the cheap-boss ladder) ----
+try:
+    king_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.FoundryKing")
+    fk = eas.spawn_actor_from_class(king_cls, unreal.Vector(3200, -1500, 130))
+    fk.set_actor_rotation(unreal.Rotator(0.0, 0.0, 150.0), False)
+    fk.set_actor_label("LiveFoundryKing")
+    live["foundryking"] = True
+    print("LIVE_FOUNDRYKING_PLACED")
+except Exception as e:
+    live["foundryking"] = False
+    print(f"LIVE_FOUNDRYKING_SKIPPED: {e}")
+
 # ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
 props_placed = 0
 try:
