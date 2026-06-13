@@ -141,7 +141,7 @@ except Exception as e:
 # Placed beyond his 900uu duel-start ring: walk toward him and the duel begins.
 try:
     kraken_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.KrakenBoss")
-    k = eas.spawn_actor_from_class(kraken_cls, unreal.Vector(3500, -700, 90))
+    k = eas.spawn_actor_from_class(kraken_cls, unreal.Vector(0, 2900, 90))
     k.set_actor_rotation(unreal.Rotator(0.0, 0.0, 180.0), False)
     k.set_actor_label("LiveIronKraken")
     live["kraken"] = True
@@ -153,7 +153,7 @@ except Exception as e:
 # ---- a LIVE EMBER REAVER (rival #2, opposite wing — pick your duel) ----
 try:
     reaver_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.EmberReaver")
-    rv = eas.spawn_actor_from_class(reaver_cls, unreal.Vector(-3500, -700, 90))
+    rv = eas.spawn_actor_from_class(reaver_cls, unreal.Vector(-4800, 2900, 90))
     rv.set_actor_rotation(unreal.Rotator(0.0, 0.0, 0.0), False)
     rv.set_actor_label("LiveEmberReaver")
     live["reaver"] = True
@@ -165,7 +165,7 @@ except Exception as e:
 # ---- a LIVE VOID STALKER (rival #3, the south wing — three duels now) ----
 try:
     stalker_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.VoidStalker")
-    vs = eas.spawn_actor_from_class(stalker_cls, unreal.Vector(0, -3500, 90))
+    vs = eas.spawn_actor_from_class(stalker_cls, unreal.Vector(-2400, 2900, 90))
     vs.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)
     vs.set_actor_label("LiveVoidStalker")
     live["stalker"] = True
@@ -177,7 +177,7 @@ except Exception as e:
 # ---- a LIVE BRAMBLEHULK (the SOOTHE boss — asleep in the SE corner) ----
 try:
     hulk_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.Bramblehulk")
-    bh = eas.spawn_actor_from_class(hulk_cls, unreal.Vector(5000, -3800, 120))
+    bh = eas.spawn_actor_from_class(hulk_cls, unreal.Vector(-4800, 5400, 120))
     bh.set_actor_rotation(unreal.Rotator(0.0, 0.0, 135.0), False)
     bh.set_actor_label("LiveBramblehulk")
     live["bramblehulk"] = True
@@ -190,7 +190,7 @@ except Exception as e:
 # Walk into his 900uu ring and the duel begins; break his armor to see the vent.
 try:
     warlord_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RustWarlord")
-    wl = eas.spawn_actor_from_class(warlord_cls, unreal.Vector(-5000, -3800, 100))
+    wl = eas.spawn_actor_from_class(warlord_cls, unreal.Vector(2400, 2900, 100))
     wl.set_actor_rotation(unreal.Rotator(0.0, 0.0, 45.0), False)
     wl.set_actor_label("LiveRustWarlord")
     live["warlord"] = True
@@ -203,7 +203,7 @@ except Exception as e:
 # Walk into his ring; his wide arcs eat the Hall's lights as you fight.
 try:
     warden_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.HollowWarden")
-    wd = eas.spawn_actor_from_class(warden_cls, unreal.Vector(2200, -5500, 100))
+    wd = eas.spawn_actor_from_class(warden_cls, unreal.Vector(-2400, 5400, 100))
     wd.set_actor_rotation(unreal.Rotator(0.0, 0.0, 90.0), False)
     wd.set_actor_label("LiveHollowWarden")
     live["warden"] = True
@@ -215,7 +215,7 @@ except Exception as e:
 # ---- THE LUMEN DRAGONLORD (the final boss — far back, the long walk to him) ----
 try:
     dragon_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.LumenDragonlord")
-    dl = eas.spawn_actor_from_class(dragon_cls, unreal.Vector(0, 5500, 130))
+    dl = eas.spawn_actor_from_class(dragon_cls, unreal.Vector(0, 5400, 130))
     dl.set_actor_rotation(unreal.Rotator(0.0, 0.0, -90.0), False)   # face the visitor
     dl.set_actor_label("LiveLumenDragonlord")
     live["dragonlord"] = True
@@ -227,7 +227,7 @@ except Exception as e:
 # ---- THE FOUNDRY KING (W4 boss — the Warlord crowned, the cheap-boss ladder) ----
 try:
     king_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.FoundryKing")
-    fk = eas.spawn_actor_from_class(king_cls, unreal.Vector(6500, -1800, 130))
+    fk = eas.spawn_actor_from_class(king_cls, unreal.Vector(4800, 5400, 130))
     fk.set_actor_rotation(unreal.Rotator(0.0, 0.0, 150.0), False)
     fk.set_actor_label("LiveFoundryKing")
     live["foundryking"] = True
@@ -239,7 +239,7 @@ except Exception as e:
 # ---- THE UNLIGHT (the TRUE final boss — beside the Dragonlord, his dark form) ----
 try:
     unlight_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.Unlight")
-    ul = eas.spawn_actor_from_class(unlight_cls, unreal.Vector(3200, 5000, 130))
+    ul = eas.spawn_actor_from_class(unlight_cls, unreal.Vector(2400, 5400, 130))
     ul.set_actor_rotation(unreal.Rotator(0.0, 0.0, -110.0), False)   # faces the long walk
     ul.set_actor_label("LiveUnlight")
     live["unlight"] = True
@@ -251,7 +251,7 @@ except Exception as e:
 # ---- SHELLBACK ALPHA (W3 boss — the Roly grown huge, the cheap-boss ladder) ----
 try:
     alpha_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.ShellbackAlpha")
-    sa = eas.spawn_actor_from_class(alpha_cls, unreal.Vector(-5500, 2000, 100))
+    sa = eas.spawn_actor_from_class(alpha_cls, unreal.Vector(4800, 2900, 100))
     sa.set_actor_rotation(unreal.Rotator(0.0, 0.0, -45.0), False)
     sa.set_actor_label("LiveShellbackAlpha")
     live["shellbackalpha"] = True
