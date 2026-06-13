@@ -243,6 +243,18 @@ except Exception as e:
     live["unlight"] = False
     print(f"LIVE_UNLIGHT_SKIPPED: {e}")
 
+# ---- SHELLBACK ALPHA (W3 boss — the Roly grown huge, the cheap-boss ladder) ----
+try:
+    alpha_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.ShellbackAlpha")
+    sa = eas.spawn_actor_from_class(alpha_cls, unreal.Vector(-5500, 2000, 100))
+    sa.set_actor_rotation(unreal.Rotator(0.0, 0.0, -45.0), False)
+    sa.set_actor_label("LiveShellbackAlpha")
+    live["shellbackalpha"] = True
+    print("LIVE_SHELLBACKALPHA_PLACED")
+except Exception as e:
+    live["shellbackalpha"] = False
+    print(f"LIVE_SHELLBACKALPHA_SKIPPED: {e}")
+
 # ---- GRABBABLE PROPS (the RPG round: E grabs, LMB hurls) ----
 props_placed = 0
 try:

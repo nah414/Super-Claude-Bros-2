@@ -68,6 +68,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shellback")
 	float MeshYaw = -90.f;
 
+	/** A boss-shell survives this many defeat-hits, flipping BELLY-UP (the soft
+	    vulnerable window) between each. Roly = 1: one stomp pops it, never flips.
+	    Shellback Alpha sets this to 3 — flip it, stomp it, drive it off. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shellback")
+	int32 HitsToDefeat = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shellback")
+	float FlipRecoverSeconds = 2.4f;
+
 	/** Motes die to any beat (mass-class ladder), applied by fist. */
 	UFUNCTION(BlueprintCallable, Category = "Shellback")
 	void TakeStrike();
@@ -95,8 +104,10 @@ protected:
 private:
 	ASparkHeroCharacter* ResolveHero() const;
 	void EnterState(EShellState NewState, float Duration);
+	void ReceiveDefeatHit(bool bByStomp);   // flip if a boss-shell survives, else Die
 	void Die(bool bByStomp);
 	float Now() const;
+	bool bFlipped = false;
 
 	EShellState State = EShellState::Idle;
 	float StateUntil = 0.f;

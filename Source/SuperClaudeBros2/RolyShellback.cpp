@@ -125,12 +125,21 @@ void ARolyShellback::Tick(float DeltaSeconds)
 
 	case EShellState::Recover:
 		GetCharacterMovement()->StopMovementImmediately();
-		// a dizzy wobble
-		ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw + 8.f * FMath::Sin(Now() * 14.f), 0.f));
+		if (bFlipped)
+		{
+			// belly-up, legs waggling — the soft, open, vulnerable window
+			ShellMesh->SetRelativeRotation(FRotator(180.f, MeshYaw, 12.f * FMath::Sin(Now() * 16.f)));
+		}
+		else
+		{
+			// a dizzy wobble
+			ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw + 8.f * FMath::Sin(Now() * 14.f), 0.f));
+		}
 		if (Now() >= StateUntil)
 		{
 			NextRollTime = Now() + RollCooldown;
-			ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+			bFlipped = false;
+			ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));   // rights itself
 			EnterState(EShellState::Idle, 0.f);
 		}
 		break;
@@ -152,7 +161,7 @@ void ARolyShellback::OnCapsuleHit(UPrimitiveComponent*, AActor* OtherActor,
 	if (bAbove && Hero->GetRecentFallSpeed() < StompVelocityThreshold)
 	{
 		Hero->LaunchCharacter(FVector(0.f, 0.f, StompBounce), false, true);
-		Die(true);
+		ReceiveDefeatHit(true);   // a boss-shell flips instead of popping
 		return;
 	}
 
@@ -175,7 +184,23 @@ void ARolyShellback::OnCapsuleHit(UPrimitiveComponent*, AActor* OtherActor,
 
 void ARolyShellback::TakeStrike()
 {
-	if (State != EShellState::Dead) { Die(false); }
+	if (State != EShellState::Dead) { ReceiveDefeatHit(false); }
+}
+
+void ARolyShellback::ReceiveDefeatHit(bool bByStomp)
+{
+	if (State == EShellState::Dead) { return; }
+	if (--HitsToDefeat <= 0)
+	{
+		Die(bByStomp);
+		return;
+	}
+	// A boss-shell SURVIVES — it flips belly-up, soft and open: stomp it again.
+	GetCharacterMovement()->StopMovementImmediately();
+	bFlipped = true;
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
+	                         FLinearColor(2.4f, 1.6f, 0.6f), 1.2f, 3200.f, 0.22f);
+	EnterState(EShellState::Recover, FlipRecoverSeconds);
 }
 
 void ARolyShellback::TakeStagger(float Seconds)
