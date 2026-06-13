@@ -237,6 +237,18 @@ except Exception as e:
     live["shellback"] = False
     print(f"LIVE_SHELLBACKS_SKIPPED: {e}")
 
+# ---- LUMEN THE LAMPLIGHTER (the gentle keeper — greets you at the front; his
+#      true form, the Dragonlord, waits at the back. The same being, both ends) ----
+try:
+    lamp_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.LumenLamplighter")
+    lp = eas.spawn_actor_from_class(lamp_cls, unreal.Vector(0, -250, 210))
+    lp.set_actor_label("LiveLumenLamplighter")
+    live["lamplighter"] = True
+    print("LIVE_LAMPLIGHTER_PLACED")
+except Exception as e:
+    live["lamplighter"] = False
+    print(f"LIVE_LAMPLIGHTER_SKIPPED: {e}")
+
 # ---- THE LIVING HEROES wing (Rule 2: the Hall IS the asset profile/backup) ----
 # Both playable heroes stand front-center, breathing their idle clips, so a
 # walk through the Hall always shows the true current state of every rig.
