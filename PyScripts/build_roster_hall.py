@@ -29,16 +29,34 @@ floor.static_mesh_component.set_static_mesh(cube)
 floor.set_actor_scale3d(unreal.Vector(220.0, 90.0, 1.0))
 floor.set_actor_label("HallFloor")
 
+# DUSK now, not noon — the environment grows with the cast: a low warm sun so
+# the LANTERNS are what light the arena (the Warden's Lamp-Eater needs lights to
+# eat; the dark the Unlight spreads needs somewhere to spread). Still readable.
 sun = eas.spawn_actor_from_class(unreal.DirectionalLight, unreal.Vector(0, 0, 800))
-sun.set_actor_rotation(unreal.Rotator(0.0, -55.0, 35.0), False)
-sun.light_component.set_intensity(8.0)
+sun.set_actor_rotation(unreal.Rotator(0.0, -16.0, 26.0), False)
+sun.light_component.set_intensity(2.6)
+sun.light_component.set_light_color(unreal.LinearColor(1.0, 0.72, 0.5))
 sun.set_actor_label("Sun")
 
 sky_atm = eas.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0))
 sky_atm.set_actor_label("SkyAtmosphere")
 skylight = eas.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 600))
 skylight.light_component.set_editor_property("real_time_capture", True)
+skylight.light_component.set_intensity(0.55)   # let the lanterns own the mood
 skylight.set_actor_label("SkyLight")
+
+# ---- LANTERNS: the arena's light (the Warden eats them, the Lamplighter tends
+#      them, the hero will relight them) — a loose grid of warm pools ----
+try:
+    lantern_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.Lantern")
+    lant = 0
+    for lx in (-2200, -1100, 0, 1100, 2200):
+        for ly in (-2200, -1100, 0, 1100):
+            eas.spawn_actor_from_class(lantern_cls, unreal.Vector(lx, ly, 0))
+            lant += 1
+    print(f"LANTERNS_PLACED: {lant}")
+except Exception as e:
+    print(f"LANTERNS_SKIPPED: {e}")
 
 # ---- the cast, in a row ----
 assets = [a for a in EAL.list_assets("/Game/Art/Roster", recursive=True)

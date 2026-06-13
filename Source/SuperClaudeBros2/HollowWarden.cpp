@@ -4,6 +4,8 @@
 #include "HollowWarden.h"
 
 #include "Animation/AnimSequence.h"
+#include "EngineUtils.h"
+#include "Lantern.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -108,6 +110,7 @@ void AHollowWarden::EatNearbyLights()
 		if (!L || L->GetWorld() != GetWorld() || L == TelegraphLight) { continue; }
 		AActor* LightOwner = L->GetOwner();
 		if (LightOwner == this || (HeroPawn && LightOwner == HeroPawn)) { continue; }   // never eat the hero's own glow
+		if (LightOwner && LightOwner->IsA(ALantern::StaticClass())) { continue; }       // lanterns are eaten whole, below
 		const float Cur = L->Intensity;
 		if (Cur <= 1.f) { continue; }   // already dark
 		if (FVector::Dist(L->GetComponentLocation(), C) > LampSnuffRadius) { continue; }
@@ -115,6 +118,19 @@ void AHollowWarden::EatNearbyLights()
 		EatenOrig.Add(Cur);
 		L->SetIntensity(Cur * LampDimFactor);
 		++eaten;
+	}
+	// LANTERNS are eaten WHOLE — the flame and its light go out together, and the
+	// lantern re-warms on its own later (the arena darkens, then slowly returns).
+	for (TActorIterator<ALantern> LanIt(GetWorld()); LanIt; ++LanIt)
+	{
+		if (eaten >= MaxLightsEaten) { break; }
+		ALantern* Lan = *LanIt;
+		if (Lan && Lan->IsLit()
+			&& FVector::Dist(Lan->GetActorLocation(), C) <= LampSnuffRadius)
+		{
+			Lan->Snuff();
+			++eaten;
+		}
 	}
 	if (eaten > 0)
 	{
