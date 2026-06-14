@@ -29,9 +29,9 @@ AUnlight::AUnlight()
 	GetCapsuleComponent()->SetCapsuleSize(72.f, 118.f);   // the Dragon's frame, worn by the dark
 	RivalDisplayName = TEXT("THE UNLIGHT");
 
-	ApproachSpeed = 540.f;   // faster than the kind Dragon — it comes for you
-	TurnRate = 5.f;
-	IntroSeconds = 1.8f;
+	ApproachSpeed = 600.f;   // it comes for you — now actually catches you (was 540)
+	TurnRate = 7.f;          // RESPONSE: track a strafing player (was 5)
+	IntroSeconds = 1.5f;     // snappier first contact (was 1.8)
 	ApproachAnimRate = 0.95f;
 	TelegraphPulseHz = 16.f;
 	TelegraphPulseIntensity = 7200.f;

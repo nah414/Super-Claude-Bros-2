@@ -27,9 +27,9 @@ ALumenDragonlord::ALumenDragonlord()
 	GetCapsuleComponent()->SetCapsuleSize(72.f, 118.f);   // the grandest body in the game
 	RivalDisplayName = TEXT("LUMEN THE DRAGONLORD");
 
-	ApproachSpeed = 480.f;   // slow, regal, unhurried
-	TurnRate = 4.f;
-	IntroSeconds = 2.0f;
+	ApproachSpeed = 540.f;   // regal but able to close (was 480, far under the hero)
+	TurnRate = 6.f;          // RESPONSE: track a strafing player (was 4 — couldn't face you)
+	IntroSeconds = 1.6f;     // snappier first contact (was 2.0)
 	ApproachAnimRate = 0.9f;
 	TelegraphPulseHz = 12.f;
 	TelegraphPulseIntensity = 7000.f;

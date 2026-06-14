@@ -335,6 +335,10 @@ void ASparkRivalBase::Tick(float DeltaTime)
 		break;
 
 	case ERivalState::Recover:
+		// Keep tracking the player while recovering — without this the boss freezes its
+		// facing for the whole 1-2.5s recovery (a dead, blind window that reads as
+		// "unresponsive"). Half-rate keeps it heavy but no longer staring at empty air.
+		if (Hero) { FaceHero(Hero, DeltaTime * 0.5f); }
 		if (Now() >= StateUntil)
 		{
 			ClearMove();

@@ -30,8 +30,8 @@ AHollowWarden::AHollowWarden()
 	GetCapsuleComponent()->SetCapsuleSize(52.f, 78.f);   // a tall knight
 	RivalDisplayName = TEXT("THE HOLLOW WARDEN — Lamp-Eater");
 
-	ApproachSpeed = 600.f;
-	TurnRate = 6.f;
+	ApproachSpeed = 640.f;   // re-engage closer to the hero's run
+	TurnRate = 8.f;          // RESPONSE: track a strafing player (was 6)
 	IntroSeconds = 1.6f;
 	ApproachAnimRate = 1.0f;
 	TelegraphPulseHz = 18.f;

@@ -13,9 +13,9 @@ AFoundryKing::AFoundryKing()
 	SkelMeshScale = 1.4f;
 	RivalDisplayName = TEXT("THE FOUNDRY KING");
 
-	ApproachSpeed = 470.f;   // heavier, slower, more inevitable
-	TurnRate = 4.f;
-	IntroSeconds = 1.9f;
+	ApproachSpeed = 540.f;   // RESPONSE: catch the player (was 470 — never reached him)
+	TurnRate = 6.f;          // RESPONSE: track a strafing player (was 4)
+	IntroSeconds = 1.6f;     // snappier first contact (was 1.9)
 	GetCharacterMovement()->MaxWalkSpeed = ApproachSpeed;
 
 	// Longer reach to match the bigger body.
