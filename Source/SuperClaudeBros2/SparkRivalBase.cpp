@@ -40,7 +40,7 @@ ASparkRivalBase::ASparkRivalBase()
 	RivalBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	RivalBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	RivalBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
-	RivalBody->SetBoundsScale(1.6f);   // the cull-freeze insurance: the widest animated pose can never leave its bounds (covers Warlord/Warden/Dragonlord/FoundryKing by inheritance)
+	RivalBody->SetBoundsScale(1.8f);   // the cull-freeze insurance: the widest animated pose can never leave its bounds (1.8 covers the big-capsule + 1.4x-scaled giants: Dragonlord/Unlight/FoundryKing)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
@@ -114,7 +114,7 @@ void ASparkRivalBase::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float S
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	RivalBody->SetPlayRate(FMath::Clamp(Rate, 0.3f, 5.f));
+	RivalBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));   // wider than 0.3-5: slow long-recover clips, and long clips strand less
 	if (StartFraction > 0.f)
 	{
 		RivalBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);

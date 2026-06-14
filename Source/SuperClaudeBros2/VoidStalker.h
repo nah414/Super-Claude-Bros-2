@@ -171,20 +171,21 @@ public:
 	float SpiralRadius = 270.f;
 
 	// ---------------- Clip windows (scan after import; all live) ----------------
+	// Phase-1 articulation pass: scanned windows (were auto-fit-from-0 = floaty).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
-	float StrikeClipStart = 0.f;
+	float StrikeClipStart = 0.34f;   // scan: thrust reach peak @0.52 of 2.47s
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim")
-	float StrikeClipRate = 0.f;
+	float StrikeClipRate = 0.89f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
-	float CutClipStart = 0.f;
+	float CutClipStart = 0.12f;      // Cut uses the Combo clip: first cut @~0.27 of 2.83s
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim")
-	float CutClipRate = 0.f;
+	float CutClipRate = 0.78f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim", meta = (ClampMin = "0", ClampMax = "0.9"))
-	float LungeClipStart = 0.f;
+	float LungeClipStart = 0.10f;    // movement-driven: just trim the dead lead-in, auto-fit the rest
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stalker|Anim")
 	float LungeClipRate = 0.f;

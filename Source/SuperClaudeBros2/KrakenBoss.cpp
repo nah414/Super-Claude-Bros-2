@@ -196,7 +196,7 @@ void AKrakenBoss::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float Start
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	KrakenBody->SetPlayRate(FMath::Clamp(Rate, 0.3f, 5.f));
+	KrakenBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));
 	if (StartFraction > 0.f)
 	{
 		KrakenBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
@@ -289,7 +289,9 @@ void AKrakenBoss::StartTelegraph()
 		PlayOneShot(SwingAnim, Tell + SwingActive + SwingRecover * 0.5f, SwingClipStart, SwingClipRate);
 		break;
 	case EKrakenMove::PauldronRush:
-		PlayOneShot(ChargeAnim ? ChargeAnim : SwingAnim, Tell + RushActive, 0.f, 0.f);
+		// The 0.63s charge clip was auto-fit over ~1.65s = ~0.38x slow-mo; play it
+		// briskly (the rush is aggressive, not a slow lean) and hold the charge pose.
+		PlayOneShot(ChargeAnim ? ChargeAnim : SwingAnim, Tell + RushActive, 0.f, 1.2f);
 		break;
 	case EKrakenMove::ChampionsSlam:
 		PlayOneShot(SlamAnim, Tell + 1.0f + SlamRecover * 0.5f, SlamClipStart, SlamClipRate);

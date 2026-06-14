@@ -152,7 +152,7 @@ void AVoidStalker::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float Star
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	StalkerBody->SetPlayRate(FMath::Clamp(Rate, 0.3f, 5.f));
+	StalkerBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));
 	if (StartFraction > 0.f)
 	{
 		StalkerBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
