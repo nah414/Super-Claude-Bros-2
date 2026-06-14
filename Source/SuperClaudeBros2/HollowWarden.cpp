@@ -34,6 +34,7 @@ AHollowWarden::AHollowWarden()
 	TurnRate = 8.f;          // RESPONSE: track a strafing player (was 6)
 	IntroSeconds = 1.6f;
 	ApproachAnimRate = 1.0f;
+	bBigImpactShake = true;  // heavy boss — kick the camera + dust on a connect
 	TelegraphPulseHz = 18.f;
 	TelegraphPulseIntensity = 6200.f;
 	PhaseRoarSeconds = 1.1f;

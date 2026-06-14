@@ -192,6 +192,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Perf")
 	float PoseLODRadius = 3500.f;
 
+	/** FX: heavy bosses kick the camera + throw a ground-dust shock on a connect —
+	    sells weight on IMPACT (the research law: a big boss reads as massive through
+	    impact feedback, not a slow body). The duelists/guardians leave this off. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|FX")
+	bool bBigImpactShake = false;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;

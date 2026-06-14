@@ -33,6 +33,7 @@ AUnlight::AUnlight()
 	TurnRate = 7.f;          // RESPONSE: track a strafing player (was 5)
 	IntroSeconds = 1.5f;     // snappier first contact (was 1.8)
 	ApproachAnimRate = 0.95f;
+	bBigImpactShake = true;  // the true final boss HITS hard — kick the camera + dust
 	TelegraphPulseHz = 16.f;
 	TelegraphPulseIntensity = 7200.f;
 	PhaseRoarSeconds = 1.3f;

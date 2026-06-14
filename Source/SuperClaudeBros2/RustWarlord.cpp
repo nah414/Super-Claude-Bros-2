@@ -34,6 +34,7 @@ ARustWarlord::ARustWarlord()
 	ApproachSpeed = 560.f;   // re-engage faster (was 520, under the hero's ~650 run)
 	TurnRate = 7.f;          // RESPONSE: track a strafing player (was 5 — felt unresponsive)
 	IntroSeconds = 1.6f;
+	bBigImpactShake = true;  // heavy boss — kick the camera + dust on a connect (also -> FoundryKing)
 	ApproachAnimRate = 0.95f;
 	TelegraphPulseHz = 16.f;
 	TelegraphPulseIntensity = 6800.f;

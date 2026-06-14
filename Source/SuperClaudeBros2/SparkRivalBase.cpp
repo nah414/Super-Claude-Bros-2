@@ -13,8 +13,10 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "SparkAnimPerf.h"
+#include "SparkCameraShakes.h"
 #include "SparkHeroCharacter.h"
 #include "SparkImpactBurst.h"
 
@@ -156,9 +158,23 @@ void ASparkRivalBase::LandDuelHit(ASparkHeroCharacter* Hero, float Embers)
 	Away = Away.IsNearlyZero() ? GetActorForwardVector() : Away.GetSafeNormal();
 	Hero->LaunchCharacter(Away * KnockbackForce + FVector(0.f, 0.f, KnockbackLift), true, true);
 	Hero->TakeEmberHit(Embers);
-	ASparkImpactBurst::Burst(this,
-		(Hero->GetActorLocation() + GetActorLocation()) * 0.5f + FVector(0.f, 0.f, 40.f),
+	const FVector HitMid = (Hero->GetActorLocation() + GetActorLocation()) * 0.5f;
+	ASparkImpactBurst::Burst(this, HitMid + FVector(0.f, 0.f, 40.f),
 		HitBurstColor, HitBurstScale, HitBurstLight);
+
+	// SELL THE WEIGHT ON IMPACT (research law: a heavy boss reads as massive through
+	// impact feedback — screen kick + ground reaction — NOT through a slow body). The
+	// big bosses lacked this; their clips already swing hard, they just didn't LAND hard.
+	if (bBigImpactShake)
+	{
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PC->ClientStartCameraShake(USparkBigLandShake::StaticClass());
+		}
+		// a wide, low dust-shock kicked up at the strike point
+		ASparkImpactBurst::Burst(this, FVector(HitMid.X, HitMid.Y, 8.f),
+			FLinearColor(0.7f, 0.55f, 0.4f), HitBurstScale * 2.4f, 1400.f, 0.34f);
+	}
 }
 
 void ASparkRivalBase::TakeStrike(int32 InComboBeat, bool bCharged)
