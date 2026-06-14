@@ -6,7 +6,7 @@ import unreal
 MEL = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 EAL = unreal.EditorAssetLibrary
-DEST = "/Game/Art/DragonSkelV1"
+DEST = "/Game/Art/DragonSkelV2"   # re-rig V2 home (V1 keeps its own M_UnlightPBR for rollback)
 
 mat = tools.create_asset("M_UnlightPBR", DEST, unreal.Material, unreal.MaterialFactoryNew())
 mat.set_editor_property("used_with_skeletal_mesh", True)

@@ -65,36 +65,39 @@ skylight.set_actor_label("SkyLight")
 live = {}
 
 # ============================================================================
-# THE 15 BOSS TESTING STATIONS — one per boss, a clean 5x3 grid. 3000uu apart so
-# only the boss you walk up to ever wakes (2x the 900 duel-start ring, clear of the
-# 1500 disengage ring). Front row = the sparring tier, back row = the finals.
+# THE 15 BOSS TESTING STATIONS — a shallow, staggered TWO-ROW showcase so EVERY
+# boss is visible from the spawn and reachable in seconds (the old 5x3 grid buried
+# the back five ~8700uu away — easy to never find, esp. the dark Hollow Warden).
+# Front row of 8 + back row of 7, staggered half a step so the back row sits in the
+# front gaps (nothing occluded). 2700uu apart so only the boss you walk up to wakes
+# (>2x the 900 duel ring, clear of the 1500 disengage ring). The DARK KNIGHT (Hollow
+# Warden) sits dead-center of the back row (x=0) — framed straight ahead through the
+# front-row gap, impossible to miss now. (cls, nice, x, y)
 # ============================================================================
+FY, BY = 2600.0, 4900.0   # front / back row depth
 STATIONS = [
-    # row 1 (front, y=2000): the sparring tier
-    ("SleekKnight",     "Sleek Knight"),
-    ("HeroicTank",      "Heroic Tank"),
-    ("Powerhouse",      "Powerhouse"),
-    ("ClassicSpark",    "Classic Spark"),
-    ("RolyShellback",   "Roly Shellback"),
-    # row 2 (mid, y=5000): the rivals + the W-bosses
-    ("KrakenBoss",      "Iron Kraken"),
-    ("EmberReaver",     "Ember Reaver"),
-    ("VoidStalker",     "Void Stalker"),
-    ("RustWarlord",     "Rust Warlord"),
-    ("ShellbackAlpha",  "Shellback Alpha"),
-    # row 3 (back, y=8000): the heavies + the finals
-    ("Bramblehulk",     "Bramblehulk"),
-    ("HollowWarden",    "Hollow Warden"),
-    ("FoundryKing",     "Foundry King"),
-    ("LumenDragonlord", "Lumen Dragonlord"),
-    ("Unlight",         "The Unlight"),
+    # FRONT ROW (8) — the sparring + rival tier, y=2600
+    ("SleekKnight",     "Sleek Knight",     -9450.0, FY),
+    ("HeroicTank",      "Heroic Tank",      -6750.0, FY),
+    ("Powerhouse",      "Powerhouse",       -4050.0, FY),
+    ("ClassicSpark",    "Classic Spark",    -1350.0, FY),
+    ("RolyShellback",   "Roly Shellback",    1350.0, FY),
+    ("KrakenBoss",      "Iron Kraken",       4050.0, FY),
+    ("EmberReaver",     "Ember Reaver",      6750.0, FY),
+    ("VoidStalker",     "Void Stalker",      9450.0, FY),
+    # BACK ROW (7) — the heavies + the finals, y=4900, staggered into the front gaps
+    ("Bramblehulk",     "Bramblehulk",      -8100.0, BY),
+    ("RustWarlord",     "Rust Warlord",     -5400.0, BY),
+    ("FoundryKing",     "Foundry King",     -2700.0, BY),
+    ("HollowWarden",    "Hollow Warden",        0.0, BY),  # DARK KNIGHT — dead center
+    ("Unlight",         "The Unlight",       2700.0, BY),
+    ("LumenDragonlord", "Lumen Dragonlord",  5400.0, BY),
+    ("ShellbackAlpha",  "Shellback Alpha",   8100.0, BY),
 ]
-COLS = [-6000, -3000, 0, 3000, 6000]
-ROWS = [2000, 5000, 8000]
 
 stations_placed = 0
-for i, (cls_name, nice) in enumerate(STATIONS):
-    loc = (COLS[i % 5], ROWS[i // 5], 200)
+for i, (cls_name, nice, sx, sy) in enumerate(STATIONS):
+    loc = (sx, sy, 200)
     a = spawn_class(f"/Script/SuperClaudeBros2.{cls_name}", loc, yaw=-90.0,
                     label=f"Live{cls_name}")
     live[cls_name.lower()] = a is not None

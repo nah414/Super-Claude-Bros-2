@@ -56,16 +56,16 @@ AUnlight::AUnlight()
 	ContactProfile.bDashImmune = true;
 
 	// BORROWED SHAPE: it wears the Dragonlord's mesh and clips entire.
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Model(TEXT("/Game/Art/DragonSkelV1/SCB2Dragon.SCB2Dragon"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FIdle(TEXT("/Game/Art/DragonSkelV1/A_Dragon_Idle_Anim.A_Dragon_Idle_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FWalk(TEXT("/Game/Art/DragonSkelV1/A_Dragon_Walk_Anim.A_Dragon_Walk_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSweep(TEXT("/Game/Art/DragonSkelV1/A_Dragon_WingSweep_Anim.A_Dragon_WingSweep_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FCast(TEXT("/Game/Art/DragonSkelV1/A_Dragon_Sanctuary_Anim.A_Dragon_Sanctuary_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FShove(TEXT("/Game/Art/DragonSkelV1/A_Dragon_WingShove_Anim.A_Dragon_WingShove_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/DragonSkelV1/A_Dragon_HitReact_Anim.A_Dragon_HitReact_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FStagger(TEXT("/Game/Art/DragonSkelV1/A_Dragon_Stagger_Anim.A_Dragon_Stagger_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDefeat(TEXT("/Game/Art/DragonSkelV1/A_Dragon_Defeat_Anim.A_Dragon_Defeat_Anim"));
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> FUnlightMat(TEXT("/Game/Art/DragonSkelV1/M_UnlightPBR.M_UnlightPBR"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Model(TEXT("/Game/Art/DragonSkelV2/SCB2Dragon.SCB2Dragon"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FIdle(TEXT("/Game/Art/DragonSkelV2/A_Dragon_Idle_Anim.A_Dragon_Idle_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FWalk(TEXT("/Game/Art/DragonSkelV2/A_Dragon_Walk_Anim.A_Dragon_Walk_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSweep(TEXT("/Game/Art/DragonSkelV2/A_Dragon_WingSweep_Anim.A_Dragon_WingSweep_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FCast(TEXT("/Game/Art/DragonSkelV2/A_Dragon_Sanctuary_Anim.A_Dragon_Sanctuary_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FShove(TEXT("/Game/Art/DragonSkelV2/A_Dragon_WingShove_Anim.A_Dragon_WingShove_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/DragonSkelV2/A_Dragon_HitReact_Anim.A_Dragon_HitReact_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FStagger(TEXT("/Game/Art/DragonSkelV2/A_Dragon_Stagger_Anim.A_Dragon_Stagger_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDefeat(TEXT("/Game/Art/DragonSkelV2/A_Dragon_Defeat_Anim.A_Dragon_Defeat_Anim"));
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> FUnlightMat(TEXT("/Game/Art/DragonSkelV2/M_UnlightPBR.M_UnlightPBR"));
 
 	if (Model.Succeeded())
 	{

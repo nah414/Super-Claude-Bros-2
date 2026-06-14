@@ -1,7 +1,7 @@
 """Articulation scan (recipe 7.5) for the Lumen Dragonlord's action clips."""
 import unreal
 
-DEST = "/Game/Art/DragonSkelV1"
+DEST = "/Game/Art/DragonSkelV2"
 CLIPS = ["WingShove", "WingSweep", "Sanctuary", "FirstFlame"]
 
 opts = unreal.AnimPoseEvaluationOptions()

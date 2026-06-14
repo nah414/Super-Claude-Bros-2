@@ -11,7 +11,7 @@ BOSSES = {
     "Stalker": ("StalkerSkelV1", ["Strike", "Cut", "Spiral", "Lunge", "Combo"]),
     "Warlord": ("WarlordSkelV1", ["Swing", "Chop", "Sweep", "Vent"]),
     "Warden":  ("WardenSkelV1",  ["Slash", "Judgment", "Voidcast", "Charged"]),
-    "Dragon":  ("DragonSkelV1",  ["WingShove", "WingSweep", "Sanctuary", "FirstFlame"]),
+    "Dragon":  ("DragonSkelV2",  ["WingShove", "WingSweep", "Sanctuary", "FirstFlame"]),
     "Bramble": ("BrambleSkelV1", ["Slam", "Quake", "Sweep", "Shove"]),
 }
 
