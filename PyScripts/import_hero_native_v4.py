@@ -65,6 +65,13 @@ def import_skeletal(fbx, dest, name, scale, with_anim_skel=None):
     t.replace_existing = False
     t.options = ui
     tools.import_asset_tasks([t])
+    # FBXIT_ANIMATION also materializes a redundant full SkeletalMesh + PhysicsAsset next to
+    # the AnimSequence; purge them so the repo never re-bloats (game loads only SCB2<Char> + *_Anim).
+    if with_anim_skel is not None:
+        for dup in (f"{dest}/{name}", f"{dest}/{name}_PhysicsAsset"):
+            if eal.does_asset_exist(dup) and not isinstance(unreal.load_asset(dup), unreal.AnimSequence):
+                eal.delete_asset(dup)
+                print(f"PURGE_DUP: {dup}")
 
 
 # ---- 1) probe: measure the native mesh at scale 1.0 ----
