@@ -16,6 +16,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "SparkAnimPerf.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "SparkCameraShakes.h"
@@ -63,7 +64,8 @@ AKrakenBoss::AKrakenBoss()
 	KrakenBody->SetupAttachment(VisualRoot);
 	KrakenBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	KrakenBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW (distance pose-LOD throttles far)
+	KrakenBody->bEnableUpdateRateOptimizations = true;   // PERF
 	KrakenBody->SetBoundsScale(1.6f);   // cull-freeze insurance for the Champion's wide swing/slam
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
@@ -196,7 +198,7 @@ void AKrakenBoss::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float Start
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	KrakenBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));
+	KrakenBody->SetPlayRate(FMath::Clamp(Rate, 0.3f, 5.f));
 	if (StartFraction > 0.f)
 	{
 		KrakenBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
@@ -608,6 +610,7 @@ void AKrakenBoss::Tick(float DeltaTime)
 
 	ASparkHeroCharacter* Hero = ResolveHero();
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
+	SCB2_TickPoseLOD(KrakenBody, Dist, 3500.f);   // PERF: far rivals cull off-screen
 
 	// SOLID-BODY LAW (Adam's contact pass): bodies never share the same ground.
 	// A hero inside his personal space gets shouldered out, gently and always â€”

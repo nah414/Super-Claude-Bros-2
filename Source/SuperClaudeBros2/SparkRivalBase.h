@@ -185,6 +185,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Contact")
 	float SeparationPush = 1600.f;
 
+	/** PERF: within this range the rival keeps full always-tick pose; beyond it falls
+	    back to render-culled pose evaluation so a crowded arena doesn't evaluate every
+	    skeleton every frame. Well outside the duel-start ring, so the body you fight is
+	    always full quality. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Perf")
+	float PoseLODRadius = 3500.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;

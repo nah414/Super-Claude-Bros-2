@@ -14,6 +14,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "SparkAnimPerf.h"
 #include "SparkCameraShakes.h"
 #include "SparkHeroCharacter.h"
 #include "SparkImpactBurst.h"
@@ -55,6 +56,7 @@ ABramblehulk::ABramblehulk()
 	// out of its own stale bounds -> "off-screen" -> pose stops -> bounds never
 	// refresh -> frozen forever (Adam's slowed-then-froze report, June 12).
 	HulkBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	HulkBody->bEnableUpdateRateOptimizations = true;   // PERF (distance pose-LOD only throttles him when FAR + dormant)
 	HulkBody->SetBoundsScale(2.0f);   // colossus reach (slam/sweep/quake) — the widest bounds in the game
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
@@ -158,7 +160,7 @@ void ABramblehulk::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float Star
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	HulkBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));
+	HulkBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 5.f));
 	if (StartFraction > 0.f)
 	{
 		HulkBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
@@ -360,6 +362,10 @@ void ABramblehulk::Tick(float DeltaTime)
 
 	ASparkHeroCharacter* Hero = ResolveHero();
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
+	// PERF: a FAR colossus is dormant (narrow pose, well inside its 2.0 bounds) so it
+	// can render-cull safely; a larger 4500 near-radius keeps an extra safety margin
+	// (he switches back to always-tick long before he wakes — no freeze regression).
+	SCB2_TickPoseLOD(HulkBody, Dist, 4500.f);
 
 	TickSoothe(DeltaTime, Hero);
 	if (State == EHulkState::Soothed) { return; }

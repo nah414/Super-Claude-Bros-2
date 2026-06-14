@@ -14,6 +14,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "SparkAnimPerf.h"
 #include "SparkHeroCharacter.h"
 #include "SparkImpactBurst.h"
 #include "UObject/ConstructorHelpers.h"
@@ -47,7 +48,8 @@ AVoidStalker::AVoidStalker()
 	StalkerBody->SetupAttachment(VisualRoot);
 	StalkerBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	StalkerBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	StalkerBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	StalkerBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW (distance pose-LOD throttles far)
+	StalkerBody->bEnableUpdateRateOptimizations = true;   // PERF
 	StalkerBody->SetBoundsScale(1.4f);   // cull-freeze insurance (the spiral/lunge spread)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
@@ -152,7 +154,7 @@ void AVoidStalker::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float Star
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	StalkerBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));
+	StalkerBody->SetPlayRate(FMath::Clamp(Rate, 0.3f, 5.f));
 	if (StartFraction > 0.f)
 	{
 		StalkerBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
@@ -466,6 +468,7 @@ void AVoidStalker::Tick(float DeltaTime)
 
 	ASparkHeroCharacter* Hero = ResolveHero();
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
+	SCB2_TickPoseLOD(StalkerBody, Dist, 3500.f);   // PERF: far rivals cull off-screen
 
 	// Solid-body law.
 	if (Hero && State != EStalkerState::Vanished)

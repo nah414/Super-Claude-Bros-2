@@ -14,6 +14,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "SparkAnimPerf.h"
 #include "SparkHeroCharacter.h"
 #include "SparkImpactBurst.h"
 
@@ -39,7 +40,8 @@ ASparkRivalBase::ASparkRivalBase()
 	RivalBody->SetupAttachment(VisualRoot);
 	RivalBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	RivalBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	RivalBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	RivalBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW (distance pose-LOD throttles this for FAR rivals at runtime)
+	RivalBody->bEnableUpdateRateOptimizations = true;   // PERF: distant/off-centre rivals evaluate their pose less often (interpolated — never freezes)
 	RivalBody->SetBoundsScale(1.8f);   // the cull-freeze insurance: the widest animated pose can never leave its bounds (1.8 covers the big-capsule + 1.4x-scaled giants: Dragonlord/Unlight/FoundryKing)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
@@ -114,7 +116,7 @@ void ASparkRivalBase::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float S
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	RivalBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));   // wider than 0.3-5: slow long-recover clips, and long clips strand less
+	RivalBody->SetPlayRate(FMath::Clamp(Rate, 0.3f, 5.f));   // original known-good (the 0.25-6 widen caused slow/blur regressions)
 	if (StartFraction > 0.f)
 	{
 		RivalBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
@@ -238,6 +240,9 @@ void ASparkRivalBase::Tick(float DeltaTime)
 
 	ASparkHeroCharacter* Hero = ResolveHero();
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
+
+	// PERF: full always-tick pose only when the hero is near; far rivals cull off-screen.
+	SCB2_TickPoseLOD(RivalBody, Dist, PoseLODRadius);
 
 	// SOLID-BODY LAW: bodies never share the same ground tile — a hero inside the
 	// rival's personal space is shouldered out, except where a power legally owns

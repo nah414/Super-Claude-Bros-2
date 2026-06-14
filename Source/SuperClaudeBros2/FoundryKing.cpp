@@ -16,10 +16,6 @@ AFoundryKing::AFoundryKing()
 	ApproachSpeed = 470.f;   // heavier, slower, more inevitable
 	TurnRate = 4.f;
 	IntroSeconds = 1.9f;
-	// Foot-slide fix: a 1.4x body has a 1.4x-longer stride, so the walk clip must play
-	// SLOWER (rate / scale) or the feet skate ahead of the ground. (Bramblehulk hand-
-	// patched the same thing to 1.8 for its colossus.)
-	ApproachAnimRate = 0.95f / 1.4f;   // ~0.68 — the Warlord's 0.95 de-scaled for the 1.4x body
 	GetCharacterMovement()->MaxWalkSpeed = ApproachSpeed;
 
 	// Longer reach to match the bigger body.

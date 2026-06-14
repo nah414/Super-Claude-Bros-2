@@ -15,6 +15,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "SparkAnimPerf.h"
 #include "SparkCameraShakes.h"
 #include "SparkHeroCharacter.h"
 #include "SparkImpactBurst.h"
@@ -49,7 +50,8 @@ AEmberReaver::AEmberReaver()
 	ReaverBody->SetupAttachment(VisualRoot);
 	ReaverBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ReaverBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	ReaverBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	ReaverBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW (distance pose-LOD throttles far)
+	ReaverBody->bEnableUpdateRateOptimizations = true;   // PERF
 	ReaverBody->SetBoundsScale(1.4f);   // cull-freeze insurance (slender, but his dash/crescent reach is wide)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
@@ -155,7 +157,7 @@ void AEmberReaver::PlayOneShot(UAnimSequence* Clip, float FitSeconds, float Star
 	const float Rate = (OverrideRate > 0.f)
 		? OverrideRate
 		: Clip->GetPlayLength() * (1.f - StartFraction) / FMath::Max(FitSeconds, 0.05f);
-	ReaverBody->SetPlayRate(FMath::Clamp(Rate, 0.25f, 6.f));
+	ReaverBody->SetPlayRate(FMath::Clamp(Rate, 0.3f, 5.f));
 	if (StartFraction > 0.f)
 	{
 		ReaverBody->SetPosition(Clip->GetPlayLength() * StartFraction, false);
@@ -468,6 +470,7 @@ void AEmberReaver::Tick(float DeltaTime)
 
 	ASparkHeroCharacter* Hero = ResolveHero();
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
+	SCB2_TickPoseLOD(ReaverBody, Dist, 3500.f);   // PERF: far rivals cull off-screen
 
 	// Solid-body law: nobody stands inside the duelist.
 	if (Hero)
