@@ -1160,7 +1160,7 @@ void ASparkHeroCharacter::TryStartClimb()
 	{
 		return;
 	}
-	if (FMath::Abs(WallHit.ImpactNormal.Z) > 0.4f) { return; }       // walls only, not ramps
+	if (FMath::Abs(WallHit.ImpactNormal.Z) > 0.55f) { return; }      // walls only (M6: relaxed 0.4->0.55)
 	if (FVector::DotProduct(LastWorldMoveInput, WallHit.ImpactNormal) > -0.5f) { return; }
 
 	bClimbing = true;
@@ -1171,7 +1171,10 @@ void ASparkHeroCharacter::TryStartClimb()
 	Move->MaxFlySpeed = ClimbSpeed;
 	Move->BrakingDecelerationFlying = 2048.f;
 	Move->GravityScale = 0.f;
-	Move->Velocity = FVector::ZeroVector;
+	// M6: keep damped along-wall momentum (strip only the into-wall component) so a jump-into-
+	// wall flows up instead of dead-stopping.
+	const FVector IntoWall = ClimbWallNormal * FVector::DotProduct(Move->Velocity, ClimbWallNormal);
+	Move->Velocity = (Move->Velocity - IntoWall) * ClimbGrabMomentumRetain;
 	SetActorRotation(FRotationMatrix::MakeFromX(-ClimbWallNormal).Rotator());
 }
 

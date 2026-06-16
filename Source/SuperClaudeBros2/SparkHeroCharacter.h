@@ -213,13 +213,18 @@ public:
 	float CrouchSpeed = 260.f;
 
 	// ---------------- Climb (Adam's round-4 verb: "our Hero's need to climb") ----------------
-	/** Vertical/lateral speed while clinging to a wall. */
+	/** Vertical/lateral speed while clinging to a wall. (M6: 220->400 for parity with run.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
-	float ClimbSpeed = 220.f;
+	float ClimbSpeed = 400.f;
 
-	/** How far past the capsule we probe for a climbable wall. */
+	/** How far past the capsule we probe for a climbable wall. (M6: 24->56, reach ~90u.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
-	float ClimbCheckDistance = 24.f;
+	float ClimbCheckDistance = 56.f;
+
+	/** M6: fraction of along-wall momentum kept on grab (0=dead-stop, 1=full) so a jump-into-
+	    wall flows instead of snapping. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float ClimbGrabMomentumRetain = 0.35f;
 
 	/** Wall-leap: jump while climbing kicks away from the wall and up. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
