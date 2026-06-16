@@ -74,6 +74,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
 	bool bIsWorldGoal = false;
 
+	/** Spawn DARK — a dead lamp the hero must relight (checkpoints, the goal, the Night's
+	    victims). Default lit (the warm festival ambient). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
+	bool bStartDark = false;
+
 	/** How long the relight HOLD takes (the flame-climb length). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
 	float RelightHoldSeconds = 1.2f;

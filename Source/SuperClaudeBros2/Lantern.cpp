@@ -80,7 +80,14 @@ void ALantern::BeginPlay()
 		}
 	}
 
-	PaintIdle();   // paint the current (Lit by default) state now
+	// A dead lamp waiting to be relit (checkpoint / goal / the Night's work).
+	if (bStartDark && LightState)
+	{
+		LightState->SetState(ELightState::Dark);
+		RelightAt = Now() + AutoRelightSeconds;
+	}
+
+	PaintIdle();   // paint the current state now
 }
 
 float ALantern::Now() const
