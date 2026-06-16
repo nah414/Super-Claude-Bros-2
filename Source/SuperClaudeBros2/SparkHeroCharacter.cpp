@@ -21,6 +21,7 @@
 #include "RolyShellback.h"
 #include "Materials/MaterialInterface.h"
 #include "Bramblehulk.h"
+#include "CheckpointSubsystem.h"
 #include "GrabbableProp.h"
 #include "SparkInteractionComponent.h"
 #include "SparkImpactBurst.h"
@@ -443,6 +444,7 @@ void ASparkHeroCharacter::BeginPlay()
 	{
 		EmberMeter->RegisterFlameVisuals(EmberFlame, EmberGlow);
 		EmberMeter->OnFlameOut.AddDynamic(this, &ASparkHeroCharacter::HandleFlameOut);
+		EmberMeter->bRefillsInLanternLight = true;   // the hero drinks in lantern warmth
 	}
 
 	// Plasma dress for the power visuals: glowing additive material everywhere,
@@ -1507,17 +1509,21 @@ void ASparkHeroCharacter::EndActionClip()
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::RespawnAtStart()
 {
+	RespawnAtTransform(SafeGroundLocation + FVector(0.f, 0.f, 50.f), SpawnRotation);
+}
+
+void ASparkHeroCharacter::RespawnAtTransform(const FVector& Loc, const FRotator& Rot)
+{
 	if (bIsDashing) { EndDash(); }
 	if (bFastFalling) { HandleFastFallReleased(); }
 
 	GetCharacterMovement()->Velocity = FVector::ZeroVector;
 	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
-	SetActorLocation(SafeGroundLocation + FVector(0.f, 0.f, 50.f), false, nullptr,
-	                 ETeleportType::TeleportPhysics);
-	SetActorRotation(SpawnRotation);
+	SetActorLocation(Loc, false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorRotation(Rot);
 	if (Controller)
 	{
-		Controller->SetControlRotation(SpawnRotation);
+		Controller->SetControlRotation(Rot);
 	}
 	AirJumpsRemaining = MaxAirJumps;
 	AirDashesRemaining = MaxAirDashes;
@@ -1556,7 +1562,22 @@ void ASparkHeroCharacter::HandleFlameOut()
 	// Today: instant relight at the safe spot. The ~3 s lantern ceremony (respawn
 	// at the last LIT lantern, spec §2) arrives with the checkpoint system, M0.3.
 	OnHeroFlameOut();
-	RespawnAtStart();
+	// Respawn at the last lit CHECKPOINT lantern (diegetic: Lumen kept it lit), or the
+	// safe-ground spot if no checkpoint has been claimed yet. M0.3 — now live.
+	bool bRespawned = false;
+	if (UWorld* W = GetWorld())
+	{
+		if (UCheckpointSubsystem* CP = W->GetSubsystem<UCheckpointSubsystem>())
+		{
+			if (CP->HasActiveCheckpoint())
+			{
+				const FTransform T = CP->GetRespawnTransform();
+				RespawnAtTransform(T.GetLocation(), T.Rotator());
+				bRespawned = true;
+			}
+		}
+	}
+	if (!bRespawned) { RespawnAtStart(); }
 	if (EmberMeter) { EmberMeter->RefillFull(); }
 }
 

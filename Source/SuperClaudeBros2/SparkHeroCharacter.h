@@ -706,6 +706,7 @@ private:
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();
+	void RespawnAtTransform(const FVector& Loc, const FRotator& Rot);   // checkpoint respawn
 	UFUNCTION() void HandleFlameOut();   // bound to the meter's OnFlameOut
 	FVector SpawnLocation = FVector::ZeroVector;     // the level's PlayerStart
 	FRotator SpawnRotation = FRotator::ZeroRotator;

@@ -38,10 +38,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember")
 	float GutterFraction = 0.25f;
 
-	/** Embers per second regained inside a lit lantern's radius.
-	    (Wired up when the lantern light-state component lands — P0-M0.2.) */
+	/** Embers per second regained inside a lit lantern's radius (wired to the light-state
+	    component + checkpoint subsystem — P0-M0.2, now live). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember")
 	float LanternRefillRate = 25.f;
+
+	/** Only the heroes drink in lantern warmth — the hero enables this; default off so
+	    rivals' duel meters and other ember-bearers are unaffected. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ember")
+	bool bRefillsInLanternLight = false;
 
 	// ---------------- Flame visuals (owner registers; both optional) ----------------
 	/** Flame height tracks the meter: Z scale = GutterScale..FullScale. */

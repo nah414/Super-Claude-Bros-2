@@ -2,6 +2,8 @@
 
 #include "LightStateComponent.h"
 
+#include "CheckpointSubsystem.h"
+
 ULightStateComponent::ULightStateComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;   // pure state; the owner ticks visuals
@@ -10,9 +12,15 @@ ULightStateComponent::ULightStateComponent()
 void ULightStateComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	// Broadcast the initial state so the owner paints itself correctly on spawn, and so
-	// the LightNetworkManager (which discovers components on its own BeginPlay) sees a
-	// settled state. Self-registration into the manager is wired when that system lands.
+	// Register with the world's light services so the ember-refill query stays cheap.
+	if (UWorld* W = GetWorld())
+	{
+		if (UCheckpointSubsystem* CP = W->GetSubsystem<UCheckpointSubsystem>())
+		{
+			CP->RegisterLight(this);
+		}
+	}
+	// Broadcast the initial state so the owner paints itself correctly on spawn.
 	OnStateChanged.Broadcast(State);
 }
 

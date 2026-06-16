@@ -1,8 +1,10 @@
 #include "EmberMeterComponent.h"
 
+#include "CheckpointSubsystem.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
 
 UEmberMeterComponent::UEmberMeterComponent()
 {
@@ -81,6 +83,26 @@ void UEmberMeterComponent::TickComponent(float DeltaTime, ELevelTick TickType,
                                          FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Drink in lantern warmth: the heroes regain embers inside any lit lantern's radius
+	// (canon "stay in the light" — a refuge heals). Gated so only the heroes refill.
+	if (bRefillsInLanternLight && !bFlameOut && CurrentEmbers < MaxEmbers && LanternRefillRate > 0.f)
+	{
+		if (const AActor* OwnerActor = GetOwner())
+		{
+			if (UWorld* W = GetWorld())
+			{
+				if (UCheckpointSubsystem* CP = W->GetSubsystem<UCheckpointSubsystem>())
+				{
+					if (CP->IsInsideRefillZone(OwnerActor->GetActorLocation()))
+					{
+						Refill(LanternRefillRate * DeltaTime);
+					}
+				}
+			}
+		}
+	}
+
 	UpdateFlameVisuals(DeltaTime);
 }
 

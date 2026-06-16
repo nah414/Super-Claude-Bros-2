@@ -5,6 +5,7 @@
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "CheckpointSubsystem.h"
 #include "GameFramework/Pawn.h"
 #include "InteractionSubsystem.h"
 #include "Kismet/GameplayStatics.h"
@@ -104,6 +105,18 @@ void ALantern::Relight()
 	if (IsLit()) { return; }
 	bHolding = false;
 	if (LightState) { LightState->SetState(ELightState::Lit); }
+
+	// A deliberately-relit CHECKPOINT lamp becomes the hero's respawn anchor.
+	if (bIsCheckpoint)
+	{
+		if (UWorld* W = GetWorld())
+		{
+			if (UCheckpointSubsystem* CP = W->GetSubsystem<UCheckpointSubsystem>())
+			{
+				CP->SetActiveCheckpoint(this);
+			}
+		}
+	}
 }
 
 void ALantern::OnLightStateChanged(ELightState /*NewState*/)
