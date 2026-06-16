@@ -23,6 +23,7 @@ class UAnimSequence;
 class UEmberMeterComponent;
 class UPointLightComponent;
 class AGrabbableProp;
+class USparkInteractionComponent;
 
 /** THE POWER WHEEL (Adam's RPG layout, June 12): the mouse wheel scrolls the
     selection, F fires it. Future powers (Keeper's Craft…) append here. */
@@ -560,7 +561,8 @@ protected:
 	void HandleFirePressed();                          // F: fire the selected power
 	void HandlePowerScroll(const FInputActionValue& Value);   // wheel: scroll the wheel
 	void HandleZoomPreset();                           // Z: near / default / far
-	void HandleInteractPressed();                      // E: grab / drop (Phase C)
+	void HandleInteractPressed();                      // E: interact (relight) else grab / drop
+	void HandleInteractReleased();                     // E release: finish/interrupt a hold
 	void HandleGuardPressed();
 	void HandleSwitchHero();
 	void HandleFastFallPressed();
@@ -637,6 +639,10 @@ private:
 	int32 ZoomPresetIndex = 1;           // {near, default, far}
 	// The carried prop (E grabs, E drops, LMB throws).
 	TWeakObjectPtr<AGrabbableProp> CarriedProp;
+
+	/** The hero's one interaction brain (focus + tap/hold relight; reused world-wide). */
+	UPROPERTY(VisibleAnywhere, Category = "SparkHero|Components")
+	TObjectPtr<USparkInteractionComponent> InteractionComp;
 	void ThrowCarried();
 	float LastStrikeEndTime = -1000.f;
 	float ComboCooldownUntil = -1000.f;

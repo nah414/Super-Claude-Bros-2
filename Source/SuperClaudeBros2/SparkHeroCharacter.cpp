@@ -22,6 +22,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Bramblehulk.h"
 #include "GrabbableProp.h"
+#include "SparkInteractionComponent.h"
 #include "SparkImpactBurst.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -206,6 +207,9 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	// Placeholder flame = a small sphere the meter scales; the point light is the
 	// part that actually sells it (and dims the world as the hero gutters).
 	EmberMeter = CreateDefaultSubobject<UEmberMeterComponent>(TEXT("EmberMeter"));
+
+	// The hero's one interaction brain (focus + tap/hold relight; reused world-wide).
+	InteractionComp = CreateDefaultSubobject<USparkInteractionComponent>(TEXT("InteractionComp"));
 
 	EmberFlame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EmberFlame"));
 	EmberFlame->SetupAttachment(VisualRoot);   // squashes with the body — flames bounce too
@@ -646,6 +650,7 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(PowerScrollAction, ETriggerEvent::Triggered, this, &ASparkHeroCharacter::HandlePowerScroll);
 		EIC->BindAction(ZoomPresetAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleZoomPreset);
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleInteractPressed);
+		EIC->BindAction(InteractAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleInteractReleased);
 		EIC->BindAction(SkinAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleCycleSkin);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleGuardPressed);
 		EIC->BindAction(SwitchHeroAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleSwitchHero);
@@ -1282,6 +1287,11 @@ void ASparkHeroCharacter::ApplySkin(int32 Index)
 
 void ASparkHeroCharacter::HandleInteractPressed()
 {
+	// Interactables first: a dark lantern's HOLD-relight (or a Tap lever/pickup). The
+	// interaction component consumes the press if something is focused; only then do we
+	// fall through to grab/drop.
+	if (InteractionComp && InteractionComp->OnInteractPressed()) { return; }
+
 	// E: drop what you hold, or grab the nearest prop in reach.
 	if (CarriedProp.IsValid())
 	{
@@ -1328,6 +1338,12 @@ void ASparkHeroCharacter::ThrowCarried()
 	CarriedProp->OnThrown(Dir * ThrowSpeed + FVector(0.f, 0.f, 320.f), this);
 	CarriedProp = nullptr;
 	ApplySquash(1.08f);   // the heave reads in the body
+}
+
+void ASparkHeroCharacter::HandleInteractReleased()
+{
+	// Release: complete (if the flame-climb filled) or interrupt the relight hold.
+	if (InteractionComp) { InteractionComp->OnInteractReleased(); }
 }
 
 float ASparkHeroCharacter::GetPowerReadyIn(ESparkPower Power) const
