@@ -27,8 +27,11 @@ M_FLOOR = EAL.load_asset("/Game/Art/CityMat/M_Sidewalk") or M_ASPHALT
 ROOF_Z = 2500.0
 
 # ---- clear prior dressing + the clashing cold-city clutter ----
-CLEAR_PREFIXES = ("Fest_", "Chain_", "Shop_", "ShopBox_", "Vend_", "NoodleStand",
-                  "Kiosk", "Monorail", "Holo_Mid")
+# NOTE: "ChainBox" must be listed explicitly — "Chain_" does NOT match "ChainBox_NN"
+# (the underscore differs), so the white fallback boxes for un-imported hover-car /
+# dumpster / crate meshes (build_neon_city.py:180) otherwise survive as street clutter.
+CLEAR_PREFIXES = ("Fest_", "Chain_", "ChainBox", "Shop_", "ShopBox_", "Vend_",
+                  "NoodleStand", "Kiosk", "Monorail", "Holo_Mid")
 removed = 0
 for a in eas.get_all_level_actors():
     try:
