@@ -12,6 +12,7 @@
 #include "LightStateComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "SparkHeroGameMode.h"
 #include "UObject/ConstructorHelpers.h"
 
 ALantern::ALantern()
@@ -115,6 +116,15 @@ void ALantern::Relight()
 			{
 				CP->SetActiveCheckpoint(this);
 			}
+		}
+	}
+
+	// The First Lantern: relighting it WINS the world.
+	if (bIsWorldGoal)
+	{
+		if (ASparkHeroGameMode* GM = Cast<ASparkHeroGameMode>(UGameplayStatics::GetGameMode(this)))
+		{
+			GM->OnWorldGoalLit();
 		}
 	}
 }

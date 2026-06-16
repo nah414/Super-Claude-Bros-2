@@ -9,9 +9,11 @@
 #include "Unlight.h"
 #include "VoidStalker.h"
 #include "GuardianFighter.h"
+#include "LightNetworkManager.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
 
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
@@ -39,6 +41,32 @@ UClass* ASparkHeroGameMode::GetDefaultPawnClassForController_Implementation(ACon
 		return ASparkHeroineCharacter::StaticClass();
 	}
 	return Super::GetDefaultPawnClassForController_Implementation(InController);
+}
+
+void ASparkHeroGameMode::OnWorldGoalLit()
+{
+	if (bWorldWon) { return; }
+	bWorldWon = true;
+
+	// The First Lantern roars: kindle the whole city back to amber — the celebration.
+	if (AActor* Found = UGameplayStatics::GetActorOfClass(this, ALightNetworkManager::StaticClass()))
+	{
+		Cast<ALightNetworkManager>(Found)->KindleGroup(NAME_None, 4.f);
+	}
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 9.f, FColor::Orange,
+			TEXT("THE FIRST LANTERN ROARS  —  ANTHROPICA is lit.  THE ROAD OPENS."));
+	}
+	// Travel to the next world after the celebration, if one is wired (else W1 stands alone).
+	if (!NextWorldMap.IsNone())
+	{
+		const FName Map = NextWorldMap;
+		GetWorldTimerManager().SetTimer(WinTravelTimer, [this, Map]()
+		{
+			UGameplayStatics::OpenLevel(this, Map);
+		}, 6.f, false);
+	}
 }
 
 void ASparkHeroGameMode::BeginPlay()
