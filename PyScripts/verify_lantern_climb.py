@@ -15,6 +15,7 @@ steep = []
 zmin, zmax = 1e9, -1e9
 floor_ok = goal_ok = start_ok = mgr_ok = False
 lanterns = shells_walls = 0
+flight_lands = []          # M2: switchback landings must NOT stack at one (X,Y)
 
 for a in actors:
     lbl = a.get_actor_label()
@@ -23,6 +24,8 @@ for a in actors:
     zmax = max(zmax, loc.z)
     key = lbl.replace("LC_", "").split("_")[0]
     cat[key] += 1
+    if lbl.startswith("LC_Land_"):
+        flight_lands.append((round(loc.x), round(loc.y)))
     if lbl.startswith("LC_Ramp_") or lbl.startswith("LC_Spiral_") or "Gond" in lbl:
         p = a.get_actor_rotation().pitch
         ramp_pitches.append(round(p, 1))
@@ -47,9 +50,17 @@ print(f"RAMPS: {len(ramp_pitches)}  pitch range: "
 print(f"STEEP_RAMPS (>30deg, not walkable): {steep}")
 print(f"LANTERNS: {lanterns}")
 print(f"FLOOR(no-void)={floor_ok}  GOAL_LANTERN={goal_ok}  PLAYERSTART={start_ok}  MANAGER={mgr_ok}")
+# M2: assert no two switchback landings share an (X,Y) -> the staircase no longer stacks overhead.
+stacked = []
+for i in range(len(flight_lands)):
+    for j in range(i + 1, len(flight_lands)):
+        if abs(flight_lands[i][0] - flight_lands[j][0]) < 100 and \
+           abs(flight_lands[i][1] - flight_lands[j][1]) < 100:
+            stacked.append((flight_lands[i], flight_lands[j]))
+print(f"SWITCHBACK_LANDINGS: {len(flight_lands)}  STACKED_OVERHEAD(bad): {stacked[:6]}")
 print("CATEGORY CENSUS:")
 for k in sorted(cat, key=lambda k: -cat[k]):
     print(f"   {cat[k]:4d}  {k}")
-ok = floor_ok and goal_ok and start_ok and mgr_ok and not steep and zmax > 8000
+ok = floor_ok and goal_ok and start_ok and mgr_ok and not steep and zmax > 8000 and not stacked
 print(f"VERIFY_CLIMB: {'PASS' if ok else 'FAIL'}")
 print("VERIFY_CLIMB_DONE")
