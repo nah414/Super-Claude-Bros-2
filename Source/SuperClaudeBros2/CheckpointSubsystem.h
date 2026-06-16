@@ -30,6 +30,10 @@ public:
 	/** True if the location is inside any LIT, refill-flagged lantern's radius. */
 	bool IsInsideRefillZone(const FVector& Location) const;
 
+	/** Gather the light-state components in a group (NAME_None = the whole city) — the
+	    LightNetworkManager uses this to sequence "The Night" and every relight finale. */
+	void CollectLightsInGroup(FName Group, TArray<ULightStateComponent*>& Out) const;
+
 private:
 	TWeakObjectPtr<ALantern> ActiveCheckpoint;
 	mutable TArray<TWeakObjectPtr<ULightStateComponent>> Lights;

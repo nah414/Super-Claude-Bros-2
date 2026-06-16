@@ -24,6 +24,23 @@ void UCheckpointSubsystem::RegisterLight(ULightStateComponent* Light)
 	if (Light) { Lights.AddUnique(Light); }
 }
 
+void UCheckpointSubsystem::CollectLightsInGroup(FName Group, TArray<ULightStateComponent*>& Out) const
+{
+	for (int32 i = Lights.Num() - 1; i >= 0; --i)
+	{
+		ULightStateComponent* L = Lights[i].Get();
+		if (!L)
+		{
+			Lights.RemoveAtSwap(i);
+			continue;
+		}
+		if (Group.IsNone() || L->GroupName == Group)
+		{
+			Out.Add(L);
+		}
+	}
+}
+
 bool UCheckpointSubsystem::IsInsideRefillZone(const FVector& Location) const
 {
 	for (int32 i = Lights.Num() - 1; i >= 0; --i)
