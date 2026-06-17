@@ -22,8 +22,8 @@ assert unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/NeonCity"), "LOAD
 
 CUBE = unreal.load_asset("/Engine/BasicShapes/Cube")
 M_ASPHALT = EAL.load_asset("/Game/Art/CityMat/M_WetAsphalt")
-M_BUILD = EAL.load_asset("/Game/Art/CityMat/M_Windows_b") or EAL.load_asset("/Game/Art/CityMat/M_Sidewalk")
-M_FLOOR = EAL.load_asset("/Game/Art/CityMat/M_Sidewalk") or M_ASPHALT
+M_BUILD = EAL.load_asset("/Game/Art/CityMat/M_IndustrialWindow") or EAL.load_asset("/Game/Art/CityMat/M_Windows_b")
+M_FLOOR = EAL.load_asset("/Game/Art/CityMat/M_Concrete") or EAL.load_asset("/Game/Art/CityMat/M_Sidewalk")
 ROOF_Z = 2500.0
 
 # ---- clear prior dressing + the clashing cold-city clutter ----

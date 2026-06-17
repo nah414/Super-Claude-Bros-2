@@ -86,6 +86,10 @@ void ALantern::BeginPlay()
 		LightState->SetState(ELightState::Dark);
 		RelightAt = Now() + AutoRelightSeconds;
 	}
+	else if (bStartGuttering && LightState)
+	{
+		LightState->SetState(ELightState::Guttering);   // visible dim beckon, still relightable
+	}
 
 	PaintIdle();   // paint the current state now
 }

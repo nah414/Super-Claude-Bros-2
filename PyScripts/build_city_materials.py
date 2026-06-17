@@ -28,6 +28,13 @@ WINDOWS = ["a", "b", "c"]
 
 
 def import_texture(png_name, asset_name, srgb=True):
+    # Reuse the already-imported texture if present — the AssetImportTask PNG import CRASHES
+    # under headless -run=pythonscript (Slate CurrentApplication.IsValid assertion). Loading an
+    # existing asset is safe headless; only a first-time import needs the GUI editor.
+    existing = unreal.load_asset(f"{TEX_DEST}/{asset_name}")
+    if existing:
+        print(f"TEX_REUSE: {asset_name}")
+        return existing
     src = os.path.join(TEX_SRC, png_name)
     if not os.path.isfile(src):
         raise SystemExit(f"TEX_MISSING: {src}")
@@ -215,4 +222,129 @@ finish(mat, "M_HoloBillboard", [
     ("base", MEL.connect_material_property(t, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)),
 ])
 
+# ============================================================================
+# GRITTY-INDUSTRIAL PBR LIBRARY (M1) — Adam's art direction: raw concrete, rusted
+# metal, warm grimy windows, under the warm night light. All PROCEDURAL (Noise +
+# masks, no scanned textures) so it's free + texture-light for the 8GB GPU.
+# ============================================================================
+
+def _x(mat, cls, x, y):
+    return MEL.create_material_expression(mat, cls, x, y)
+
+
+def _const(mat, v, x, y):
+    e = _x(mat, unreal.MaterialExpressionConstant, x, y)
+    e.set_editor_property("r", v)
+    return e
+
+
+def _rgb(mat, rgb, x, y):
+    e = _x(mat, unreal.MaterialExpressionConstant3Vector, x, y)
+    e.set_editor_property("constant", unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0))
+    return e
+
+
+def _noise(mat, x, y, scale=0.02, levels=4, omin=0.0, omax=1.0):
+    n = _x(mat, unreal.MaterialExpressionNoise, x, y)
+    try:
+        n.set_editor_property("scale", scale)
+        n.set_editor_property("levels", levels)
+        n.set_editor_property("output_min", omin)
+        n.set_editor_property("output_max", omax)
+    except Exception as e:
+        unreal.log_warning(f"noise prop skip: {e}")
+    return n
+
+
+def _lerp(mat, a, b, alpha, x, y, apin=""):
+    l = _x(mat, unreal.MaterialExpressionLinearInterpolate, x, y)
+    MEL.connect_material_expressions(a, "", l, "A")
+    MEL.connect_material_expressions(b, "", l, "B")
+    MEL.connect_material_expressions(alpha, apin, l, "Alpha")
+    return l
+
+
+def _mul(mat, a, b, x, y, apin="", bpin=""):
+    m = _x(mat, unreal.MaterialExpressionMultiply, x, y)
+    MEL.connect_material_expressions(a, apin, m, "A")
+    MEL.connect_material_expressions(b, bpin, m, "B")
+    return m
+
+
+def _worldZ01(mat, x, y, low=0.0, high=2000.0):
+    """A 0..1 gradient from world Z (low->0, high->1) — for grime-at-the-base / rust drips."""
+    wp = _x(mat, unreal.MaterialExpressionWorldPosition, x, y)
+    mz = _x(mat, unreal.MaterialExpressionComponentMask, x + 150, y)
+    mz.set_editor_property("r", False); mz.set_editor_property("g", False)
+    mz.set_editor_property("b", True); mz.set_editor_property("a", False)
+    MEL.connect_material_expressions(wp, "", mz, "")
+    sub = _x(mat, unreal.MaterialExpressionSubtract, x + 320, y)
+    lo = _const(mat, low, x + 150, y + 120)
+    MEL.connect_material_expressions(mz, "", sub, "A")
+    MEL.connect_material_expressions(lo, "", sub, "B")
+    dv = _x(mat, unreal.MaterialExpressionDivide, x + 480, y)
+    sp = _const(mat, max(1.0, high - low), x + 320, y + 120)
+    MEL.connect_material_expressions(sub, "", dv, "A")
+    MEL.connect_material_expressions(sp, "", dv, "B")
+    cl = _x(mat, unreal.MaterialExpressionClamp, x + 640, y)
+    MEL.connect_material_expressions(dv, "", cl, "")
+    return cl
+
+
+# ---- M_Concrete: brutalist raw concrete, mottled + grimy (default wall/cliff skin) ----
+mat = new_material("M_Concrete")
+nbig = _noise(mat, -1100, -200, scale=0.010, levels=4)        # big stain mottle
+nfin = _noise(mat, -1100, 200, scale=0.060, levels=3)         # fine grain
+darkc = _rgb(mat, (0.030, 0.031, 0.035), -800, -320)
+litec = _rgb(mat, (0.085, 0.083, 0.078), -800, -180)
+col = _lerp(mat, darkc, litec, nbig, -560, -240)
+grime = _worldZ01(mat, -1500, 360, low=0.0, high=900.0)       # dirtier near the ground
+grimed = _lerp(mat, _rgb(mat, (0.4, 0.4, 0.42), -560, -60), _rgb(mat, (1.0, 1.0, 1.0), -560, 40),
+               grime, -360, -20)
+basecol = _mul(mat, col, grimed, -180, -160)
+rdry = _const(mat, 0.88, -560, 200)
+rsmooth = _const(mat, 0.62, -560, 300)
+rough = _lerp(mat, rdry, rsmooth, nfin, -360, 240)
+finish(mat, "M_Concrete", [
+    ("base", MEL.connect_material_property(basecol, "", unreal.MaterialProperty.MP_BASE_COLOR)),
+    ("rough", MEL.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)),
+])
+
+# ---- M_RustMetal: painted industrial metal, rusted + streaked (spire, machinery, cliffs) ----
+mat = new_material("M_RustMetal")
+nrust = _noise(mat, -1100, -200, scale=0.018, levels=4)       # rust patch mask
+drip = _worldZ01(mat, -1500, 360, low=0.0, high=1400.0)       # rust runs DOWN -> invert
+inv = _x(mat, unreal.MaterialExpressionOneMinus, -760, 380)
+MEL.connect_material_expressions(drip, "", inv, "")
+rustmask = _mul(mat, nrust, inv, -560, 80)                    # rust where noise AND low
+paintc = _rgb(mat, (0.045, 0.060, 0.065), -800, -320)         # muted teal-grey industrial paint
+rustc = _rgb(mat, (0.18, 0.075, 0.030), -800, -180)           # rust orange-brown
+basecol = _lerp(mat, paintc, rustc, rustmask, -360, -240)
+metal = _lerp(mat, _const(mat, 0.85, -560, 440), _const(mat, 0.05, -560, 520), rustmask, -360, 460)
+rough = _lerp(mat, _const(mat, 0.45, -560, 620), _const(mat, 0.92, -560, 700), rustmask, -360, 640)
+finish(mat, "M_RustMetal", [
+    ("base", MEL.connect_material_property(basecol, "", unreal.MaterialProperty.MP_BASE_COLOR)),
+    ("metal", MEL.connect_material_property(metal, "", unreal.MaterialProperty.MP_METALLIC)),
+    ("rough", MEL.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)),
+])
+
+# ---- M_IndustrialWindow: warm grimy lit windows on a concrete frame (building facades) ----
+mat = new_material("M_IndustrialWindow")
+wt = _x(mat, unreal.MaterialExpressionTextureSample, -1100, 0)
+wt.set_editor_property("texture", textures["win_a"])
+wt.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+warm = _rgb(mat, (1.45, 0.82, 0.40), -1100, 240)              # warm sodium interior glow
+emis0 = _mul(mat, wt, warm, -820, 60, apin="RGB")
+emis = _mul(mat, emis0, _const(mat, 2.0, -1100, 340), -620, 80)
+nconc = _noise(mat, -1100, -320, scale=0.05, levels=3)
+fbase = _lerp(mat, _rgb(mat, (0.028, 0.028, 0.032), -820, -360),
+              _rgb(mat, (0.065, 0.062, 0.058), -820, -260), nconc, -560, -300)
+frough = _const(mat, 0.7, -560, -180)
+finish(mat, "M_IndustrialWindow", [
+    ("emissive", MEL.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+    ("base", MEL.connect_material_property(fbase, "", unreal.MaterialProperty.MP_BASE_COLOR)),
+    ("rough", MEL.connect_material_property(frough, "", unreal.MaterialProperty.MP_ROUGHNESS)),
+])
+
+print("GRITTY_MATERIALS_DONE")
 print("CITY_MATERIALS_DONE")

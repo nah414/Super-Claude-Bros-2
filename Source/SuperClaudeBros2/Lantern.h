@@ -79,6 +79,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
 	bool bStartDark = false;
 
+	/** Spawn GUTTERING — a dim, dying flame: VISIBLE so the player can find/aim at it, but
+	    not Lit, so it stays relightable. The crown First-Lantern beckon (so the goal isn't
+	    an invisible point you can't see to capture). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
+	bool bStartGuttering = false;
+
 	/** How long the relight HOLD takes (the flame-climb length). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lantern")
 	float RelightHoldSeconds = 1.2f;

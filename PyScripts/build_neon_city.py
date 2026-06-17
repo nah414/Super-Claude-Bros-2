@@ -42,7 +42,7 @@ def mat(name):
     return m
 
 M_ASPHALT = mat("M_WetAsphalt")
-M_SIDEWALK = mat("M_Sidewalk")
+M_SIDEWALK = mat("M_Concrete") or mat("M_Sidewalk")   # M1: gritty concrete walkways/fallbacks
 M_HOLO = mat("M_HoloBillboard")
 M_SIGNS = {s: mat(f"M_Sign_{s}") for s in
            ("kraken", "spark", "lumen", "moth", "warden", "glimmer", "district")}
