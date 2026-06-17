@@ -256,12 +256,12 @@ fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.004, 0
 fog.set_actor_label("SpaceFog")
 
 # NO SkyAtmosphere (that was the blue). A dim SkyLight only, so geometry isn't pure black.
-skylight = eas.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 800))
-# real_time_capture OFF: the star sky is static, so a one-time CapturedScene grab of the IsSky
-# StarDome is enough. Real-time re-capture cost ~3 GB/frame (6.4 GB peak) AND demanded a sky
-# (the "needs a SkyAtmosphere/IsSky" error/loop). Off = ~3.2 GB peak + no error.
-skylight.light_component.set_editor_property("real_time_capture", False)
-skylight.light_component.set_intensity(0.015)  # near-black space — neon carries the scene
+# NO SkyLight. A captured-scene SkyLight without a SkyAtmosphere shows the on-screen "needs a
+# SkyAtmosphere / VolumetricCloud / IsSky mesh ... or the problem will return" warning and keeps
+# re-validating (the first-seconds 'loop') — and the IsSky-mesh path only satisfies REAL-TIME
+# capture, not the static path, so it doesn't silence it. It was intensity 0.015 (negligible):
+# the moon directional + ~55 lights + neon emissive + software-Lumen GI carry the scene. The IsSky
+# StarDome is the visible starry sky. (Add a SpecifiedCubemap SkyLight later if corners read black.)
 skylight.set_actor_label("SkyLight")
 
 # The star-dome: engine Sphere, huge, two-sided M_StarNebula so it renders from the inside. Big
