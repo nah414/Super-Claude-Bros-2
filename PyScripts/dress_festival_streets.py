@@ -70,10 +70,10 @@ def wall(x, y, z, sx, sy, sz, label, material=M_BUILD, solid=True):
     return a
 
 
-def fprop(name, x, y, scale, yaw=0.0, z=None, solid=False):
+def fprop(name, x, y, scale, yaw=0.0, z=None, solid=False, kit="FestivalKit"):
     """Grounded by bbox (base on z=0) unless z given. Decorative = NO collision by default
     so it never blocks the path; the player walks through/under it."""
-    sm = EAL.load_asset(f"/Game/Art/FestivalKit/{name}/SM_{name}")
+    sm = EAL.load_asset(f"/Game/Art/{kit}/{name}/SM_{name}")
     if not sm:
         unreal.log_warning(f"MISSING {name}"); return None
     bb = sm.get_bounding_box()
@@ -141,6 +141,25 @@ for i in range(8):
     bx = BX0 + i * BSTEP
     building(bx, 1150, BW, 900, 1700 + (i % 3) * 120, f"BldgN_{i}", door=(i % 2 == 0))
     building(bx + BSTEP / 2, -1150, BW, 900, 1700 + (i % 2) * 160, f"BldgS_{i}", door=(i % 2 == 1))
+
+# ============================ INDUSTRIAL FACADE DETAIL (M2) ============================
+# Bolt gritty 3D facade/detail meshes onto the street-facing building walls so the flat cubes
+# read as real industrial architecture (Adam: "city buildings need better detail").
+# yaw: a facade's front (+X) -> 270 faces -Y (the street, for north buildings); 90 faces +Y (south).
+PANELS = ["brutalist_concrete_facade", "rusted_industrial_facade", "pipe_clad_wall", "girder_frame"]
+DETAILS = ["ac_unit_array", "ducting_run", "steam_vent_cluster", "transformer_box", "industrial_door"]
+IK = "IndustrialKit"
+for i in range(8):
+    bx = BX0 + i * BSTEP
+    hN = 1700 + (i % 3) * 120
+    fprop(PANELS[i % 4], bx, 1120, 8.5, yaw=270, kit=IK)                       # facade panel on the wall
+    fprop(DETAILS[i % 5], bx - 430, 1105, 3.6, yaw=270, z=520, kit=IK)         # a bolted-on detail
+    fprop("rooftop_machinery", bx + 220, 1350, 4.6, yaw=270, z=hN - 120, kit=IK)
+    sx = bx + BSTEP / 2
+    hS = 1700 + (i % 2) * 160
+    fprop(PANELS[(i + 2) % 4], sx, -1120, 8.5, yaw=90, kit=IK)
+    fprop(DETAILS[(i + 3) % 5], sx + 430, -1105, 3.6, yaw=90, z=520, kit=IK)
+    fprop("rooftop_machinery", sx - 220, -1350, 4.6, yaw=90, z=hS - 120, kit=IK)
 
 # A continuous low ground plane under it all (no void / no cliffs anywhere on the path).
 wall(1000, 0, -100, 16000, 5200, 200, "Ground", material=M_ASPHALT)
