@@ -233,10 +233,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
 	float WallLeapUp = 700.f;
 
-	/** TEMP: any wall climbs until the W3 GRIPPABLE material tags land — then this
-	    flips false and only bark/vine/rope/cable-class surfaces speak squid. */
+	/** Dev default: any wall climbs. Flip false for shipping -> only actors tagged ClimbableTag
+	    (the M5 cliff climb-architecture) can be gripped. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
 	bool bClimbAnywhere = true;
+
+	/** M7: when bClimbAnywhere is false, only actors carrying this tag are climbable. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	FName ClimbableTag = FName("Climbable");
 
 	// ---------------- THE SPARK SURGE KIT (Powers Codex §2 — Adam: build the FULL
 	// hero now, stage per-world later) ----------------

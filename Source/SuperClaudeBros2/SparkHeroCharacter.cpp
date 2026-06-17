@@ -1162,6 +1162,11 @@ void ASparkHeroCharacter::TryStartClimb()
 	}
 	if (FMath::Abs(WallHit.ImpactNormal.Z) > 0.55f) { return; }      // walls only (M6: relaxed 0.4->0.55)
 	if (FVector::DotProduct(LastWorldMoveInput, WallHit.ImpactNormal) > -0.5f) { return; }
+	// M7: when not climb-anywhere, only grip tagged climb-architecture (the M5 cliff facade).
+	if (!bClimbAnywhere && !(WallHit.GetActor() && WallHit.GetActor()->ActorHasTag(ClimbableTag)))
+	{
+		return;
+	}
 
 	bClimbing = true;
 	ClimbWallNormal = WallHit.ImpactNormal;
@@ -1692,9 +1697,9 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 			ClimbWallNormal = WallHit.ImpactNormal;
 		}
 	}
-	else if (!Move->IsMovingOnGround() && !bIsDashing && bClimbAnywhere)
+	else if (!Move->IsMovingOnGround() && !bIsDashing)
 	{
-		TryStartClimb();
+		TryStartClimb();   // M7: always probe; the tag gate inside enforces grippable-only
 	}
 
 	// Keep live-tuned values flowing into the movement component (editor tuning).
