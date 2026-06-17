@@ -370,6 +370,12 @@ finish(mat, "M_Interior", [
 mat = new_material("M_StarNebula")
 mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
 mat.set_editor_property("two_sided", True)
+# Is Sky = True so the real-time-capture SkyLight captures the StarDome as the sky (F4 removed the
+# SkyAtmosphere; without a sky the SkyLight errors + re-capture loops). Keeps the starry-space look.
+try:
+    mat.set_editor_property("is_sky", True)
+except Exception as _e:
+    unreal.log_warning(f"M_StarNebula is_sky not settable: {_e}")
 # stars: high-freq noise -> (n - 0.80) * 6 -> clamp 0..1 = a sparse bright mask
 nstar = _noise(mat, -1200, -200, scale=2.6, levels=1)
 ssub = _x(mat, unreal.MaterialExpressionSubtract, -980, -200)

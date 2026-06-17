@@ -257,7 +257,10 @@ fog.set_actor_label("SpaceFog")
 
 # NO SkyAtmosphere (that was the blue). A dim SkyLight only, so geometry isn't pure black.
 skylight = eas.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 800))
-skylight.light_component.set_editor_property("real_time_capture", True)
+# real_time_capture OFF: the star sky is static, so a one-time CapturedScene grab of the IsSky
+# StarDome is enough. Real-time re-capture cost ~3 GB/frame (6.4 GB peak) AND demanded a sky
+# (the "needs a SkyAtmosphere/IsSky" error/loop). Off = ~3.2 GB peak + no error.
+skylight.light_component.set_editor_property("real_time_capture", False)
 skylight.light_component.set_intensity(0.015)  # near-black space — neon carries the scene
 skylight.set_actor_label("SkyLight")
 
