@@ -62,20 +62,19 @@ def need(name, ok, why):
 
 
 truthy = lambda v: str(v).lower() in ("1", "true")
+le = lambda cap: (lambda v: as_num(v) is not None and as_num(v) <= cap)  # 0 is valid (not falsy-coerced)
 
 need("r.Streaming.LimitPoolSizeToVRAM", truthy, "must clamp the texture pool to VRAM")
-need("r.Streaming.PoolSize", lambda v: (as_num(v) or 9999) <= 1400, "pool <= 1400 MB on 8 GB")
-need("r.RayTracing.ResidentGeometryMemoryPoolSizeInMB",
-     lambda v: (as_num(v) or 9999) <= 640, "RT reflection-BVH pool <= 640 MB (was 1800)")
-need("r.Lumen.FinalGather.SampleResolutionScale", lambda v: (as_num(v) or 9) <= 1.0, "<= 1.0")
-need("r.Lumen.Reflections.SampleResolutionScale", lambda v: (as_num(v) or 9) <= 1.0, "<= 1.0")
-need("r.Shadow.Virtual.SMRT.RayCountLocal", lambda v: (as_num(v) or 99) <= 8, "<= 8 local SMRT rays")
+need("r.Streaming.PoolSize", le(1400), "pool <= 1400 MB on 8 GB")
+need("r.RayTracing.ResidentGeometryMemoryPoolSizeInMB", le(640), "RT BVH pool <= 640 MB (0 = RT off)")
+need("r.Lumen.FinalGather.SampleResolutionScale", le(1.0), "<= 1.0")
+need("r.Lumen.Reflections.SampleResolutionScale", le(1.0), "<= 1.0")
+need("r.Shadow.Virtual.SMRT.RayCountLocal", le(8), "<= 8 local SMRT rays")
 
-# Hybrid Lumen intent: GI software-cache + hardware-RT reflections.
-if not truthy(eff("r.Lumen.Reflections.HardwareRayTracing") or "0"):
-    warns.append("r.Lumen.Reflections.HardwareRayTracing not True (Adam picked HW reflections)")
-if eff("r.Lumen.HardwareRayTracing.LightingMode") not in ("1", None):
-    warns.append(f"r.Lumen.HardwareRayTracing.LightingMode={eff('r.Lumen.HardwareRayTracing.LightingMode')} (want 1 = Hit Lighting for Reflections)")
+# Software Lumen intent: hardware RT must be OFF (it hung the 8 GB GPU at 1080p).
+if truthy(eff("r.RayTracing") or "0") or truthy(eff("r.Lumen.HardwareRayTracing") or "0"):
+    fails.append("hardware ray tracing still ON (r.RayTracing / r.Lumen.HardwareRayTracing) — "
+                 "it hung the 8 GB GPU; want software Lumen (RayTracing=False)")
 
 # Sanity: the DeviceProfile must exist and declare the Windows profile.
 if not os.path.isfile(DEVPROF):
