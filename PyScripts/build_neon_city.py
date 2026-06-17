@@ -255,18 +255,17 @@ fc.set_editor_property("fog_density", 0.004)                 # was 0.022 — let
 fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.004, 0.004, 0.010, 1.0))
 fog.set_actor_label("SpaceFog")
 
-# NO SkyAtmosphere (that was the blue). A dim SkyLight only, so geometry isn't pure black.
-# NO SkyLight. A captured-scene SkyLight without a SkyAtmosphere shows the on-screen "needs a
-# SkyAtmosphere / VolumetricCloud / IsSky mesh ... or the problem will return" warning and keeps
-# re-validating (the first-seconds 'loop') — and the IsSky-mesh path only satisfies REAL-TIME
-# capture, not the static path, so it doesn't silence it. It was intensity 0.015 (negligible):
-# the moon directional + ~55 lights + neon emissive + software-Lumen GI carry the scene. The IsSky
-# StarDome is the visible starry sky. (Add a SpecifiedCubemap SkyLight later if corners read black.)
-skylight.set_actor_label("SkyLight")
+# NO SkyAtmosphere (the blue) and NO SkyLight. A captured-scene SkyLight without a SkyAtmosphere
+# shows the on-screen "needs a SkyAtmosphere / VolumetricCloud / IsSky mesh ... or the problem will
+# return" warning and keeps re-validating (the first-seconds 'loop'); the IsSky-mesh path only
+# satisfies REAL-TIME capture, not the static path. It was intensity 0.015 (negligible): the moon
+# directional + ~55 lights + neon + software-Lumen GI carry the scene; the IsSky StarDome is the sky.
 
-# The star-dome: engine Sphere, huge, two-sided M_StarNebula so it renders from the inside. Big
-# enough to enclose both the boulevard and the merged canyon (centred between them).
-star_sphere = EAL.load_asset("/Engine/BasicShapes/Sphere")
+# The star-dome: a COLLISION-FREE project copy of the engine Sphere (fix_skydome_asset.py strips its
+# collision). The raw /Engine/BasicShapes/Sphere ships a SOLID collision sphere that at this scale
+# enclosed the spawn and trapped the hero in a respawn loop (and component NoCollision did NOT persist
+# through the save — only the asset-level strip does). Huge + two-sided M_StarNebula = sky from inside.
+star_sphere = EAL.load_asset("/Game/Art/SM_SkyDome") or EAL.load_asset("/Engine/BasicShapes/Sphere")
 M_STARS = mat("M_StarNebula")
 if star_sphere and M_STARS:
     dome = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(6000, 0, 2000))
@@ -274,6 +273,10 @@ if star_sphere and M_STARS:
     dome.set_actor_scale3d(unreal.Vector(1200.0, 1200.0, 1200.0))  # ~60000uu radius — encloses W1
     dome.static_mesh_component.set_material(0, M_STARS)
     dome.static_mesh_component.set_editor_property("cast_shadow", False)
+    # NoCollision via the PROFILE (set_collision_enabled alone gets re-applied from the mesh's
+    # collision profile on load -> the dome kept a SOLID ~60000uu collision sphere enclosing the
+    # spawn -> the hero penetrated it and got shoved below RespawnBelowZ = respawn loop).
+    dome.static_mesh_component.set_collision_profile_name("NoCollision")
     dome.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
     try:
         dome.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
