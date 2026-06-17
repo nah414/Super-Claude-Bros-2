@@ -364,5 +364,33 @@ finish(mat, "M_Interior", [
     ("rough", MEL.connect_material_property(irough, "", unreal.MaterialProperty.MP_ROUGHNESS)),
 ])
 
+# ---- M_StarNebula: a starfield + faint nebula for the sky dome (city floating in space) ----
+# Unlit, two-sided (renders from inside the dome). Emissive = sparse white stars (thresholded
+# high-freq noise) + a faint violet/teal nebula (low-freq noise). No textures.
+mat = new_material("M_StarNebula")
+mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+mat.set_editor_property("two_sided", True)
+# stars: high-freq noise -> (n - 0.80) * 6 -> clamp 0..1 = a sparse bright mask
+nstar = _noise(mat, -1200, -200, scale=2.6, levels=1)
+ssub = _x(mat, unreal.MaterialExpressionSubtract, -980, -200)
+MEL.connect_material_expressions(nstar, "", ssub, "A")
+MEL.connect_material_expressions(_const(mat, 0.80, -1200, -60), "", ssub, "B")
+sscl = _mul(mat, ssub, _const(mat, 6.0, -980, -60), -800, -200)
+sclamp = _x(mat, unreal.MaterialExpressionClamp, -640, -200)
+MEL.connect_material_expressions(sscl, "", sclamp, "")
+star = _mul(mat, sclamp, _rgb(mat, (2.0, 2.1, 2.4), -640, -60), -460, -200)   # white-blue stars
+# nebula: low-freq noise -> faint violet<->teal tint
+nneb = _noise(mat, -1200, 260, scale=0.045, levels=4)
+nneb2 = _noise(mat, -1200, 460, scale=0.02, levels=3)
+nebtint = _lerp(mat, _rgb(mat, (0.060, 0.022, 0.090), -980, 320),
+                _rgb(mat, (0.012, 0.055, 0.070), -980, 440), nneb2, -800, 380)
+neb = _mul(mat, nneb, nebtint, -600, 320)                                     # faint nebula clouds
+emis = _x(mat, unreal.MaterialExpressionAdd, -300, 60)
+MEL.connect_material_expressions(star, "", emis, "A")
+MEL.connect_material_expressions(neb, "", emis, "B")
+finish(mat, "M_StarNebula", [
+    ("emissive", MEL.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+])
+
 print("GRITTY_MATERIALS_DONE")
 print("CITY_MATERIALS_DONE")

@@ -33,3 +33,7 @@ Saved/Screenshots/   # I'll copy out the ones I need to review; not version-cont
 # secrets (API keys) - never committed
 /_secrets/
 
+
+# Python bytecode from editor PyScripts
+__pycache__/
+*.pyc

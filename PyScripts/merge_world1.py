@@ -56,7 +56,28 @@ lc.OX = lc.OY = lc.OZ = 0.0
 gx = OX - 2300                                            # world X of the west cliff / doorway ~9800
 lc.lantern(gx - 120, -380, "seam_L", z=40, intensity=1500.0, radius=720.0)
 lc.lantern(gx - 120, 380, "seam_R", z=40, intensity=1500.0, radius=720.0)
-lc.fprop("festival_arch", gx - 60, 0, 4.0, yaw=90.0, z=0, kit="/Game/Art/FestivalKit")
+
+# F3 (Adam): no festival gate at the street->canyon seam. Instead a small, PASSABLE rubble +
+# debris pile (NO_COLLISION — the hero walks straight through). Meshy rubble lives in CityTowerKit;
+# if not imported yet, the seam simply stays open (still passable) until the next rebuild.
+RUBBLE_ROOT = "/Game/Art/CityTowerKit"
+def seam_rubble(kit, x, y, scale, yaw, label):
+    sm = EAL.load_asset(f"{RUBBLE_ROOT}/{kit}/SM_{kit}")
+    if not sm:
+        unreal.log_warning(f"RUBBLE_MISSING: {kit} (seam stays open, still passable)")
+        return
+    bb = sm.get_bounding_box()
+    rb = eas.spawn_actor_from_class(unreal.StaticMeshActor,
+                                    unreal.Vector(x, y, -bb.min.z * scale))
+    rb.static_mesh_component.set_static_mesh(sm)
+    rb.set_actor_scale3d(unreal.Vector(scale, scale, scale))
+    rb.set_actor_rotation(unreal.Rotator(0.0, 0.0, yaw), False)
+    rb.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    rb.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
+    rb.set_actor_label(label)
+
+seam_rubble("rubble_pile", gx - 60, -240, 3.4, 15.0, "Seam_Rubble_A")
+seam_rubble("debris_chunks", gx - 30, 300, 3.0, -40.0, "Seam_Rubble_B")
 
 saved = les.save_current_level()
 print(f"WORLD1_MERGED: cleared={removed} canyon_origin={(OX, OY, OZ)} saved={saved}")
