@@ -86,7 +86,7 @@ def glow(x, y, z, color, intensity=2200.0, radius=900.0, label="Neon"):
     li = eas.spawn_actor_from_class(unreal.PointLight, unreal.Vector(x, y, z))
     lc = li.light_component
     lc.set_light_color(color)
-    lc.set_intensity(intensity * 0.45)  # NIGHT: glow wins by contrast, not wattage
+    lc.set_intensity(intensity * 0.22)  # NIGHT: glow wins by contrast, not wattage (toned down ~half)
     lc.set_editor_property("attenuation_radius", radius)
     lc.set_editor_property("cast_shadows", True)  # MegaLights eats this for breakfast
     try:  # keep the fog from drinking every light and glowing white
@@ -248,8 +248,8 @@ def pp(prop_name, value):
     except Exception as e:
         unreal.log_warning(f"pp skip {prop_name}: {e}")
 pp("bloom_method", unreal.BloomMethod.BM_FFT)
-pp("bloom_intensity", 1.15)
-pp("bloom_threshold", 1.35)
+pp("bloom_intensity", 0.5)      # was 1.15 — the over-bright lights were blooming into glare
+pp("bloom_threshold", 1.6)
 pp("auto_exposure_min_brightness", -1.6)
 pp("auto_exposure_max_brightness", -1.6)
 pp("film_grain_intensity", 0.12)

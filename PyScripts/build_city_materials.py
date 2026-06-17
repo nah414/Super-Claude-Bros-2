@@ -154,12 +154,12 @@ for v in WINDOWS:
     t.set_editor_property("texture", textures[f"win_{v}"])
     t.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
     boost = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -700, 220)
-    boost.set_editor_property("r", 1.0)  # windows glitter; they must not LIGHT the city
+    boost.set_editor_property("r", 0.8)  # windows glitter; they must not LIGHT the city
     mul = MEL.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, 80)
     MEL.connect_material_expressions(t, "RGB", mul, "A")
     MEL.connect_material_expressions(boost, "", mul, "B")
     dark = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant3Vector, -700, -180)
-    dark.set_editor_property("constant", unreal.LinearColor(0.01, 0.011, 0.014, 1.0))
+    dark.set_editor_property("constant", unreal.LinearColor(0.075, 0.073, 0.080, 1.0))  # visible concrete, not a void
     finish(mat, f"M_Windows_{v}", [
         ("emissive", MEL.connect_material_property(mul, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
         ("base", MEL.connect_material_property(dark, "", unreal.MaterialProperty.MP_BASE_COLOR)),
@@ -295,8 +295,8 @@ def _worldZ01(mat, x, y, low=0.0, high=2000.0):
 mat = new_material("M_Concrete")
 nbig = _noise(mat, -1100, -200, scale=0.010, levels=4)        # big stain mottle
 nfin = _noise(mat, -1100, 200, scale=0.060, levels=3)         # fine grain
-darkc = _rgb(mat, (0.030, 0.031, 0.035), -800, -320)
-litec = _rgb(mat, (0.085, 0.083, 0.078), -800, -180)
+darkc = _rgb(mat, (0.060, 0.061, 0.066), -800, -320)
+litec = _rgb(mat, (0.185, 0.180, 0.165), -800, -180)
 col = _lerp(mat, darkc, litec, nbig, -560, -240)
 grime = _worldZ01(mat, -1500, 360, low=0.0, high=900.0)       # dirtier near the ground
 grimed = _lerp(mat, _rgb(mat, (0.4, 0.4, 0.42), -560, -60), _rgb(mat, (1.0, 1.0, 1.0), -560, 40),
@@ -335,11 +335,13 @@ wt.set_editor_property("texture", textures["win_a"])
 wt.set_editor_property("sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
 warm = _rgb(mat, (1.45, 0.82, 0.40), -1100, 240)              # warm sodium interior glow
 emis0 = _mul(mat, wt, warm, -820, 60, apin="RGB")
-emis = _mul(mat, emis0, _const(mat, 2.0, -1100, 340), -620, 80)
+# Lower window emissive so it doesn't blow out, and a VISIBLE concrete wall (was near-black ->
+# buildings read as "see-through" voids). Now the wall is solid grey concrete WITH lit windows.
+emis = _mul(mat, emis0, _const(mat, 1.25, -1100, 340), -620, 80)
 nconc = _noise(mat, -1100, -320, scale=0.05, levels=3)
-fbase = _lerp(mat, _rgb(mat, (0.028, 0.028, 0.032), -820, -360),
-              _rgb(mat, (0.065, 0.062, 0.058), -820, -260), nconc, -560, -300)
-frough = _const(mat, 0.7, -560, -180)
+fbase = _lerp(mat, _rgb(mat, (0.105, 0.100, 0.094), -820, -360),
+              _rgb(mat, (0.225, 0.215, 0.195), -820, -260), nconc, -560, -300)
+frough = _const(mat, 0.72, -560, -180)
 finish(mat, "M_IndustrialWindow", [
     ("emissive", MEL.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
     ("base", MEL.connect_material_property(fbase, "", unreal.MaterialProperty.MP_BASE_COLOR)),

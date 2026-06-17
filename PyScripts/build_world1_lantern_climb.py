@@ -272,9 +272,9 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
     # each pair, brighter (Adam: "we still need more lights along our spiral staircase").
     for i in range(1, len(spire_wp)):
         px, py, pz = spire_wp[i]
-        offx = 220.0 if i % 2 == 1 else -220.0
-        lantern(px + offx, py, f"spire_{i:02d}", z=pz + 50, relight_radius=300.0, auto=9.0,
-                scale=0.85, intensity=1500.0, radius=760.0)
+        for off in (270.0, -270.0):                    # a torch on BOTH sides of every intersection
+            lantern(px + off, py, f"spire_{i:02d}_{int(off)}", z=pz + 50, relight_radius=300.0,
+                    auto=9.0, scale=0.85, intensity=1500.0, radius=760.0)
     for i in range(len(spire_wp) - 1):
         ax, ay, az = spire_wp[i]
         bx, by, bz = spire_wp[i + 1]
@@ -363,7 +363,7 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
                 unreal.log_warning(f"pp skip {name}: {e}")
 
         pp("bloom_method", unreal.BloomMethod.BM_FFT)
-        pp("bloom_intensity", 1.2)
+        pp("bloom_intensity", 0.5)      # toned down — over-bright lights were glaring
         pp("auto_exposure_min_brightness", -1.5)
         pp("auto_exposure_max_brightness", -1.5)
         pp("film_grain_intensity", 0.12)

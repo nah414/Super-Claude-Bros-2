@@ -185,13 +185,13 @@ fprop("mega_sign_tower", 5600, -1850, 5.0)
 # ============================ THE INTERACTIVE LANTERNS ============================
 # Warm ambient lanterns along the kerbs (lit).
 for x in range(-3600, 6400, 1700):
-    lantern(x, 640, f"amb_{x}_L")
-    lantern(x + 850, -640, f"amb_{x}_R")
+    lantern(x, 640, f"amb_{x}_L", intensity=520.0, radius=460.0)
+    lantern(x + 850, -640, f"amb_{x}_R", intensity=520.0, radius=460.0)
 
 # Dark CHECKPOINT lamps at the road edges near each gateway — relight them (hold E).
 for i, cx in enumerate((-2600, 700, 3500, 6000)):
     lantern(cx, 560 if i % 2 else -560, f"cp_{i}", checkpoint=True, dark=True,
-            relight_radius=0.0, auto=0.0, scale=1.1, intensity=1500.0, radius=680.0)
+            relight_radius=0.0, auto=0.0, scale=1.1, intensity=850.0, radius=560.0)
 
 # NOTE: the rooftop First-Lantern GOAL + the festival LightNetworkManager were REMOVED here.
 # World 1's single goal is now the First Lantern at the canyon crown (built by the canyon merge,
