@@ -120,9 +120,9 @@ def lantern(x, y, label, *, z, checkpoint=False, goal=False, dark=False,
     return a
 
 
-def fprop(name, x, y, scale, yaw=0.0, z=None, solid=False, kit=None):
+def fprop(name, x, y, scale, yaw=0.0, z=None, solid=False, kit=None, tag=None):
     """A Meshy kit prop (LanternClimbKit by default, or `kit` path); bbox-grounded unless z given.
-    Skips (logs) if the kit isn't imported yet so the structure builds without it."""
+    Skips (logs) if the kit isn't imported yet. `tag` stamps an actor tag (e.g. "Climbable")."""
     base = kit or KIT
     sm = EAL.load_asset(f"{base}/{name}/SM_{name}")
     if not sm:
@@ -138,6 +138,11 @@ def fprop(name, x, y, scale, yaw=0.0, z=None, solid=False, kit=None):
     a.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
     if not solid:
         a.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    if tag:
+        try:
+            a.set_editor_property("tags", [unreal.Name(tag)])
+        except Exception as e:
+            unreal.log_warning(f"tag {tag} skip: {e}")
     a.set_actor_label(f"LC_Prop_{name}_{P['prop']}")
     P["prop"] += 1
     return a
@@ -184,8 +189,10 @@ SWITCH_TOP_X = WX0 + (RAMPS - 1) * WX_STEP   # X of the last (top) flight ~ -555
 
 
 def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
-                 add_atmosphere=True, save=True):
-    """Build the canyon. origin offsets every actor; into_existing appends into the loaded map."""
+                 add_atmosphere=True, save=True, entry_gap_y=None):
+    """Build the canyon. origin offsets every actor; into_existing appends into the loaded map.
+    entry_gap_y (canyon-local Y) cuts a walk-through doorway in the WEST cliff so the merged
+    boulevard can lead into the canyon floor (None = sealed shaft, the standalone)."""
     global OX, OY, OZ, P
     OX, OY, OZ = origin
     P = Counter()
@@ -201,7 +208,14 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
     # ---- canyon shell: solid wet floor + cosmetic water + cliffs + end caps ----
     block(0, 0, FLOOR_TOP - 150, 5200, 6000, 300, "Floor", material=M_ASPHALT)
     block(0, 0, FLOOR_TOP + 6, 4600, 5400, 12, "Water", material=M_WATER, solid=False)
-    block(-2300, 0, 4600, 360, 6000, 9200, "CliffW", material=M_BUILD)
+    if entry_gap_y is None:
+        block(-2300, 0, 4600, 360, 6000, 9200, "CliffW", material=M_BUILD)
+    else:                                            # doorway in the west cliff for the merge entry
+        gw, gh = 900.0, 1000.0
+        y_s, y_n = entry_gap_y - gw / 2, entry_gap_y + gw / 2
+        block(-2300, (-3000 + y_s) / 2, 4600, 360, y_s + 3000, 9200, "CliffW_S", material=M_BUILD)
+        block(-2300, (y_n + 3000) / 2, 4600, 360, 3000 - y_n, 9200, "CliffW_N", material=M_BUILD)
+        block(-2300, entry_gap_y, (gh + 9200) / 2, 360, gw, 9200 - gh, "CliffW_lintel", material=M_BUILD)
     block(2300, 0, 4600, 360, 6000, 9200, "CliffE", material=M_BUILD2)
     block(0, -2950, 4600, 5200, 360, 9200, "CapS", material=M_BUILD)
     block(0, 2950, 4600, 5200, 360, 9200, "CapN", material=M_BUILD2)
@@ -282,6 +296,20 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
         fprop("overhead_cables", 0, -600 + (zz % 900), 2.4, yaw=0, z=zz)
     for (lx, ly, lz) in ((WX0 + 200, -1400, FLOOR_TOP), (-900, 1400, 1700), (1600, 0, 4000)):
         fprop("street_lantern", lx, ly, 1.8, z=lz)
+
+    # ---- M5: SOLID climbable wall architecture (tagged "Climbable" for the M7 gate) ----
+    # Replaces the old food-cart-on-the-wall clutter with proper city architecture you can climb.
+    CLIMB_KIT = "/Game/Art/ClimbKit"
+    facade = ["fire_escape_run", "tenement_balcony_climb", "brick_ledge_stack", "scaffold_run",
+              "pipe_rung_ladder", "vent_duct_ledges", "drainpipe_climb", "rebar_handholds"]
+    # a tall climbable facade up the EAST cliff (the free wall) -> a real alternate climb route
+    for j in range(7):
+        fprop(facade[j % len(facade)], 2080, -1700 + (j % 3) * 1500, 8.0, yaw=180,
+              z=FLOOR_TOP + j * 1250, solid=True, kit=CLIMB_KIT, tag="Climbable")
+    # climbable city facade on the south end cap
+    for j, nm in enumerate(("tenement_balcony_climb", "fire_escape_run", "brick_ledge_stack")):
+        fprop(nm, -1200 + j * 1400, -2740, 7.0, yaw=90, z=FLOOR_TOP + 400 + j * 1500,
+              solid=True, kit=CLIMB_KIT, tag="Climbable")
 
     # ---- ambient warm lanterns along the climb ----
     for (lx, ly, lz) in ((WX0, -1600, FLOOR_TOP + 60), (-1500, 1600, 2200), (-1100, -600, 3400),

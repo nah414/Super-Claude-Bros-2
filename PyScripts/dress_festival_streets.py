@@ -193,13 +193,10 @@ for i, cx in enumerate((-2600, 700, 3500, 6000)):
     lantern(cx, 560 if i % 2 else -560, f"cp_{i}", checkpoint=True, dark=True,
             relight_radius=0.0, auto=0.0, scale=1.1, intensity=1500.0, radius=680.0)
 
-# THE FIRST LANTERN — the dark GOAL on the rooftop crown.
-fprop("first_lantern", 11000, 0, 11.0, z=ROOF_Z)
-lantern(11000, 0, "FIRST", z=ROOF_Z + 40, goal=True, dark=True, relight_radius=0.0, auto=0.0,
-        scale=3.0, intensity=6000.0, radius=2600.0)
-
-mgr = eas.spawn_actor_from_class(NETMGR_CLASS, unreal.Vector(1500, 0, 800))
-mgr.set_actor_label("Fest_LightNetworkManager")
+# NOTE: the rooftop First-Lantern GOAL + the festival LightNetworkManager were REMOVED here.
+# World 1's single goal is now the First Lantern at the canyon crown (built by the canyon merge,
+# merge_world1.py), and the canyon's LC_LightNetworkManager is the one light hub. The street
+# keeps its ambient + dark checkpoint lanterns above.
 
 saved = ELSS.save_current_level()
 print(f"FEST_DRESS_DONE: {P['prop']} props, {P['bldg']} buildings, {P['wall']} walls, "
