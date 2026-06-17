@@ -268,12 +268,18 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
         ramp(spire_wp[i], spire_wp[i + 1], 440, f"Spiral_{i:02d}")
     for i, (px, py, pz) in enumerate(spire_wp):
         landing(px, py, pz, 500, 500, f"SpiralLand_{i:02d}")
-    # warm lanterns spiralling the tower so the path UP reads (Adam: "our path along our tower needs light")
-    for i in range(1, len(spire_wp), 2):
+    # warm lanterns ALL the way up the spiral staircase: one at every landing AND one between
+    # each pair, brighter (Adam: "we still need more lights along our spiral staircase").
+    for i in range(1, len(spire_wp)):
         px, py, pz = spire_wp[i]
-        offx = 240.0 if i % 4 == 1 else -240.0
-        lantern(px + offx, py, f"spire_{i:02d}", z=pz + 40, relight_radius=300.0, auto=9.0,
-                scale=0.8, intensity=1000.0, radius=560.0)
+        offx = 220.0 if i % 2 == 1 else -220.0
+        lantern(px + offx, py, f"spire_{i:02d}", z=pz + 50, relight_radius=300.0, auto=9.0,
+                scale=0.85, intensity=1500.0, radius=760.0)
+    for i in range(len(spire_wp) - 1):
+        ax, ay, az = spire_wp[i]
+        bx, by, bz = spire_wp[i + 1]
+        lantern((ax + bx) / 2, (ay + by) / 2, f"spiremid_{i:02d}", z=(az + bz) / 2 + 50,
+                relight_radius=300.0, auto=9.0, scale=0.7, intensity=1200.0, radius=660.0)
 
     fprop("first_lantern_spire", 0.0, 0.0, 14.0, z=SPIRE_BASE_Z, solid=False)
     fprop("waygate_arch", 0.0, 560.0, 4.0, yaw=0.0, z=CROWN_Z - 120, solid=False)
