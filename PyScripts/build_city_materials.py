@@ -348,5 +348,21 @@ finish(mat, "M_IndustrialWindow", [
     ("rough", MEL.connect_material_property(frough, "", unreal.MaterialProperty.MP_ROUGHNESS)),
 ])
 
+# ---- M_Interior: warm industrial ROOM INTERIOR (concrete/plaster, NO windows) ----
+# So the side rooms read as the inside of a building, not its window-covered exterior.
+mat = new_material("M_Interior")
+nin = _noise(mat, -1000, -100, scale=0.045, levels=3)
+ibase = _lerp(mat, _rgb(mat, (0.115, 0.104, 0.092), -700, -260),
+              _rgb(mat, (0.205, 0.188, 0.160), -700, -120), nin, -460, -200)
+igr = _worldZ01(mat, -1400, 240, low=0.0, high=600.0)        # grimier toward the floor
+igrimed = _lerp(mat, _rgb(mat, (0.55, 0.55, 0.57), -460, 120), _rgb(mat, (1.0, 1.0, 1.0), -460, 200),
+                igr, -260, 140)
+ibasecol = _mul(mat, ibase, igrimed, -100, -60)
+irough = _const(mat, 0.82, -460, 320)
+finish(mat, "M_Interior", [
+    ("base", MEL.connect_material_property(ibasecol, "", unreal.MaterialProperty.MP_BASE_COLOR)),
+    ("rough", MEL.connect_material_property(irough, "", unreal.MaterialProperty.MP_ROUGHNESS)),
+])
+
 print("GRITTY_MATERIALS_DONE")
 print("CITY_MATERIALS_DONE")

@@ -24,6 +24,7 @@ CUBE = unreal.load_asset("/Engine/BasicShapes/Cube")
 M_ASPHALT = EAL.load_asset("/Game/Art/CityMat/M_WetAsphalt")
 M_BUILD = EAL.load_asset("/Game/Art/CityMat/M_IndustrialWindow") or EAL.load_asset("/Game/Art/CityMat/M_Windows_b")
 M_FLOOR = EAL.load_asset("/Game/Art/CityMat/M_Concrete") or EAL.load_asset("/Game/Art/CityMat/M_Sidewalk")
+M_INTERIOR = EAL.load_asset("/Game/Art/CityMat/M_Interior") or M_FLOOR   # side-room interior walls
 ROOF_Z = 2500.0
 
 # ---- clear prior dressing + the clashing cold-city clutter ----
@@ -106,47 +107,42 @@ def lantern(x, y, label, *, z=0.0, checkpoint=False, goal=False, dark=False,
     return a
 
 
-def building(cx, front_y, w, depth, h, label, door=True, dress=True):
-    """An enterable building: floor + roof + back/side walls + a front wall with a DOOR
-    gap. Interior gets a warm lantern + crates so entering is rewarding."""
+def building(cx, front_y, w, depth, h, label, door=True, dress=True, wall_mat=None):
+    """An enterable building: floor + roof + back/side walls + a front wall with a DOOR gap.
+    wall_mat overrides the wall/roof skin (side rooms pass M_Interior so the inside reads as a
+    building interior, not its window-covered exterior)."""
+    wmat = wall_mat or M_BUILD
     sgn = 1.0 if front_y > 0 else -1.0
     back_y = front_y + sgn * depth
     cy = (front_y + back_y) / 2.0
     T = 40.0
     wall(cx, cy, 4, w, depth, 8, f"{label}_floor", material=M_FLOOR)
-    wall(cx, cy, h, w, depth, 30, f"{label}_roof")
-    wall(cx, back_y, h / 2, w, T, h, f"{label}_back")
-    wall(cx - w / 2, cy, h / 2, T, depth, h, f"{label}_sL")
-    wall(cx + w / 2, cy, h / 2, T, depth, h, f"{label}_sR")
+    wall(cx, cy, h, w, depth, 30, f"{label}_roof", material=wmat)
+    wall(cx, back_y, h / 2, w, T, h, f"{label}_back", material=wmat)
+    wall(cx - w / 2, cy, h / 2, T, depth, h, f"{label}_sL", material=wmat)
+    wall(cx + w / 2, cy, h / 2, T, depth, h, f"{label}_sR", material=wmat)
     if door:
         dw, dh = 380.0, 520.0
         seg = (w - dw) / 2.0
-        wall(cx - (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fL")
-        wall(cx + (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fR")
-        wall(cx, front_y, (dh + h) / 2, dw, T, h - dh, f"{label}_lintel")  # wall over the door
+        wall(cx - (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fL", material=wmat)
+        wall(cx + (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fR", material=wmat)
+        wall(cx, front_y, (dh + h) / 2, dw, T, h - dh, f"{label}_lintel", material=wmat)
         if dress:
             lantern(cx, cy + sgn * 60, f"in_{label}", relight_radius=350.0, scale=0.9)
             fprop("market_crates", cx - w * 0.28, cy, 1.1)
             fprop("market_crates", cx + w * 0.26, cy + sgn * 120, 0.9, yaw=40)
     else:
-        wall(cx, front_y, h / 2, w, T, h, f"{label}_front")
+        wall(cx, front_y, h / 2, w, T, h, f"{label}_front", material=wmat)
     P["bldg"] += 1
 
 
-# ============================ ENTERABLE BUILDINGS line both sides ============================
-# Continuous row, front face at y=+-1150, depth 900 (toward the towers). Alternating
-# enterable (door) / solid, so the street is a believable canyon of shops you can enter.
+# ============================ BUILDINGS + 6 ENTERABLE SIDE ROOMS ============================
+# The street is a row of buildings; exactly 6 are ENTERABLE side rooms (door + INTERIOR walls +
+# furnishing), the rest are solid backdrop fully clad in facades. Facades FLANK doorways (never
+# cover them). Side rooms read as a real building interior (M_Interior, not exterior windows) and
+# hold a content pedestal for future artifacts / power-ups / enemies.
 BX0, BSTEP, BW = -4600.0, 1560.0, 1500.0
-for i in range(8):
-    bx = BX0 + i * BSTEP
-    building(bx, 1150, BW, 900, 1700 + (i % 3) * 120, f"BldgN_{i}", door=(i % 2 == 0))
-    building(bx + BSTEP / 2, -1150, BW, 900, 1700 + (i % 2) * 160, f"BldgS_{i}", door=(i % 2 == 1))
-
-# ============================ INDUSTRIAL FACADE DETAIL + 6 SIDE ROOMS (M2) ============================
-# Bolt gritty 3D facade/detail meshes onto the building walls. CRUCIAL: where a building has a
-# DOOR, the facade FLANKS the doorway (never covers it) so the side room stays enterable
-# (Adam: "the side rooms disappeared"). yaw: facade front (+X) -> 270 faces -Y (street, north);
-# 90 faces +Y (street, south).
+SIDE_N, SIDE_S = {0, 2, 4}, {1, 3, 5}
 PANELS = ["brutalist_concrete_facade", "rusted_industrial_facade", "pipe_clad_wall", "girder_frame"]
 DETAILS = ["ac_unit_array", "ducting_run", "steam_vent_cluster", "transformer_box"]
 IK = "IndustrialKit"
@@ -154,7 +150,7 @@ IK = "IndustrialKit"
 
 def dress_facade(cx, front_y, h, has_door, idx):
     sgn = 1.0 if front_y > 0 else -1.0
-    fy = front_y - sgn * 30                       # just in front of the wall, toward the street
+    fy = front_y - sgn * 30
     yaw = 270 if front_y > 0 else 90
     if has_door:                                  # flank the ~380-wide door, leaving it clear
         fprop(PANELS[idx % 4], cx - 480, fy, 3.0, yaw=yaw, kit=IK)
@@ -165,26 +161,33 @@ def dress_facade(cx, front_y, h, has_door, idx):
     fprop("rooftop_machinery", cx + sgn * 200, front_y + sgn * 220, 4.6, yaw=yaw, z=h - 120, kit=IK)
 
 
-def sideroom_content(cx, cy, label):
-    """A content anchor inside a side room — a low pedestal + a warm interior light, ready to
-    hold artifacts / bonus power-ups / enemies later. Labeled so future code can find it."""
-    wall(cx, cy, 60, 220, 220, 120, f"SideRoom_{label}_pedestal", material=M_FLOOR)
-    lantern(cx, cy + 90, f"room_{label}", z=210, relight_radius=420.0, scale=0.85,
-            intensity=950.0, radius=560.0)
+def sideroom(cx, front_y, depth, label, sgn):
+    """Furnish a side room as a real industrial INTERIOR: a content pedestal, warm hanging light,
+    and interior dressing (crates, a corner unit, overhead ducting)."""
+    cy = front_y + sgn * depth / 2.0
+    back = front_y + sgn * (depth - 130)
+    wall(cx, cy, 70, 240, 240, 140, f"SideRoom_{label}_pedestal", material=M_FLOOR)
+    lantern(cx, cy, f"room_{label}", z=360, relight_radius=420.0, scale=0.9, intensity=1000.0, radius=640.0)
+    fprop("market_crates", cx - 430, cy + sgn * 60, 1.2)
+    fprop("market_crates", cx + 400, cy - sgn * 80, 0.9, yaw=35)
+    fprop("transformer_box", cx - 480, back, 1.9, yaw=(0 if sgn > 0 else 180), kit=IK)
+    fprop("ducting_run", cx + 250, back, 2.4, yaw=90, z=820, kit=IK)
 
 
-SIDE_N, SIDE_S = {0, 2, 4}, {1, 3, 5}             # the 6 enterable side rooms (these have doors)
 for i in range(8):
     bx = BX0 + i * BSTEP
     sx = bx + BSTEP / 2
     hN = 1700 + (i % 3) * 120
     hS = 1700 + (i % 2) * 160
-    dress_facade(bx, 1150, hN, i % 2 == 0, i)
-    dress_facade(sx, -1150, hS, i % 2 == 1, i + 2)
-    if i in SIDE_N:
-        sideroom_content(bx, 1600, f"N{i}")       # interior centre of the north room
-    if i in SIDE_S:
-        sideroom_content(sx, -1600, f"S{i}")
+    nr, sr = i in SIDE_N, i in SIDE_S
+    building(bx, 1150, BW, 900, hN, f"BldgN_{i}", door=nr, dress=False, wall_mat=(M_INTERIOR if nr else None))
+    building(sx, -1150, BW, 900, hS, f"BldgS_{i}", door=sr, dress=False, wall_mat=(M_INTERIOR if sr else None))
+    dress_facade(bx, 1150, hN, nr, i)
+    dress_facade(sx, -1150, hS, sr, i + 2)
+    if nr:
+        sideroom(bx, 1150, 900, f"N{i}", 1.0)
+    if sr:
+        sideroom(sx, -1150, 900, f"S{i}", -1.0)
 
 # A continuous low ground plane under it all (no void / no cliffs anywhere on the path).
 wall(1000, 0, -100, 16000, 5200, 200, "Ground", material=M_ASPHALT)
