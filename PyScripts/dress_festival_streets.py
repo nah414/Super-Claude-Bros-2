@@ -142,7 +142,7 @@ def building(cx, front_y, w, depth, h, label, door=True, dress=True, wall_mat=No
 # cover them). Side rooms read as a real building interior (M_Interior, not exterior windows) and
 # hold a content pedestal for future artifacts / power-ups / enemies.
 BX0, BSTEP, BW = -4600.0, 1560.0, 1500.0
-SIDE_N, SIDE_S = {0, 2, 4}, {1, 3, 5}
+SIDE_N, SIDE_S = {0, 2, 4, 6, 7}, {1, 3, 5, 6, 7}   # +4 rooms (Adam): pairs 6 & 7 now enterable both sides
 PANELS = ["brutalist_concrete_facade", "rusted_industrial_facade", "pipe_clad_wall", "girder_frame"]
 DETAILS = ["ac_unit_array", "ducting_run", "steam_vent_cluster", "transformer_box"]
 IK = "IndustrialKit"
@@ -167,7 +167,9 @@ def sideroom(cx, front_y, depth, label, sgn):
     cy = front_y + sgn * depth / 2.0
     back = front_y + sgn * (depth - 130)
     wall(cx, cy, 70, 240, 240, 140, f"SideRoom_{label}_pedestal", material=M_FLOOR)
-    lantern(cx, cy, f"room_{label}", z=360, relight_radius=420.0, scale=0.9, intensity=1000.0, radius=640.0)
+    # Brighter room torch (Adam: rooms too dark to see) — ~3x intensity + wider reach so the flame
+    # lights ~65% of the ~1500x900 room; raised a bit so it spreads across the floor, not a tiny pool.
+    lantern(cx, cy, f"room_{label}", z=520, relight_radius=420.0, scale=1.0, intensity=3000.0, radius=1150.0)
     fprop("market_crates", cx - 430, cy + sgn * 60, 1.2)
     fprop("market_crates", cx + 400, cy - sgn * 80, 0.9, yaw=35)
     fprop("transformer_box", cx - 480, back, 1.9, yaw=(0 if sgn > 0 else 180), kit=IK)

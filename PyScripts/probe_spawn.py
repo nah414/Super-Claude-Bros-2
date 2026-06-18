@@ -75,8 +75,8 @@ for a in actors:
 rooms = sorted(a.get_actor_label() for a in actors
                if "SideRoom_" in a.get_actor_label() and a.get_actor_label().endswith("_pedestal"))
 print(f"SIDEROOM_CENSUS: {len(rooms)} -> {rooms}")
-if len(rooms) < 9:
-    print(f"  *** expected >=9 side rooms (6 mid + 3 end), found {len(rooms)} ***")
+if len(rooms) < 13:
+    print(f"  *** expected >=13 side rooms (10 mid + 3 end), found {len(rooms)} ***")
 nearest = None
 for a in actors:
     if a.get_actor_label().startswith(("CityWall_N_", "CityWall_S_")):
