@@ -3,17 +3,9 @@
 
 IMPLEMENT_PRIMARY_GAME_MODULE(FDefaultGameModuleImpl, SuperClaudeBros2, "SuperClaudeBros2");
 
-// --- Hybrid-laptop GPU selection -------------------------------------------------------------
-// Force the discrete GPU (RTX 5070 Laptop, 8 GB) instead of the AMD Radeon 890M iGPU (512 MB).
-// The mobile NVIDIA Optimus / AMD PowerXpress drivers read these exported symbols from the
-// executable's export table at launch and bind the high-performance dGPU. UE happens to pick
-// the dGPU today, but a driver/dock/power-profile change could reroute to the iGPU — on which
-// this game OOMs instantly. Must live in the PRIMARY GAME MODULE cpp so the symbols land in the
-// game/editor .exe export table. (Does NOT change CPU/GPU split — the game always runs on the GPU.)
-#if PLATFORM_WINDOWS
-extern "C"
-{
-	__declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;          // prefer NVIDIA dGPU
-	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 0x00000001;   // prefer AMD dGPU
-}
-#endif
+// NOTE on discrete-GPU selection: do NOT export NvOptimusEnablement /
+// AmdPowerXpressRequestHighPerformance here. The engine's Launch module (LaunchWindows.cpp) already
+// exports them =1 (prefer the discrete NVIDIA/AMD GPU), so a duplicate definition in this module
+// link-errors the MONOLITHIC packaged/cooked build (LNK2005 "already defined in Module.Launch.cpp.obj").
+// The dGPU preference is already in effect from the engine; nothing to add. (The modular editor build
+// tolerated the duplicate, which is why it only surfaced at cook time.)
