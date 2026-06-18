@@ -36,10 +36,22 @@ for a in enemies:
             except Exception:
                 pass
 
+# colored-skin spot-check: body slot-0 material should be one of the M_Enemy* tints
+tinted_ok = 0
+for a in enemies:
+    for sm in a.get_components_by_class(unreal.StaticMeshComponent):
+        if "Eye" in sm.get_name():
+            continue
+        m = sm.get_material(0)
+        if m and m.get_name().startswith("M_Enemy"):
+            tinted_ok += 1
+        break
+
 total = len(enemies)
 print(f"W1_ENEMY_PROBE total={total} by_type={by_type} zones={zones}")
 print(f"  anti-lag: draw-cull set on {culled_ok}/{total}; moth lights shadow-off {moth_shadow_off}")
-ok = (total == 25 and by_type.get("Glimmer") == 14 and by_type.get("Roly") == 7
-      and by_type.get("FlitMoth") == 4 and culled_ok == total)
+print(f"  colored skin (M_Enemy* on body slot0): {tinted_ok}/{total}")
+ok = (total == 40 and by_type.get("Glimmer") == 22 and by_type.get("Roly") == 12
+      and by_type.get("FlitMoth") == 6 and culled_ok == total and tinted_ok == total)
 print("W1_ENEMY_PROBE: " + ("PASS" if ok else "FAIL"))
 print("W1_ENEMY_PROBE_DONE")

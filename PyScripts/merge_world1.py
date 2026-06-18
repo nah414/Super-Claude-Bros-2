@@ -84,18 +84,22 @@ def seam_rubble(kit, x, y, scale, yaw, label):
 seam_rubble("rubble_pile", gx - 60, -240, 3.2, 15.0, "Seam_Rubble_A")    # ~272uu: must-climb, walk-over top
 seam_rubble("debris_chunks", gx - 30, 300, 3.0, -40.0, "Seam_Rubble_B")  # ~255uu
 
-# ===================== 4 CANYON-CLIMB ENEMIES (anti-lag baked in) =====================
-# The other 21 of the 25 World-1 enemies are placed on the street + side rooms by
-# dress_festival_streets.py (which already ran in the chain); here we add the 4 on the canyon climb,
-# now that the canyon geometry exists. These keep the same "Enemy_" labels + anti-lag config. NOTE:
-# "Enemy_" is intentionally NOT in this script's CLEAR list, so we don't wipe the 21 street/room ones.
+# ===================== CANYON (4) + SPIRAL-STAIRCASE (15) ENEMIES = 19 (anti-lag + colored) =====
+# The 21 street/room enemies (idx 1-21) are placed by dress_festival_streets.py; here we add the 4
+# canyon switchback + 15 spiral-staircase ones (idx 22-40), now that the canyon exists -> 40 total.
+# "Enemy_" is intentionally NOT in this script's CLEAR list (so we don't wipe dress's 21); instead we
+# pre-clear only idx >= 22 below so a standalone merge re-run can't duplicate the canyon/spiral set.
+import re as _re
 ENEMY_CLASSES = {
     "Glimmer":  unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy"),
     "Roly":     unreal.load_class(None, "/Script/SuperClaudeBros2.RolyShellback"),
+    "FlitMoth": unreal.load_class(None, "/Script/SuperClaudeBros2.FlitMoth"),   # spiral lights
 }
+_SKIN_MATS = {}
+_SKIN_BY_KIND = {"Glimmer": "M_EnemyGlimmer", "Roly": "M_EnemyRoly", "FlitMoth": "M_EnemyMoth"}
 
 
-def _enemy_antilag(actor):
+def _enemy_antilag(actor, kind):
     for comp in actor.get_components_by_class(unreal.PrimitiveComponent):
         try:
             comp.set_editor_property("ld_max_draw_distance", 9000.0)
@@ -111,21 +115,71 @@ def _enemy_antilag(actor):
                                    unreal.VisibilityBasedAnimTickOption.ONLY_TICK_POSE_WHEN_RENDERED)
         except Exception:
             pass
+    if kind == "FlitMoth":
+        for lt in actor.get_components_by_class(unreal.PointLightComponent):
+            for _p, _v in (("cast_shadows", False), ("cast_dynamic_shadows", False),
+                           ("max_draw_distance", 4000.0), ("max_distance_fade_range", 800.0)):
+                try:
+                    lt.set_editor_property(_p, _v)
+                except Exception:
+                    pass
 
+
+def _tint_enemy(actor, kind):
+    name = _SKIN_BY_KIND.get(kind)
+    if not name:
+        return
+    if name not in _SKIN_MATS:
+        _SKIN_MATS[name] = EAL.load_asset(f"/Game/Art/CityMat/{name}")
+    mat = _SKIN_MATS[name]
+    if not mat:
+        return
+    for sm in actor.get_components_by_class(unreal.StaticMeshComponent):
+        if "Eye" in sm.get_name():
+            continue
+        try:
+            sm.set_material(0, mat)
+        except Exception:
+            pass
+
+
+def _spawn_enemy(kind, x, y, z, idx):
+    cls = ENEMY_CLASSES.get(kind)
+    if not cls:
+        return False
+    a = eas.spawn_actor_from_class(cls, unreal.Vector(x, y, z))
+    a.set_actor_label(f"Enemy_{kind}_{idx:02d}")
+    _enemy_antilag(a, kind)
+    _tint_enemy(a, kind)
+    return True
+
+
+# Re-run safe: drop only idx >= 22 (canyon + spiral); dress's idx 1-21 are left alone.
+for _ex in list(eas.get_all_level_actors()):
+    _mm = _re.match(r"Enemy_\w+_(\d+)$", _ex.get_actor_label())
+    if _mm and int(_mm.group(1)) >= 22:
+        eas.destroy_actor(_ex)
 
 CANYON_ENEMIES = [
     ("Glimmer", 10735, 2200, 1970), ("Roly", 11485, -2200, 3840),
     ("Glimmer", 11360, 2200, 5195), ("Roly", 12860, 0, 6260),
 ]
+# 15 up the spire spiral staircase (landings 1-7). World Z = canyon Z - 350 (merge OZ). Inward of
+# each 500x500 landing centre so patrol/roll AI never walks off the edge. 8 Glimmer + 5 Roly + 2 Moth.
+SPIRAL_ENEMIES = [
+    ("Glimmer", 11380, 170, 5690), ("Roly", 11420, -190, 5690),
+    ("Glimmer", 12230, -600, 6110), ("Glimmer", 11970, -600, 6110), ("FlitMoth", 12100, -560, 6220),
+    ("Roly", 12700, 0, 6530), ("Glimmer", 12820, 180, 6530),
+    ("Glimmer", 12230, 600, 6950), ("Roly", 11970, 600, 6950),
+    ("Glimmer", 11440, -160, 7370), ("FlitMoth", 11500, 140, 7480),
+    ("Roly", 12180, -620, 7790), ("Glimmer", 12020, -620, 7790),
+    ("Roly", 12620, 150, 8210), ("Glimmer", 12640, -170, 8210),
+]
 _cn = 0
-for _j, (_k, _x, _y, _z) in enumerate(CANYON_ENEMIES, start=22):
-    _c = ENEMY_CLASSES.get(_k)
-    if not _c:
-        continue
-    _a = eas.spawn_actor_from_class(_c, unreal.Vector(_x, _y, _z))
-    _a.set_actor_label(f"Enemy_{_k}_{_j:02d}")
-    _enemy_antilag(_a)
-    _cn += 1
+for _j, (_k, _x, _y, _z) in enumerate(CANYON_ENEMIES + SPIRAL_ENEMIES, start=22):
+    if _spawn_enemy(_k, _x, _y, _z, _j):
+        _cn += 1
+print(f"W1_ENEMIES_CANYON_SPIRAL: {_cn}/19")
 print(f"W1_ENEMIES_CANYON: {_cn}/4")
 
 saved = les.save_current_level()

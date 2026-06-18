@@ -398,5 +398,16 @@ finish(mat, "M_StarNebula", [
     ("emissive", MEL.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
 ])
 
+# ---- ENEMY NEON SKINS: cheap UNLIT emissive tints so the low-level critters read against the dusk
+# (Adam: the dark enemies need color). Applied to body slot 0 at spawn (dress/merge _tint_enemy).
+for _ename, _ecol, _eglow in (("M_EnemyGlimmer", (0.20, 0.85, 1.00), 1.8),   # cool teal-cyan
+                              ("M_EnemyRoly",    (1.10, 0.50, 0.16), 1.5),   # warm amber-rust
+                              ("M_EnemyMoth",    (1.30, 0.95, 0.40), 2.3)):  # warm gold glow
+    _em = new_material(_ename)
+    _em.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    _ee = _mul(_em, _rgb(_em, _ecol, -600, 0), _const(_em, _eglow, -600, 200), -360, 60)
+    finish(_em, _ename, [("emissive",
+           MEL.connect_material_property(_ee, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR))])
+
 print("GRITTY_MATERIALS_DONE")
 print("CITY_MATERIALS_DONE")

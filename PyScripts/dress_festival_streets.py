@@ -302,6 +302,30 @@ def _enemy_antilag(actor, kind):
                     pass
 
 
+_SKIN_MATS = {}   # name -> loaded material (cached per run)
+_SKIN_BY_KIND = {"Glimmer": "M_EnemyGlimmer", "Roly": "M_EnemyRoly", "FlitMoth": "M_EnemyMoth"}
+
+
+def _tint_enemy(actor, kind):
+    """Adam: the dark low-level enemies need colored skins. Assign the forged neon tint to body
+    slot 0 (sticks: only Glimmer's FALLBACK sphere sets a runtime material). Skip the cream eyes."""
+    name = _SKIN_BY_KIND.get(kind)
+    if not name:
+        return
+    if name not in _SKIN_MATS:
+        _SKIN_MATS[name] = EAL.load_asset(f"/Game/Art/CityMat/{name}")
+    mat = _SKIN_MATS[name]
+    if not mat:
+        return
+    for sm in actor.get_components_by_class(unreal.StaticMeshComponent):
+        if "Eye" in sm.get_name():
+            continue
+        try:
+            sm.set_material(0, mat)
+        except Exception:
+            pass
+
+
 def spawn_enemy(kind, x, y, z, idx):
     cls = ENEMY_CLASSES.get(kind)
     if not cls:
@@ -310,6 +334,7 @@ def spawn_enemy(kind, x, y, z, idx):
     a = eas.spawn_actor_from_class(cls, unreal.Vector(x, y, z))
     a.set_actor_label(f"Enemy_{kind}_{idx:02d}")
     _enemy_antilag(a, kind)
+    _tint_enemy(a, kind)
     return a
 
 
