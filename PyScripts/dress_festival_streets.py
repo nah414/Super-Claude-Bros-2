@@ -32,7 +32,7 @@ ROOF_Z = 2500.0
 # (the underscore differs), so the white fallback boxes for un-imported hover-car /
 # dumpster / crate meshes (build_neon_city.py:180) otherwise survive as street clutter.
 CLEAR_PREFIXES = ("Fest_", "Chain_", "ChainBox", "Shop_", "ShopBox_", "Vend_",
-                  "NoodleStand", "Kiosk", "Monorail", "Holo_Mid")
+                  "NoodleStand", "Kiosk", "Monorail", "Holo_Mid", "Enemy_", "Glimmer_")
 removed = 0
 for a in eas.get_all_level_actors():
     try:
@@ -257,6 +257,78 @@ for i, cx in enumerate((-2600, 700, 3500, 6000)):
 # World 1's single goal is now the First Lantern at the canyon crown (built by the canyon merge,
 # merge_world1.py), and the canyon's LC_LightNetworkManager is the one light hub. The street
 # keeps its ambient + dark checkpoint lanterns above.
+
+# ===================== 25 LOW-LEVEL ENEMIES (anti-lag baked in) =====================
+# Adam: distribute 25 low-level enemies through World 1. 14 Glimmer + 7 Roly + 4 Flit Moth.
+# Here: the 21 street + side-room ones (one guard per room). The 4 canyon ones are placed by
+# merge_world1.py after the canyon exists. Cleared via the "Enemy_"/"Glimmer_" prefixes above.
+# These are ACharacter/static-mesh actors (no skeletal anim to throttle in practice) — the real
+# costs are per-actor Tick + the Flit Moth point light, so anti-lag = draw-distance cull + shadowless
+# moth lights + (insurance) only-tick-pose-when-rendered on the inherited skeletal component.
+ENEMY_CLASSES = {
+    "Glimmer":  unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy"),
+    "Roly":     unreal.load_class(None, "/Script/SuperClaudeBros2.RolyShellback"),
+    "FlitMoth": unreal.load_class(None, "/Script/SuperClaudeBros2.FlitMoth"),
+}
+
+
+def _enemy_antilag(actor, kind):
+    for comp in actor.get_components_by_class(unreal.PrimitiveComponent):
+        try:
+            comp.set_editor_property("ld_max_draw_distance", 9000.0)   # cull the mesh past ~90m
+        except Exception:
+            pass
+        try:
+            comp.set_editor_property("visible_in_ray_tracing", False)  # off the 8 GB RT/Lumen budget
+        except Exception:
+            pass
+    for sk in actor.get_components_by_class(unreal.SkeletalMeshComponent):
+        try:
+            sk.set_editor_property("visibility_based_anim_tick_option",
+                                   unreal.VisibilityBasedAnimTickOption.ONLY_TICK_POSE_WHEN_RENDERED)
+        except Exception:
+            pass
+        try:
+            sk.set_editor_property("enable_update_rate_optimizations", True)
+        except Exception:
+            pass
+    if kind == "FlitMoth":
+        for lt in actor.get_components_by_class(unreal.PointLightComponent):
+            for p, v in (("cast_shadows", False), ("cast_dynamic_shadows", False),
+                         ("max_draw_distance", 4000.0), ("max_distance_fade_range", 800.0)):
+                try:
+                    lt.set_editor_property(p, v)
+                except Exception:
+                    pass
+
+
+def spawn_enemy(kind, x, y, z, idx):
+    cls = ENEMY_CLASSES.get(kind)
+    if not cls:
+        unreal.log_warning(f"ENEMY_CLASS_MISSING: {kind}")
+        return None
+    a = eas.spawn_actor_from_class(cls, unreal.Vector(x, y, z))
+    a.set_actor_label(f"Enemy_{kind}_{idx:02d}")
+    _enemy_antilag(a, kind)
+    return a
+
+
+# 8 street patrol + 13 side-room guards (one per room, on/near each pedestal). z60/70 chars, z150/170 moths.
+STREET_ROOM_ENEMIES = [
+    ("Glimmer", -5200, 0, 60), ("Glimmer", -3600, -820, 60), ("Roly", -2400, 200, 60),
+    ("Glimmer", -1200, 830, 60), ("FlitMoth", 700, 0, 150), ("Glimmer", 1700, -830, 60),
+    ("Roly", 3500, 150, 60), ("Glimmer", 3900, 820, 60),
+    ("Glimmer", -6100, 1600, 70), ("Glimmer", -4600, 1600, 70), ("FlitMoth", -2260, -1600, 170),
+    ("Glimmer", -1480, 1600, 70), ("Roly", 860, -1600, 70), ("Glimmer", 1640, 1600, 70),
+    ("FlitMoth", 3980, -1600, 170), ("Glimmer", 4760, 1600, 70), ("Roly", 5540, -1600, 70),
+    ("Glimmer", 6320, 1600, 70), ("Glimmer", 7100, -1600, 70), ("FlitMoth", 8300, 1600, 170),
+    ("Roly", 8300, -1600, 70),
+]
+_enemy_n = 0
+for _i, (_k, _x, _y, _z) in enumerate(STREET_ROOM_ENEMIES, start=1):
+    if spawn_enemy(_k, _x, _y, _z, _i):
+        _enemy_n += 1
+print(f"W1_ENEMIES_STREET_ROOM: {_enemy_n}/21")
 
 saved = ELSS.save_current_level()
 print(f"FEST_DRESS_DONE: {P['prop']} props, {P['bldg']} buildings, {P['wall']} walls, "

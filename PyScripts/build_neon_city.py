@@ -338,12 +338,9 @@ rain_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RainCurtain")
 rain = eas.spawn_actor_from_class(rain_cls, unreal.Vector(-6600, -1700, 400))
 rain.set_actor_label("Rain")
 
-# Glimmers on the sidewalks.
-glimmer_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy")
-for i, (gx, gy) in enumerate(((-3600, -820), (-1200, 830), (1700, -830), (3900, 820), (6100, -820))):
-    g = eas.spawn_actor_from_class(glimmer_cls, unreal.Vector(gx, gy, 60))
-    g.set_actor_label(f"Glimmer_{i+1}")
-    placed["Glimmer"] += 1
+# Enemies (incl. the old 5 sidewalk Glimmers) are now placed by the WORLD-1 ENEMY POPULATION block
+# in dress_festival_streets.py (street + side rooms) + merge_world1.py (canyon) — 25 total, with the
+# anti-lag config baked in. Removed from here to avoid duplication.
 
 # The visitor.
 if SPAWN_MODE == "boulevard":

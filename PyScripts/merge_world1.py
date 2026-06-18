@@ -84,5 +84,49 @@ def seam_rubble(kit, x, y, scale, yaw, label):
 seam_rubble("rubble_pile", gx - 60, -240, 3.2, 15.0, "Seam_Rubble_A")    # ~272uu: must-climb, walk-over top
 seam_rubble("debris_chunks", gx - 30, 300, 3.0, -40.0, "Seam_Rubble_B")  # ~255uu
 
+# ===================== 4 CANYON-CLIMB ENEMIES (anti-lag baked in) =====================
+# The other 21 of the 25 World-1 enemies are placed on the street + side rooms by
+# dress_festival_streets.py (which already ran in the chain); here we add the 4 on the canyon climb,
+# now that the canyon geometry exists. These keep the same "Enemy_" labels + anti-lag config. NOTE:
+# "Enemy_" is intentionally NOT in this script's CLEAR list, so we don't wipe the 21 street/room ones.
+ENEMY_CLASSES = {
+    "Glimmer":  unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy"),
+    "Roly":     unreal.load_class(None, "/Script/SuperClaudeBros2.RolyShellback"),
+}
+
+
+def _enemy_antilag(actor):
+    for comp in actor.get_components_by_class(unreal.PrimitiveComponent):
+        try:
+            comp.set_editor_property("ld_max_draw_distance", 9000.0)
+        except Exception:
+            pass
+        try:
+            comp.set_editor_property("visible_in_ray_tracing", False)
+        except Exception:
+            pass
+    for sk in actor.get_components_by_class(unreal.SkeletalMeshComponent):
+        try:
+            sk.set_editor_property("visibility_based_anim_tick_option",
+                                   unreal.VisibilityBasedAnimTickOption.ONLY_TICK_POSE_WHEN_RENDERED)
+        except Exception:
+            pass
+
+
+CANYON_ENEMIES = [
+    ("Glimmer", 10735, 2200, 1970), ("Roly", 11485, -2200, 3840),
+    ("Glimmer", 11360, 2200, 5195), ("Roly", 12860, 0, 6260),
+]
+_cn = 0
+for _j, (_k, _x, _y, _z) in enumerate(CANYON_ENEMIES, start=22):
+    _c = ENEMY_CLASSES.get(_k)
+    if not _c:
+        continue
+    _a = eas.spawn_actor_from_class(_c, unreal.Vector(_x, _y, _z))
+    _a.set_actor_label(f"Enemy_{_k}_{_j:02d}")
+    _enemy_antilag(_a)
+    _cn += 1
+print(f"W1_ENEMIES_CANYON: {_cn}/4")
+
 saved = les.save_current_level()
 print(f"WORLD1_MERGED: cleared={removed} canyon_origin={(OX, OY, OZ)} saved={saved}")
