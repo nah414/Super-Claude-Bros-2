@@ -185,12 +185,13 @@ for i in range(14):
         block(tx, ty, 1500, 900, 800, 3000 + (i % 4) * 500,
               f"TowerBox_{i:02d}", material=M_COLORED)
 
-# REQUEST 1 (Adam): CLOSE THE CITY UP — a SOLID building wall lining both long sides of the street
-# just past the sidewalks, so there is no open "drop-off" void at the boundary. View now layers:
-# sidewalk -> this near wall -> towers (y2700) -> skyline -> stars. Cheap colored rt=False boxes
-# (lit windows via M_COLORED) + a few Meshy facades for street-facing 3D detail. The east end is
-# left open (the canyon's west cliff + Seam_Floor close that view); the west end is capped below.
-WALL_FRONT_Y = 1350.0                       # front face just past the sidewalk (~y1020)
+# CLOSE the drop-off void — BACKDROP enclosure (Adam, June 18 fix). The previous wall sat at y1350
+# IN FRONT of the festival side-room doorways (y1150) and BURIED the 6 side rooms. Now the enclosure
+# wall sits BEHIND the building line (front y2150, behind the building backs at y2050): it still
+# blocks the sky/void from behind + above the (shorter ~1800uu) street buildings and through their
+# gaps, but no longer covers any doorway. The street side rooms (dress_festival_streets) stay visible
+# + enterable, and end-of-street side rooms are added there. No street-facing facades (they blocked doors).
+WALL_FRONT_Y = 2150.0                       # BEHIND the building backs (y2050) — never buries a doorway
 WALL_DEPTH = 700.0
 WALL_X0, WALL_X1, WALL_CELL = -7000.0, 9000.0, 1300.0
 _wall_n = int((WALL_X1 - WALL_X0) // WALL_CELL)
@@ -205,13 +206,6 @@ for i in range(_wall_n):
 for j in range(5):
     block(-6900, -1600 + j * 800, 1950, 760, 760, 3900,
           f"CityWall_WCap_{j}", material=M_COLORED, rt=False)
-# A few colored Meshy facades on the street-facing side for 3D detail (rt-off backdrop).
-for k, (fx, fy, fyaw) in enumerate(((-3200, 1320, -90), (1500, -1320, 90), (5800, 1320, -90),
-                                    (-600, -1320, 90), (3600, 1320, -90))):
-    fck = prop(NEON_TOWERS[(k + 2) % len(NEON_TOWERS)], fx, fy, 0, f"CityWallFace_{k:02d}",
-               yaw=fyaw, kit_root="CityTowerKit", scale=13.0, ground=True)
-    if fck:
-        fck.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
 
 # Street props + platforming chain down the boulevard.
 chain = [

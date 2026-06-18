@@ -71,4 +71,23 @@ for a in actors:
             solid = False
         print(f"RUBBLE: {a.get_actor_label()} solid_bounds={solid} tag={a.actor_has_tag(unreal.Name('Climbable'))}")
 
+# --- Side rooms present + UN-BURIED (the CityWall must sit BEHIND the doorways at y~1150) ---
+rooms = sorted(a.get_actor_label() for a in actors
+               if "SideRoom_" in a.get_actor_label() and a.get_actor_label().endswith("_pedestal"))
+print(f"SIDEROOM_CENSUS: {len(rooms)} -> {rooms}")
+if len(rooms) < 9:
+    print(f"  *** expected >=9 side rooms (6 mid + 3 end), found {len(rooms)} ***")
+nearest = None
+for a in actors:
+    if a.get_actor_label().startswith(("CityWall_N_", "CityWall_S_")):
+        try:
+            o, e = a.get_actor_bounds(False)
+            face = abs(o.y) - e.y
+            nearest = face if nearest is None else min(nearest, face)
+        except Exception:
+            pass
+if nearest is not None:
+    flag = "  <-- BURIES DOORWAYS!" if nearest < 1900 else ""
+    print(f"WALL_FRONT_NEAREST_|Y|={nearest:.0f} (need >=~2000 so y1150 doorways are clear){flag}")
+
 print("PROBE_SPAWN_DONE")

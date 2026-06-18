@@ -189,6 +189,17 @@ for i in range(8):
     if sr:
         sideroom(sx, -1150, 900, f"S{i}", -1.0)
 
+# END side rooms (Adam, June 18): the drop-off "ends" of the street are now enterable side rooms too
+# — the west end behind spawn (N side; the S west pocket is the alley) + the east end toward the
+# canyon seam (both sides). Same door + INTERIOR walls + furnishing as the 6 mid-street rooms; the
+# CityWall backdrop behind them closes the end-of-street void.
+END_ROOMS = ((-6100.0, 1150.0, 1.0, "Wn"), (8300.0, 1150.0, 1.0, "En"), (8300.0, -1150.0, -1.0, "Es"))
+for ex, efy, esgn, elabel in END_ROOMS:
+    eside = "N" if esgn > 0 else "S"
+    building(ex, efy, BW, 900, 1980, f"Bldg{eside}_end{elabel}", door=True, dress=False, wall_mat=M_INTERIOR)
+    dress_facade(ex, efy, 1980, True, 1)
+    sideroom(ex, efy, 900, f"end{elabel}", esgn)
+
 # A continuous low ground plane under it all (no void / no cliffs anywhere on the path).
 wall(1000, 0, -100, 16000, 5200, 200, "Ground", material=M_ASPHALT)
 # West end-cap behind spawn.
