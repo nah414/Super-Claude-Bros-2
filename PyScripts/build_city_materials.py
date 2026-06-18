@@ -376,12 +376,12 @@ try:
     mat.set_editor_property("is_sky", True)
 except Exception as _e:
     unreal.log_warning(f"M_StarNebula is_sky not settable: {_e}")
-# stars: high-freq noise -> (n - 0.80) * 6 -> clamp 0..1 = a sparse bright mask
+# stars: high-freq noise -> (n - 0.90) * 4 -> clamp 0..1 = a SPARSE, dim mask (Adam: was too dense)
 nstar = _noise(mat, -1200, -200, scale=2.6, levels=1)
 ssub = _x(mat, unreal.MaterialExpressionSubtract, -980, -200)
 MEL.connect_material_expressions(nstar, "", ssub, "A")
-MEL.connect_material_expressions(_const(mat, 0.80, -1200, -60), "", ssub, "B")
-sscl = _mul(mat, ssub, _const(mat, 6.0, -980, -60), -800, -200)
+MEL.connect_material_expressions(_const(mat, 0.90, -1200, -60), "", ssub, "B")
+sscl = _mul(mat, ssub, _const(mat, 4.0, -980, -60), -800, -200)
 sclamp = _x(mat, unreal.MaterialExpressionClamp, -640, -200)
 MEL.connect_material_expressions(sscl, "", sclamp, "")
 star = _mul(mat, sclamp, _rgb(mat, (2.0, 2.1, 2.4), -640, -60), -460, -200)   # white-blue stars

@@ -57,14 +57,17 @@ gx = OX - 2300                                            # world X of the west 
 lc.lantern(gx - 120, -380, "seam_L", z=40, intensity=1500.0, radius=720.0)
 lc.lantern(gx - 120, 380, "seam_R", z=40, intensity=1500.0, radius=720.0)
 
-# F3 (Adam): no festival gate at the street->canyon seam. Instead a small, PASSABLE rubble +
-# debris pile (NO_COLLISION — the hero walks straight through). Meshy rubble lives in CityTowerKit;
-# if not imported yet, the seam simply stays open (still passable) until the next rebuild.
+# F3 (Adam, updated): the street->canyon seam pile is now SOLID and CLIMBABLE — the hero climbs
+# OVER it into the staircase. Mesh collision is restored asset-level by restore_rubble_collision.py
+# (a BOX, so it has clean vertical faces the climb trace grabs + a flat top the hero walks across to
+# drop down the canyon side). Here we place it SOLID + tag it "Climbable". Both piles are taller than
+# the ~242uu max jump, so the hero MUST climb. (Component flags don't persist; the asset box is the
+# real collision — the tag + profile here are belt-and-suspenders.)
 RUBBLE_ROOT = "/Game/Art/CityTowerKit"
 def seam_rubble(kit, x, y, scale, yaw, label):
     sm = EAL.load_asset(f"{RUBBLE_ROOT}/{kit}/SM_{kit}")
     if not sm:
-        unreal.log_warning(f"RUBBLE_MISSING: {kit} (seam stays open, still passable)")
+        unreal.log_warning(f"RUBBLE_MISSING: {kit} (seam stays open)")
         return
     bb = sm.get_bounding_box()
     rb = eas.spawn_actor_from_class(unreal.StaticMeshActor,
@@ -72,12 +75,14 @@ def seam_rubble(kit, x, y, scale, yaw, label):
     rb.static_mesh_component.set_static_mesh(sm)
     rb.set_actor_scale3d(unreal.Vector(scale, scale, scale))
     rb.set_actor_rotation(unreal.Rotator(0.0, 0.0, yaw), False)
-    rb.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    rb.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
+    rb.static_mesh_component.set_collision_profile_name("BlockAll")
     rb.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
+    rb.set_editor_property("tags", [unreal.Name("Climbable")])
     rb.set_actor_label(label)
 
-seam_rubble("rubble_pile", gx - 60, -240, 3.4, 15.0, "Seam_Rubble_A")
-seam_rubble("debris_chunks", gx - 30, 300, 3.0, -40.0, "Seam_Rubble_B")
+seam_rubble("rubble_pile", gx - 60, -240, 3.2, 15.0, "Seam_Rubble_A")    # ~272uu: must-climb, walk-over top
+seam_rubble("debris_chunks", gx - 30, 300, 3.0, -40.0, "Seam_Rubble_B")  # ~255uu
 
 saved = les.save_current_level()
 print(f"WORLD1_MERGED: cleared={removed} canyon_origin={(OX, OY, OZ)} saved={saved}")

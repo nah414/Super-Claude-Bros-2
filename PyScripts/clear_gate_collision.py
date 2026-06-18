@@ -31,13 +31,11 @@ for name in EAL.list_assets(KIT_ROOT, recursive=True, include_folder=False):
     if any(k in low for k in GATE_KEYS) and "/sm_" in low:
         gate_paths.append(name.split(".")[0])
 
-# Always include the two known gates explicitly in case the scan misses naming, plus the seam
-# rubble piles (F3): they're decorative pass-through props too — the spawned-component
-# NO_COLLISION flag doesn't survive the level save, so strip their mesh collision instead.
+# Always include the two known gates explicitly in case the scan misses naming.
+# NOTE: the seam rubble (rubble_pile / debris_chunks) is intentionally NOT here anymore — Adam wants
+# it SOLID + climbable, so restore_rubble_collision.py adds box collision instead of stripping it.
 for explicit in (f"{KIT_ROOT}/neon_torii/SM_neon_torii",
-                 f"{KIT_ROOT}/festival_arch/SM_festival_arch",
-                 "/Game/Art/CityTowerKit/rubble_pile/SM_rubble_pile",
-                 "/Game/Art/CityTowerKit/debris_chunks/SM_debris_chunks"):
+                 f"{KIT_ROOT}/festival_arch/SM_festival_arch"):
     if explicit not in gate_paths and EAL.does_asset_exist(explicit):
         gate_paths.append(explicit)
 

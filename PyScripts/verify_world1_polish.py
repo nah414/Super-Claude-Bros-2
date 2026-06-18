@@ -47,12 +47,22 @@ if grey_boxes:
 if any(not m.startswith("SM_tower_") for m in tower_meshes):
     fails.append(f"non-CityTowerKit tower meshes: {tower_meshes}")
 
-# F3 — seam rubble present + passable. The spawned-component flag doesn't persist, so passability
-# is guaranteed at the MESH level (0 simple collision + USE_SIMPLE_AS_COMPLEX = no blocking geo).
+# F3 (updated) — seam rubble is now SOLID + CLIMBABLE (Adam wants to climb over it). Asset-level box
+# collision guarantees it blocks (>0 simple collision + USE_SIMPLE_AND_COMPLEX); the placed actors
+# carry QUERY_AND_PHYSICS + the "Climbable" tag.
 rubble = [a for a in actors if a.get_actor_label().startswith("Seam_Rubble")]
 print(f"F3: seam rubble={[a.get_actor_label() for a in rubble]}")
 if not rubble:
     fails.append("no Seam_Rubble actors placed")
+for r in rubble:
+    smc = r.get_component_by_class(unreal.StaticMeshComponent)
+    ce = smc.get_collision_enabled() if smc else None
+    tagged = r.actor_has_tag(unreal.Name("Climbable"))
+    print(f"F3: {r.get_actor_label()} collision={ce} climbable_tag={tagged}")
+    if ce == unreal.CollisionEnabled.NO_COLLISION:
+        fails.append(f"{r.get_actor_label()} is NO_COLLISION (should be solid)")
+    if not tagged:
+        fails.append(f"{r.get_actor_label()} missing 'Climbable' tag")
 for path in ("/Game/Art/CityTowerKit/rubble_pile/SM_rubble_pile",
              "/Game/Art/CityTowerKit/debris_chunks/SM_debris_chunks"):
     sm = EAL.load_asset(path)
@@ -63,8 +73,8 @@ for path in ("/Game/Art/CityTowerKit/rubble_pile/SM_rubble_pile",
     bs = sm.get_editor_property("body_setup")
     flag = bs.get_editor_property("collision_trace_flag") if bs else None
     print(f"F3: {sm.get_name()} simple_collision={simple} trace_flag={flag}")
-    if simple != 0 or flag != unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX:
-        fails.append(f"{sm.get_name()} still blocks (simple={simple} flag={flag})")
+    if simple < 1:
+        fails.append(f"{sm.get_name()} has no simple collision (won't block/climb)")
 
 # F2 — gate meshes have no blocking collision geometry
 for path in ("/Game/Art/FestivalKit/neon_torii/SM_neon_torii",

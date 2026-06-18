@@ -185,6 +185,34 @@ for i in range(14):
         block(tx, ty, 1500, 900, 800, 3000 + (i % 4) * 500,
               f"TowerBox_{i:02d}", material=M_COLORED)
 
+# REQUEST 1 (Adam): CLOSE THE CITY UP — a SOLID building wall lining both long sides of the street
+# just past the sidewalks, so there is no open "drop-off" void at the boundary. View now layers:
+# sidewalk -> this near wall -> towers (y2700) -> skyline -> stars. Cheap colored rt=False boxes
+# (lit windows via M_COLORED) + a few Meshy facades for street-facing 3D detail. The east end is
+# left open (the canyon's west cliff + Seam_Floor close that view); the west end is capped below.
+WALL_FRONT_Y = 1350.0                       # front face just past the sidewalk (~y1020)
+WALL_DEPTH = 700.0
+WALL_X0, WALL_X1, WALL_CELL = -7000.0, 9000.0, 1300.0
+_wall_n = int((WALL_X1 - WALL_X0) // WALL_CELL)
+for i in range(_wall_n):
+    bx = WALL_X0 + WALL_CELL * (i + 0.5)
+    h = 3500 + (i % 4) * 360 + (i % 3) * 220                 # height variety ~3500-4900
+    for sgn in (1.0, -1.0):
+        cy = sgn * (WALL_FRONT_Y + WALL_DEPTH / 2.0)
+        block(bx, cy, h / 2.0 - 50, WALL_CELL - 60, WALL_DEPTH, h,
+              f"CityWall_{'N' if sgn > 0 else 'S'}_{i:02d}", material=M_COLORED, rt=False)
+# West end-cap behind the spawn (x >= -6900 keeps it on the Ground plane = no floor gap).
+for j in range(5):
+    block(-6900, -1600 + j * 800, 1950, 760, 760, 3900,
+          f"CityWall_WCap_{j}", material=M_COLORED, rt=False)
+# A few colored Meshy facades on the street-facing side for 3D detail (rt-off backdrop).
+for k, (fx, fy, fyaw) in enumerate(((-3200, 1320, -90), (1500, -1320, 90), (5800, 1320, -90),
+                                    (-600, -1320, 90), (3600, 1320, -90))):
+    fck = prop(NEON_TOWERS[(k + 2) % len(NEON_TOWERS)], fx, fy, 0, f"CityWallFace_{k:02d}",
+               yaw=fyaw, kit_root="CityTowerKit", scale=13.0, ground=True)
+    if fck:
+        fck.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
+
 # Street props + platforming chain down the boulevard.
 chain = [
     ("dumpster", -4800, -350, 0, 0), ("crate_stack", -4100, 250, 0, 30),
@@ -252,7 +280,8 @@ fog = eas.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0
 fc = fog.component
 fc.set_editor_property("enable_volumetric_fog", True)
 fc.set_editor_property("fog_density", 0.004)                 # was 0.022 — let the stars read
-fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.004, 0.004, 0.010, 1.0))
+# Warm-neutral inscatter (was (.004,.004,.010) — the blue channel tinted the distance/ground blue).
+fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.005, 0.0045, 0.004, 1.0))
 fog.set_actor_label("SpaceFog")
 
 # NO SkyAtmosphere (the blue) and NO SkyLight. A captured-scene SkyLight without a SkyAtmosphere
