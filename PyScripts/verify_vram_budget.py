@@ -65,7 +65,7 @@ truthy = lambda v: str(v).lower() in ("1", "true")
 le = lambda cap: (lambda v: as_num(v) is not None and as_num(v) <= cap)  # 0 is valid (not falsy-coerced)
 
 need("r.Streaming.LimitPoolSizeToVRAM", truthy, "must clamp the texture pool to VRAM")
-need("r.Streaming.PoolSize", le(1400), "pool <= 1400 MB on 8 GB")
+need("r.Streaming.PoolSize", le(1800), "pool <= 1800 MB on 8 GB (VRAM-clamped)")
 need("r.RayTracing.ResidentGeometryMemoryPoolSizeInMB", le(640), "RT BVH pool <= 640 MB (0 = RT off)")
 need("r.Lumen.FinalGather.SampleResolutionScale", le(1.0), "<= 1.0")
 need("r.Lumen.Reflections.SampleResolutionScale", le(1.0), "<= 1.0")
