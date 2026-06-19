@@ -333,10 +333,9 @@ pp("color_gain_highlights", unreal.Vector4(0.94, 1.04, 1.16, 1.0)) # cyan highli
 ppv.set_editor_property("settings", pps)
 ppv.set_actor_label("CityPost")
 
-# Rain.
-rain_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RainCurtain")
-rain = eas.spawn_actor_from_class(rain_cls, unreal.Vector(-6600, -1700, 400))
-rain.set_actor_label("Rain")
+# Rain: REMOVED (Adam, June 19 — "eliminate the rain all together"). The ARainCurtain class +
+# M_RainStreak material stay in the project (dormant) so rain can return later; we just don't
+# spawn it. The rain AMBIENCE is likewise swapped off in SparkHeroGameMode (amb_night_loop).
 
 # Enemies (incl. the old 5 sidewalk Glimmers) are now placed by the WORLD-1 ENEMY POPULATION block
 # in dress_festival_streets.py (street + side rooms) + merge_world1.py (canyon) — 25 total, with the

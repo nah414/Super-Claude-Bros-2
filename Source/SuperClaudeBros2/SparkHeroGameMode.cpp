@@ -101,8 +101,10 @@ void ASparkHeroGameMode::BeginPlay()
 	// Per-map ambience + music (loop flags set on the SoundWave assets at import;
 	// all optional — the game runs silently before the audio pack is imported).
 	const bool bNeonCity = GetWorld() && GetWorld()->GetMapName().Contains(TEXT("NeonCity"));
+	// NeonCity ambience swapped from amb_rain_loop -> amb_night_loop: the rain was eliminated
+	// (Adam, June 19), so World 1 plays a dry night ambience, no rain patter.
 	const TCHAR* AmbPath = bNeonCity
-		? TEXT("/Game/Art/Audio/amb_rain_loop.amb_rain_loop")
+		? TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop")
 		: TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop");
 	const TCHAR* MusicPath = bNeonCity
 		? TEXT("/Game/Art/Audio/music_city_loop.music_city_loop")
