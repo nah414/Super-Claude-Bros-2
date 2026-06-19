@@ -17,6 +17,7 @@ CHAIN = [
     "build_neon_city.py",
     "dress_festival_streets.py",
     "merge_world1.py",
+    "build_sky_props.py",          # the two moons + ring (build_neon_city wiped them on rebuild)
     "verify_world1_combined.py",
 ]
 

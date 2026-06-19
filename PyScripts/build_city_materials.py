@@ -378,17 +378,19 @@ try:
     mat.set_editor_property("is_sky", True)
 except Exception as _e:
     unreal.log_warning(f"M_StarNebula is_sky not settable: {_e}")
-# stars: high-freq noise -> (n - 0.95) * 9 -> clamp 0..1 = SPARSE, CRISP pinpoints, not a grainy
-# field (Adam: looked like blueish TV static; we want a dark starry night). Finer scale = smaller
-# stars; higher threshold = fewer of them; higher mult = sharper points.
+# stars: high-freq noise -> saturate((n - 0.975) * 16) = SPARSE crisp pinpoints. Threshold 0.975
+# (was 0.95) ~HALVES the count (Adam: still too many). A SECOND noise (svar, 0.35..1.0) multiplies
+# each star's brightness so they VARY dim<->bright like a real night sky. Warm-neutral white, no blue.
 nstar = _noise(mat, -1200, -200, scale=4.0, levels=1)
 ssub = _x(mat, unreal.MaterialExpressionSubtract, -980, -200)
 MEL.connect_material_expressions(nstar, "", ssub, "A")
-MEL.connect_material_expressions(_const(mat, 0.95, -1200, -60), "", ssub, "B")
-sscl = _mul(mat, ssub, _const(mat, 9.0, -980, -60), -800, -200)
+MEL.connect_material_expressions(_const(mat, 0.975, -1200, -60), "", ssub, "B")
+sscl = _mul(mat, ssub, _const(mat, 16.0, -980, -60), -800, -200)
 sclamp = _x(mat, unreal.MaterialExpressionClamp, -640, -200)
 MEL.connect_material_expressions(sscl, "", sclamp, "")
-star = _mul(mat, sclamp, _rgb(mat, (2.2, 2.2, 2.0), -640, -60), -460, -200)   # warm-neutral white (was blue)
+svar = _noise(mat, -1200, -420, scale=3.3, levels=1, omin=0.35, omax=1.0)     # per-star brightness var
+starlit = _mul(mat, sclamp, svar, -620, -260)
+star = _mul(mat, starlit, _rgb(mat, (2.6, 2.6, 2.4), -640, -60), -460, -200)  # warm-neutral white
 # nebula: low-freq noise -> a WHISPER of violet<->teal, much darker than before so the sky reads as
 # near-black night, not a glowing space haze (the old wash was most of the "blueish" Adam saw).
 nneb = _noise(mat, -1200, 260, scale=0.045, levels=4)
@@ -401,6 +403,64 @@ MEL.connect_material_expressions(star, "", emis, "A")
 MEL.connect_material_expressions(neb, "", emis, "B")
 finish(mat, "M_StarNebula", [
     ("emissive", MEL.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+])
+
+# ============================================================================
+# MOONS (Adam): a large REDDISH moon with an orbital RING + a smaller PALE-YELLOW moon. Unlit
+# emissive so they glow against the dark sky; placed as far meshes in the dome by build_sky_props.py.
+# ============================================================================
+# ---- M_MoonRed: the large reddish moon (emissive disc + faint surface mottle) ----
+mat = new_material("M_MoonRed")
+mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+mat.set_editor_property("two_sided", True)
+_mott = _noise(mat, -1000, 0, scale=0.8, levels=3, omin=0.5, omax=1.0)            # maria/mottle
+_moonred = _mul(mat, _rgb(mat, (1.70, 0.42, 0.24), -800, -160), _mott, -420, -40)  # blood-red glow
+finish(mat, "M_MoonRed", [
+    ("emissive", MEL.connect_material_property(_moonred, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+])
+
+# ---- M_MoonYellow: the smaller pale-yellow moon ----
+mat = new_material("M_MoonYellow")
+mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+mat.set_editor_property("two_sided", True)
+_motty = _noise(mat, -1000, 0, scale=1.1, levels=3, omin=0.6, omax=1.0)
+_moonyel = _mul(mat, _rgb(mat, (1.50, 1.38, 0.82), -800, -160), _motty, -420, -40)  # pale yellow glow
+finish(mat, "M_MoonYellow", [
+    ("emissive", MEL.connect_material_property(_moonyel, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+])
+
+# ---- M_MoonRing: a translucent emissive ANNULUS on a flat disc (the large moon's orbital ring) ----
+# Radial UV distance from the disc centre -> a band [0.35,0.47] glows, transparent elsewhere. The disc
+# mesh is laid roughly horizontal in placement so the circular band reads as a tilted ellipse.
+mat = new_material("M_MoonRing")
+mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+mat.set_editor_property("two_sided", True)
+_tc = _x(mat, unreal.MaterialExpressionTextureCoordinate, -1320, 0)
+_uvc = _x(mat, unreal.MaterialExpressionSubtract, -1140, 0)                        # UV - 0.5 (centre)
+MEL.connect_material_expressions(_tc, "", _uvc, "A")
+MEL.connect_material_expressions(_const(mat, 0.5, -1320, 170), "", _uvc, "B")
+_rsq = _x(mat, unreal.MaterialExpressionDotProduct, -960, 0)                       # |uvc|^2
+MEL.connect_material_expressions(_uvc, "", _rsq, "A")
+MEL.connect_material_expressions(_uvc, "", _rsq, "B")
+_rad = _x(mat, unreal.MaterialExpressionSquareRoot, -800, 0)                       # radius 0..0.707
+MEL.connect_material_expressions(_rsq, "", _rad, "")
+_ai = _x(mat, unreal.MaterialExpressionSubtract, -640, -80)                        # r - 0.35 (inner)
+MEL.connect_material_expressions(_rad, "", _ai, "A")
+MEL.connect_material_expressions(_const(mat, 0.35, -800, -150), "", _ai, "B")
+_aic = _x(mat, unreal.MaterialExpressionClamp, -300, -80)
+MEL.connect_material_expressions(_mul(mat, _ai, _const(mat, 16.0, -640, -10), -470, -80), "", _aic, "")
+_ao = _x(mat, unreal.MaterialExpressionSubtract, -640, 170)                        # 0.47 - r (outer)
+MEL.connect_material_expressions(_const(mat, 0.47, -800, 110), "", _ao, "A")
+MEL.connect_material_expressions(_rad, "", _ao, "B")
+_aoc = _x(mat, unreal.MaterialExpressionClamp, -300, 170)
+MEL.connect_material_expressions(_mul(mat, _ao, _const(mat, 16.0, -640, 240), -470, 170), "", _aoc, "")
+_ring = _mul(mat, _aic, _aoc, -140, 40)                                           # the annulus mask
+_ringcol = _mul(mat, _ring, _rgb(mat, (1.25, 1.00, 0.72), -300, -210), 60, -120)  # pale-gold ring glow
+_ringop = _mul(mat, _ring, _const(mat, 0.9, -300, 260), 60, 200)
+finish(mat, "M_MoonRing", [
+    ("emissive", MEL.connect_material_property(_ringcol, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+    ("opacity", MEL.connect_material_property(_ringop, "", unreal.MaterialProperty.MP_OPACITY)),
 ])
 
 # ---- ENEMY NEON SKINS: cheap UNLIT emissive tints so the low-level critters read against the dusk
