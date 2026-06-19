@@ -332,8 +332,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
 	float ZoomMaxMultiplier = 5.f;
 
+	// Camera look/pan speed. 0.85 = 15% slower than the old 1.0 (Adam, June 19) — calmer aiming;
+	// scales BOTH yaw + pitch (HandleLook multiplies both axes by this).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
-	float LookSensitivity = 1.0f;
+	float LookSensitivity = 0.85f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Camera")
 	bool bInvertLookY = false;

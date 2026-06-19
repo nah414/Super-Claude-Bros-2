@@ -378,20 +378,23 @@ try:
     mat.set_editor_property("is_sky", True)
 except Exception as _e:
     unreal.log_warning(f"M_StarNebula is_sky not settable: {_e}")
-# stars: high-freq noise -> (n - 0.90) * 4 -> clamp 0..1 = a SPARSE, dim mask (Adam: was too dense)
-nstar = _noise(mat, -1200, -200, scale=2.6, levels=1)
+# stars: high-freq noise -> (n - 0.95) * 9 -> clamp 0..1 = SPARSE, CRISP pinpoints, not a grainy
+# field (Adam: looked like blueish TV static; we want a dark starry night). Finer scale = smaller
+# stars; higher threshold = fewer of them; higher mult = sharper points.
+nstar = _noise(mat, -1200, -200, scale=4.0, levels=1)
 ssub = _x(mat, unreal.MaterialExpressionSubtract, -980, -200)
 MEL.connect_material_expressions(nstar, "", ssub, "A")
-MEL.connect_material_expressions(_const(mat, 0.90, -1200, -60), "", ssub, "B")
-sscl = _mul(mat, ssub, _const(mat, 4.0, -980, -60), -800, -200)
+MEL.connect_material_expressions(_const(mat, 0.95, -1200, -60), "", ssub, "B")
+sscl = _mul(mat, ssub, _const(mat, 9.0, -980, -60), -800, -200)
 sclamp = _x(mat, unreal.MaterialExpressionClamp, -640, -200)
 MEL.connect_material_expressions(sscl, "", sclamp, "")
-star = _mul(mat, sclamp, _rgb(mat, (2.0, 2.1, 2.4), -640, -60), -460, -200)   # white-blue stars
-# nebula: low-freq noise -> faint violet<->teal tint
+star = _mul(mat, sclamp, _rgb(mat, (2.2, 2.2, 2.0), -640, -60), -460, -200)   # warm-neutral white (was blue)
+# nebula: low-freq noise -> a WHISPER of violet<->teal, much darker than before so the sky reads as
+# near-black night, not a glowing space haze (the old wash was most of the "blueish" Adam saw).
 nneb = _noise(mat, -1200, 260, scale=0.045, levels=4)
 nneb2 = _noise(mat, -1200, 460, scale=0.02, levels=3)
-nebtint = _lerp(mat, _rgb(mat, (0.060, 0.022, 0.090), -980, 320),
-                _rgb(mat, (0.012, 0.055, 0.070), -980, 440), nneb2, -800, 380)
+nebtint = _lerp(mat, _rgb(mat, (0.018, 0.010, 0.020), -980, 320),
+                _rgb(mat, (0.006, 0.018, 0.020), -980, 440), nneb2, -800, 380)
 neb = _mul(mat, nneb, nebtint, -600, 320)                                     # faint nebula clouds
 emis = _x(mat, unreal.MaterialExpressionAdd, -300, 60)
 MEL.connect_material_expressions(star, "", emis, "A")
