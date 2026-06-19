@@ -44,6 +44,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float PatrolSpeed = 260.f;
 
+	// ---------------- Aggro (hunt on sight) ----------------
+	/** A hero inside this range drops the Glimmer out of patrol and into the hunt —
+	    it turns and walks straight at him. This is "attacks at first sight". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float AggroRadius = 650.f;
+
+	/** Speed the Glimmer commits to while hunting (a notch above the patrol amble). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float ChaseSpeed = 360.f;
+
 	/** How far past the capsule's leading edge we probe for walls and ledges. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float TurnCheckDistance = 50.f;
@@ -75,9 +85,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float HitCooldown = 0.8f;
 
-	/** How long the Glimmer stands still after bonking the hero. */
+	/** How long the Glimmer stands still after bonking the hero. Kept BELOW HitCooldown
+	    so a hero pressed flush against us can no longer chain-stun the Glimmer into a
+	    permanent freeze — it always gets a beat to re-engage and push back. (This was
+	    the "Glimmer stops moving when you get close" bug: 1.0s stun > 0.8s cooldown.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
-	float StunDuration = 1.0f;
+	float StunDuration = 0.5f;
 
 	/** How long the flattened body lingers before the actor is destroyed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
@@ -120,6 +133,9 @@ private:
 	// Patrol state
 	void SenseAndTurn();
 	float LastTurnTime = -1000.f;
+
+	// Aggro state: face + walk straight at the hero (ledge-safe, reuses SenseAndTurn).
+	void ChaseHero(ASparkHeroCharacter* Hero);
 
 	// Hero contact state
 	void HandleHeroContact(ASparkHeroCharacter* Hero);

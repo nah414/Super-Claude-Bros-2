@@ -197,6 +197,20 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 	// Stunned after a bonk: stand still and let the hero get clear.
 	if (Now() < StunnedUntilTime) { return; }
 
+	// AGGRO-ON-SIGHT: a hero inside AggroRadius is HUNTED, not ignored. The contact
+	// backstop above still owns the bonk/stomp/dash outcome; this only commits the
+	// Glimmer to walking straight AT the hero instead of patrolling past him. With the
+	// shorter post-bonk stun, the hunt resumes the instant the bonk's knockback breaks
+	// contact — so it reads as "sees you and comes for you", never "freezes when close".
+	if (ASparkHeroCharacter* Hero = CachedHero.Get())
+	{
+		if (FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= AggroRadius)
+		{
+			ChaseHero(Hero);
+			return;
+		}
+	}
+
 	// Patrol: walk the platform, turning back at walls and ledges.
 	if (GetCharacterMovement()->IsMovingOnGround())
 	{
@@ -244,6 +258,36 @@ void AGlimmerEnemy::SenseAndTurn()
 		LastTurnTime = Now();
 		AddActorWorldRotation(FRotator(0.f, 180.f, 0.f)); // about-face, keep walking
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Aggro: face the hero and walk straight at him — but never off a cliff.
+// ---------------------------------------------------------------------------
+void AGlimmerEnemy::ChaseHero(ASparkHeroCharacter* Hero)
+{
+	if (Hero == nullptr) { return; }
+
+	// Commit to the hunt: a notch quicker than the patrol amble (reads as "coming for you").
+	GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
+
+	// Swing to face the hero (yaw only) — smooth interp, not a snap, so the turn reads.
+	const FVector ToHero = Hero->GetActorLocation() - GetActorLocation();
+	if (!ToHero.IsNearlyZero())
+	{
+		const FRotator Want(0.f, ToHero.Rotation().Yaw, 0.f);
+		SetActorRotation(FMath::RInterpTo(GetActorRotation(), Want,
+			GetWorld()->GetDeltaSeconds(), 7.f));
+	}
+
+	// Ledge-safety stays ON: SenseAndTurn still about-faces us at a real cliff/wall.
+	// (The hero is ignored by that trace, so he reads as open path, not a wall — the
+	// Glimmer walks INTO him and the contact backstop handles the bonk.) A Glimmer will
+	// dance at a gap edge rather than dive after a hero across it.
+	if (GetCharacterMovement()->IsMovingOnGround())
+	{
+		SenseAndTurn();
+	}
+	AddMovementInput(GetActorForwardVector());
 }
 
 // ---------------------------------------------------------------------------

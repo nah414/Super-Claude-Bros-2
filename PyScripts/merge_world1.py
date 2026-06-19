@@ -154,15 +154,23 @@ def _spawn_enemy(kind, x, y, z, idx):
     return True
 
 
-# Re-run safe: drop only idx >= 22 (canyon + spiral); dress's idx 1-21 are left alone.
+# Re-run safe: drop only idx >= 22 (canyon + spiral) + any prior W1 boss; dress's idx 1-21 stay.
 for _ex in list(eas.get_all_level_actors()):
-    _mm = _re.match(r"Enemy_\w+_(\d+)$", _ex.get_actor_label())
+    _lbl = _ex.get_actor_label()
+    if _lbl.startswith("Boss_ShellbackAlpha_W1"):
+        eas.destroy_actor(_ex)
+        continue
+    _mm = _re.match(r"Enemy_\w+_(\d+)$", _lbl)
     if _mm and int(_mm.group(1)) >= 22:
         eas.destroy_actor(_ex)
 
 CANYON_ENEMIES = [
     ("Glimmer", 10735, 2200, 1970), ("Roly", 11485, -2200, 3840),
-    ("Glimmer", 11360, 2200, 5195), ("Roly", 12860, 0, 6260),
+    ("Glimmer", 11360, 2200, 5195),
+    # 4th was ("Roly", 12860, 0, 6260) — but x12860 has NO floor at z6260 (it sat 230uu below the
+    # loop-2 spiral landing, world z6490, and would fall into the canyon). Re-grounded onto that
+    # landing (z6530, +40 like its neighbours at x12700/12820) and nudged to y-180 to avoid them.
+    ("Roly", 12860, -180, 6530),
 ]
 # 15 up the spire spiral staircase (landings 1-7). World Z = canyon Z - 350 (merge OZ). Inward of
 # each 500x500 landing centre so patrol/roll AI never walks off the edge. 8 Glimmer + 5 Roly + 2 Moth.
@@ -181,6 +189,46 @@ for _j, (_k, _x, _y, _z) in enumerate(CANYON_ENEMIES + SPIRAL_ENEMIES, start=22)
         _cn += 1
 print(f"W1_ENEMIES_CANYON_SPIRAL: {_cn}/19")
 print(f"W1_ENEMIES_CANYON: {_cn}/4")
+
+# ===================== WORLD-1 FIRST BOSS: Shellback Alpha, dormant at the spiral BASE =====
+# The lowest-level boss (Story Bible §11 cheap-boss ladder): the Roly grown ~2.7x — same Cannonball
+# roll, but three flip-stomps to drive it off, no HP bar. It sits in its NATIVE Idle state at the
+# FOOT of the spire spiral (the first/lowest landing, SpiralLand_00): Idle IS "dormant" — it holds
+# dead-still until the hero crosses into AggroRadius, then winds up and charges (Adam: "waiting for
+# our heroes to cross their path").
+# PLACEMENT MATH (build_world1_lantern_climb): spire_wp[0] is canyon-local (-650, 0, SPIRE_BASE_Z=6000);
+# world = + origin(OX 12100, OY 0, OZ -350) = (11450, 0, 5650) = the base-landing TOP. The Alpha
+# capsule half-height is 90, so actor Z = 5650 + 95 = 5745 rests its feet flush on the landing (a few
+# uu of clearance avoids spawn penetration). Dead-centre of the 500x500 base landing where the hero
+# steps off the gondola approach — the gatekeeper they must cross; the two base minions flank it at y±180.
+BOSS_CLS = unreal.load_class(None, "/Script/SuperClaudeBros2.ShellbackAlpha")
+if BOSS_CLS:
+    boss = eas.spawn_actor_from_class(BOSS_CLS, unreal.Vector(11450.0, 0.0, 5745.0))
+    boss.set_actor_label("Boss_ShellbackAlpha_W1")
+    # Wake-on-approach radius: tight enough it stays asleep while the hero climbs the lower canyon,
+    # wide enough that stepping onto the base landing trips it. (Class default 1100 -> 850 for a gate.)
+    try:
+        boss.set_editor_property("AggroRadius", 850.0)
+    except Exception:
+        pass
+    # --- anti-lag for one big boss body (large-character law): cull from far, no RT, don't self-cull
+    # the wide roll reach, and only tick the (unused inherited) skeletal pose when on-screen.
+    for _comp in boss.get_components_by_class(unreal.PrimitiveComponent):
+        for _p, _v in (("ld_max_draw_distance", 14000.0), ("visible_in_ray_tracing", False),
+                       ("bounds_scale", 2.0)):
+            try:
+                _comp.set_editor_property(_p, _v)
+            except Exception:
+                pass
+    for _sk in boss.get_components_by_class(unreal.SkeletalMeshComponent):
+        try:
+            _sk.set_editor_property("visibility_based_anim_tick_option",
+                                    unreal.VisibilityBasedAnimTickOption.ONLY_TICK_POSE_WHEN_RENDERED)
+        except Exception:
+            pass
+    print("W1_BOSS: Boss_ShellbackAlpha_W1 placed dormant at spiral base (AggroRadius=850)")
+else:
+    print("W1_BOSS_FAIL: ShellbackAlpha class not loaded")
 
 saved = les.save_current_level()
 print(f"WORLD1_MERGED: cleared={removed} canyon_origin={(OX, OY, OZ)} saved={saved}")
