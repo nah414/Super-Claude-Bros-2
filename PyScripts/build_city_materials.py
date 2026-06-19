@@ -171,10 +171,11 @@ mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
 mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
 mat.set_editor_property("two_sided", True)
 tc = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureCoordinate, -1100, 0)
-tc.set_editor_property("u_tiling", 4.0)
+tc.set_editor_property("u_tiling", 2.7)   # FEWER streak columns (was 4.0) — lighter rainfall (Adam)
 tc.set_editor_property("v_tiling", 2.0)
 pan = MEL.create_material_expression(mat, unreal.MaterialExpressionPanner, -900, 0)
-pan.set_editor_property("speed_y", -1.6)  # rain falls
+pan.set_editor_property("speed_y", -1.05)  # rain falls SLOWER (was -1.6) — calmer, less of the vertical
+                                           # optical flow that was distorting the player's speed (Adam)
 MEL.connect_material_expressions(tc, "", pan, "Coordinate")
 t = MEL.create_material_expression(mat, unreal.MaterialExpressionTextureSample, -650, 0)
 t.set_editor_property("texture", textures["rain"])
@@ -187,7 +188,8 @@ MEL.connect_material_expressions(t, "R", emul, "A")
 MEL.connect_material_expressions(tint, "", emul, "B")
 omul = MEL.create_material_expression(mat, unreal.MaterialExpressionMultiply, -400, 160)
 ok_ = MEL.create_material_expression(mat, unreal.MaterialExpressionConstant, -650, 240)
-ok_.set_editor_property("r", 0.46)
+ok_.set_editor_property("r", 0.28)   # FAINTER streaks (was 0.46) — the main "not so heavy" lever (Adam):
+                                     # rain reads as atmosphere, the scene stays clear through it
 MEL.connect_material_expressions(t, "R", omul, "A")
 MEL.connect_material_expressions(ok_, "", omul, "B")
 finish(mat, "M_RainStreak", [
