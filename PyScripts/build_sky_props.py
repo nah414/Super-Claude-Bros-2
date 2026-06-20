@@ -23,9 +23,12 @@ M_YEL = EAL.load_asset("/Game/Art/CityMat/M_MoonYellow")
 M_RING = EAL.load_asset("/Game/Art/CityMat/M_MoonRing")
 
 # ---- tunables (world coords) -------------------------------------------------------------------
-LARGE_POS,  LARGE_SCALE = (36000.0, -10000.0, 26000.0), 90.0   # reddish moon, radius ~4500uu, ~35deg up
-SMALL_POS,  SMALL_SCALE = (-22000.0, 20000.0, 24000.0), 48.0   # pale-yellow moon, radius ~2400uu
-RING_SCALE, RING_ROT    = 150.0, (14.0, 0.0, 10.0)            # ring just outside the large moon, tilted
+# Both moons now sit over the SPAWN / west end (PlayerStart ~ -4500,0,120), out to the sides + up at
+# ~33-34deg elevation, well WEST of the east canyon spire so the staircase building no longer blocks
+# the view (Adam). Large moon to the NORTH (left when facing east down the boulevard), small to the SOUTH.
+LARGE_POS,  LARGE_SCALE = (-3000.0, 22000.0, 15000.0), 80.0    # reddish moon, north, ~r4000uu, ~34deg up
+SMALL_POS,  SMALL_SCALE = (-2000.0, -18000.0, 13000.0), 38.0   # pale-yellow moon, south, ~r1900uu (now visible)
+RING_SCALE, RING_ROT    = 135.0, (14.0, 0.0, 10.0)            # ring just outside the large moon, tilted
 # ------------------------------------------------------------------------------------------------
 
 for a in list(eas.get_all_level_actors()):

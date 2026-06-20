@@ -152,11 +152,21 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 
 	if (bDead) { return; }
 
-	// P swaps hero PAWNS (destroy + spawn) — a BeginPlay-cached pointer goes
-	// stale and the aura/backstop silently die. Re-resolve whenever invalid.
-	if (!CachedHero.IsValid())
+	// Resolve the hero ROBUSTLY. A BeginPlay-cached pointer can come back EMPTY in packaged builds
+	// (the Glimmer's BeginPlay can run before the player pawn is possessed), and P swaps the pawn at
+	// runtime. Try cache -> player pawn -> world scan, refreshing the cache from whichever succeeds,
+	// so the Glimmer ALWAYS finds the hero if one exists. (A null hero = no aggro AND no bonk = the
+	// "does nothing / never attacks" symptom Adam saw.)
+	ASparkHeroCharacter* Hero = CachedHero.Get();
+	if (Hero == nullptr)
 	{
-		CachedHero = Cast<ASparkHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+		Hero = Cast<ASparkHeroCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+		if (Hero == nullptr)
+		{
+			Hero = Cast<ASparkHeroCharacter>(
+				UGameplayStatics::GetActorOfClass(GetWorld(), ASparkHeroCharacter::StaticClass()));
+		}
+		if (Hero) { CachedHero = Hero; }
 	}
 
 	// Keep live-tuned values flowing into the movement component (editor tuning).
@@ -164,7 +174,7 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 
 	// Generous contact backstop: hit/overlap events do the heavy lifting, but a
 	// plain radius check means a hero pressed flush against us never slips through.
-	if (ASparkHeroCharacter* Hero = CachedHero.Get())
+	if (Hero)
 	{
 		const float RadiusSum = GetCapsuleComponent()->GetScaledCapsuleRadius()
 			+ Hero->GetCapsuleComponent()->GetScaledCapsuleRadius() + 20.f;
@@ -180,7 +190,7 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 
 	// The Spark Aura (hero power, L2+): kept-fire calms wild things. Inside the
 	// radius the Glimmer settles — no patrol, no bonks. Mercy as a mechanic.
-	if (const ASparkHeroCharacter* Hero = CachedHero.Get())
+	if (Hero)
 	{
 		const bool bCalm = Hero->IsAuraActive()
 			&& FVector::DistSquared(Hero->GetActorLocation(), GetActorLocation())
@@ -197,18 +207,13 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 	// Stunned after a bonk: stand still and let the hero get clear.
 	if (Now() < StunnedUntilTime) { return; }
 
-	// AGGRO-ON-SIGHT: a hero inside AggroRadius is HUNTED, not ignored. The contact
-	// backstop above still owns the bonk/stomp/dash outcome; this only commits the
-	// Glimmer to walking straight AT the hero instead of patrolling past him. With the
-	// shorter post-bonk stun, the hunt resumes the instant the bonk's knockback breaks
-	// contact — so it reads as "sees you and comes for you", never "freezes when close".
-	if (ASparkHeroCharacter* Hero = CachedHero.Get())
+	// AGGRO-ON-SIGHT: a hero inside AggroRadius is HUNTED. ChaseHero closes the gap and, once
+	// inside StrikeRange, POUNCES (the active attack). The contact backstop above still owns the
+	// bonk/stomp/dash outcome when the pounce lands.
+	if (Hero && FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= AggroRadius)
 	{
-		if (FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= AggroRadius)
-		{
-			ChaseHero(Hero);
-			return;
-		}
+		ChaseHero(Hero);
+		return;
 	}
 
 	// Patrol: walk the platform, turning back at walls and ledges.
@@ -270,7 +275,16 @@ void AGlimmerEnemy::ChaseHero(ASparkHeroCharacter* Hero)
 	// Commit to the hunt: a notch quicker than the patrol amble (reads as "coming for you").
 	GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 
-	// Swing to face the hero (yaw only) — smooth interp, not a snap, so the turn reads.
+	// In strike range + off cooldown -> POUNCE. This is the active attack the player sees.
+	if (FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= StrikeRange
+		&& Now() >= NextStrikeTime
+		&& GetCharacterMovement()->IsMovingOnGround())
+	{
+		Lunge(Hero);
+		return;
+	}
+
+	// Otherwise close the gap on foot. Swing to face the hero (yaw only) — smooth, so the turn reads.
 	const FVector ToHero = Hero->GetActorLocation() - GetActorLocation();
 	if (!ToHero.IsNearlyZero())
 	{
@@ -288,6 +302,40 @@ void AGlimmerEnemy::ChaseHero(ASparkHeroCharacter* Hero)
 		SenseAndTurn();
 	}
 	AddMovementInput(GetActorForwardVector());
+}
+
+// ---------------------------------------------------------------------------
+// The active attack: a telegraphed POUNCE at the hero. Ledge-guarded so the
+// Glimmer never dives into a pit. The pounce carries it into the hero, where
+// the contact backstop / HandleHeroContact lands the bonk (ember drain + shove).
+// ---------------------------------------------------------------------------
+void AGlimmerEnemy::Lunge(ASparkHeroCharacter* Hero)
+{
+	if (Hero == nullptr) { return; }
+	NextStrikeTime = Now() + StrikeCooldown;
+
+	FVector ToHero = Hero->GetActorLocation() - GetActorLocation();
+	ToHero.Z = 0.f;
+	const FVector Dir = ToHero.IsNearlyZero() ? GetActorForwardVector() : ToHero.GetSafeNormal();
+
+	// Ledge guard: confirm ground partway along the pounce, or skip it (keep walking + bonking).
+	if (UWorld* World = GetWorld())
+	{
+		const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		const FVector Probe = GetActorLocation() + Dir * 160.f;
+		FHitResult Ground;
+		FCollisionQueryParams P(TEXT("GlimmerLunge"), false, this);
+		P.AddIgnoredActor(Hero);
+		const bool bGround = World->LineTraceSingleByChannel(
+			Ground, Probe, Probe - FVector(0.f, 0.f, HalfHeight + 120.f), ECC_Visibility, P);
+		if (!bGround) { return; }
+	}
+
+	// Snap to face the hero, flash a cold spark telegraph, then leap.
+	SetActorRotation(FRotator(0.f, Dir.Rotation().Yaw, 0.f));
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 20.f),
+	                         FLinearColor(0.45f, 1.6f, 2.3f), 0.55f, 1500.f);   // a cold pounce flash
+	LaunchCharacter(Dir * LungeSpeed + FVector(0.f, 0.f, LungeLift), true, true);
 }
 
 // ---------------------------------------------------------------------------

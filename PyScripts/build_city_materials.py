@@ -384,13 +384,13 @@ except Exception as _e:
 nstar = _noise(mat, -1200, -200, scale=4.0, levels=1)
 ssub = _x(mat, unreal.MaterialExpressionSubtract, -980, -200)
 MEL.connect_material_expressions(nstar, "", ssub, "A")
-MEL.connect_material_expressions(_const(mat, 0.975, -1200, -60), "", ssub, "B")
-sscl = _mul(mat, ssub, _const(mat, 16.0, -980, -60), -800, -200)
+MEL.connect_material_expressions(_const(mat, 0.985, -1200, -60), "", ssub, "B")  # 0.975->0.985: ~ -65% count
+sscl = _mul(mat, ssub, _const(mat, 30.0, -980, -60), -800, -200)                 # 16->30: keep them crisp
 sclamp = _x(mat, unreal.MaterialExpressionClamp, -640, -200)
 MEL.connect_material_expressions(sscl, "", sclamp, "")
-svar = _noise(mat, -1200, -420, scale=3.3, levels=1, omin=0.35, omax=1.0)     # per-star brightness var
+svar = _noise(mat, -1200, -420, scale=3.3, levels=1, omin=0.45, omax=1.0)        # brightness var (floor up)
 starlit = _mul(mat, sclamp, svar, -620, -260)
-star = _mul(mat, starlit, _rgb(mat, (2.6, 2.6, 2.4), -640, -60), -460, -200)  # warm-neutral white
+star = _mul(mat, starlit, _rgb(mat, (3.4, 3.4, 3.1), -640, -60), -460, -200)     # brighter = more prominent
 # nebula: low-freq noise -> a WHISPER of violet<->teal, much darker than before so the sky reads as
 # near-black night, not a glowing space haze (the old wash was most of the "blueish" Adam saw).
 nneb = _noise(mat, -1200, 260, scale=0.045, levels=4)
@@ -413,8 +413,8 @@ finish(mat, "M_StarNebula", [
 mat = new_material("M_MoonRed")
 mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
 mat.set_editor_property("two_sided", True)
-_mott = _noise(mat, -1000, 0, scale=0.8, levels=3, omin=0.5, omax=1.0)            # maria/mottle
-_moonred = _mul(mat, _rgb(mat, (1.70, 0.42, 0.24), -800, -160), _mott, -420, -40)  # blood-red glow
+_mott = _noise(mat, -1000, 0, scale=0.8, levels=3, omin=0.42, omax=1.0)           # maria/crater mottle
+_moonred = _mul(mat, _rgb(mat, (0.70, 0.32, 0.22), -800, -160), _mott, -420, -40)  # MATTE reddish rock (no glow)
 finish(mat, "M_MoonRed", [
     ("emissive", MEL.connect_material_property(_moonred, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
 ])
@@ -423,8 +423,8 @@ finish(mat, "M_MoonRed", [
 mat = new_material("M_MoonYellow")
 mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
 mat.set_editor_property("two_sided", True)
-_motty = _noise(mat, -1000, 0, scale=1.1, levels=3, omin=0.6, omax=1.0)
-_moonyel = _mul(mat, _rgb(mat, (1.50, 1.38, 0.82), -800, -160), _motty, -420, -40)  # pale yellow glow
+_motty = _noise(mat, -1000, 0, scale=1.1, levels=3, omin=0.5, omax=1.0)
+_moonyel = _mul(mat, _rgb(mat, (0.72, 0.66, 0.46), -800, -160), _motty, -420, -40)  # MATTE pale-yellow rock
 finish(mat, "M_MoonYellow", [
     ("emissive", MEL.connect_material_property(_moonyel, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
 ])
@@ -456,8 +456,8 @@ MEL.connect_material_expressions(_rad, "", _ao, "B")
 _aoc = _x(mat, unreal.MaterialExpressionClamp, -300, 170)
 MEL.connect_material_expressions(_mul(mat, _ao, _const(mat, 16.0, -640, 240), -470, 170), "", _aoc, "")
 _ring = _mul(mat, _aic, _aoc, -140, 40)                                           # the annulus mask
-_ringcol = _mul(mat, _ring, _rgb(mat, (1.25, 1.00, 0.72), -300, -210), 60, -120)  # pale-gold ring glow
-_ringop = _mul(mat, _ring, _const(mat, 0.9, -300, 260), 60, 200)
+_ringcol = _mul(mat, _ring, _rgb(mat, (0.55, 0.46, 0.34), -300, -210), 60, -120)  # faint MATTE ring (no glow)
+_ringop = _mul(mat, _ring, _const(mat, 0.7, -300, 260), 60, 200)
 finish(mat, "M_MoonRing", [
     ("emissive", MEL.connect_material_property(_ringcol, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
     ("opacity", MEL.connect_material_property(_ringop, "", unreal.MaterialProperty.MP_OPACITY)),

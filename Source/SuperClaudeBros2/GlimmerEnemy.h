@@ -54,6 +54,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float ChaseSpeed = 360.f;
 
+	// ---------------- Strike (the active attack) ----------------
+	/** Within this range the Glimmer stops walking and POUNCES at the hero. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float StrikeRange = 280.f;
+
+	/** Horizontal speed of the pounce. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float LungeSpeed = 1150.f;
+
+	/** Upward pop on the pounce so it reads as a leap, not a slide. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float LungeLift = 300.f;
+
+	/** Seconds between pounces (the telegraph/recovery rhythm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float StrikeCooldown = 1.3f;
+
 	/** How far past the capsule's leading edge we probe for walls and ledges. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float TurnCheckDistance = 50.f;
@@ -136,6 +153,10 @@ private:
 
 	// Aggro state: face + walk straight at the hero (ledge-safe, reuses SenseAndTurn).
 	void ChaseHero(ASparkHeroCharacter* Hero);
+
+	// The active attack: pounce at the hero (ledge-guarded), spark telegraph, then the bonk lands.
+	void Lunge(ASparkHeroCharacter* Hero);
+	float NextStrikeTime = -1000.f;
 
 	// Hero contact state
 	void HandleHeroContact(ASparkHeroCharacter* Hero);
