@@ -2,6 +2,7 @@
 
 #include "CollisionQueryParams.h"
 #include "Components/CapsuleComponent.h"
+#include "DrawDebugHelpers.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/HitResult.h"
 #include "Engine/StaticMesh.h"
@@ -168,6 +169,13 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 		}
 		if (Hero) { CachedHero = Hero; }
 	}
+	if (!Hero) { CombatState = TEXT("NO-HERO"); }
+
+	// TEMP debug label over the head (see header note) — drawn each frame so we can see the state.
+	if (bShowCombatState)
+	{
+		DrawDebugString(GetWorld(), FVector(0.f, 0.f, 95.f), CombatState, this, FColor::Yellow, 0.f, true, 1.4f);
+	}
 
 	// Keep live-tuned values flowing into the movement component (editor tuning).
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
@@ -202,10 +210,10 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 			if (bCalm) { GetCharacterMovement()->StopMovementImmediately(); }
 		}
 	}
-	if (bCalmedByAura) { return; }   // settled in the warm light
+	if (bCalmedByAura) { CombatState = TEXT("CALM"); return; }   // settled in the warm light
 
-	// Stunned after a bonk: stand still and let the hero get clear.
-	if (Now() < StunnedUntilTime) { return; }
+	// Stunned (now only from a power-stagger — the contact bonk no longer self-stuns): hold a beat.
+	if (Now() < StunnedUntilTime) { CombatState = TEXT("STUN"); return; }
 
 	// AGGRO-ON-SIGHT: a hero inside AggroRadius is HUNTED. ChaseHero closes the gap and, once
 	// inside StrikeRange, POUNCES (the active attack). The contact backstop above still owns the
@@ -217,6 +225,7 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 	}
 
 	// Patrol: walk the platform, turning back at walls and ledges.
+	CombatState = TEXT("PATROL");
 	if (GetCharacterMovement()->IsMovingOnGround())
 	{
 		SenseAndTurn();
@@ -280,10 +289,12 @@ void AGlimmerEnemy::ChaseHero(ASparkHeroCharacter* Hero)
 		&& Now() >= NextStrikeTime
 		&& GetCharacterMovement()->IsMovingOnGround())
 	{
+		CombatState = TEXT("POUNCE");
 		Lunge(Hero);
 		return;
 	}
 
+	CombatState = TEXT("HUNT");
 	// Otherwise close the gap on foot. Swing to face the hero (yaw only) — smooth, so the turn reads.
 	const FVector ToHero = Hero->GetActorLocation() - GetActorLocation();
 	if (!ToHero.IsNearlyZero())
@@ -394,8 +405,10 @@ void AGlimmerEnemy::HandleHeroContact(ASparkHeroCharacter* Hero)
 	// way — the flame and the shove are separate ledgers.
 	Hero->TakeEmberHit(ContactProfile.ContactDamageEmbers);
 
-	StunnedUntilTime = Now() + StunDuration;
-	GetCharacterMovement()->StopMovementImmediately();
+	// NO self-stun here. The old "stand still after a bonk" was THE freeze: a hero held close
+	// re-triggered the bonk every HitCooldown, and each bonk StopMovement+stunned the Glimmer for
+	// StunDuration -> it froze in place and never got to hunt/pounce ("freezes when you get close,
+	// doesn't attack"). HitCooldown alone now paces the contact hit; the Glimmer keeps attacking.
 }
 
 void AGlimmerEnemy::TakeStrike()

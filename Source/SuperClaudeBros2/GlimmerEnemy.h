@@ -158,6 +158,12 @@ private:
 	void Lunge(ASparkHeroCharacter* Hero);
 	float NextStrikeTime = -1000.f;
 
+	// TEMP DEBUG (Adam can't screenshot): float each Glimmer's current state over its head so we can
+	// SEE whether it hunts/pounces. Set false (or delete) once combat is confirmed working.
+	UPROPERTY(EditAnywhere, Category = "Glimmer|Debug")
+	bool bShowCombatState = true;
+	FString CombatState = TEXT("PATROL");
+
 	// Hero contact state
 	void HandleHeroContact(ASparkHeroCharacter* Hero);
 	void Die(bool bByStomp);
