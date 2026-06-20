@@ -71,6 +71,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float StrikeCooldown = 1.3f;
 
+	/** If true, the hero's Spark Aura pacifies this Glimmer (the "mercy" mechanic). DEFAULT OFF so
+	    Glimmers stay a COMBAT THREAT — the hero's always-on aura was calming every one he approached
+	    ("Calm" over their heads) instead of letting them fight. Adam wants challenge. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	bool bCalmableByAura = false;
+
 	/** How far past the capsule's leading edge we probe for walls and ledges. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float TurnCheckDistance = 50.f;

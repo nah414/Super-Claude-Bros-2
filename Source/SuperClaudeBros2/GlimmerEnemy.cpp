@@ -196,9 +196,11 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 	}
 	if (bDead) { return; } // contact may have squashed us this frame
 
-	// The Spark Aura (hero power, L2+): kept-fire calms wild things. Inside the
-	// radius the Glimmer settles — no patrol, no bonks. Mercy as a mechanic.
-	if (Hero)
+	// The Spark Aura (hero power, L2+) CAN pacify wild things — but for Glimmers that "mercy" is OFF
+	// by default (bCalmableByAura). The hero's always-on aura was calming EVERY Glimmer he walked up
+	// to ("Calm" over their heads) instead of letting them fight — which is exactly why they "never
+	// attacked". Gated off so Glimmers stay a combat threat.
+	if (bCalmableByAura && Hero)
 	{
 		const bool bCalm = Hero->IsAuraActive()
 			&& FVector::DistSquared(Hero->GetActorLocation(), GetActorLocation())
