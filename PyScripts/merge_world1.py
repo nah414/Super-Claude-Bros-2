@@ -190,25 +190,25 @@ for _j, (_k, _x, _y, _z) in enumerate(CANYON_ENEMIES + SPIRAL_ENEMIES, start=22)
 print(f"W1_ENEMIES_CANYON_SPIRAL: {_cn}/19")
 print(f"W1_ENEMIES_CANYON: {_cn}/4")
 
-# ===================== WORLD-1 FIRST BOSS: Shellback Alpha, dormant at the spiral BASE =====
-# The lowest-level boss (Story Bible §11 cheap-boss ladder): the Roly grown ~2.7x — same Cannonball
-# roll, but three flip-stomps to drive it off, no HP bar. It sits in its NATIVE Idle state at the
-# FOOT of the spire spiral (the first/lowest landing, SpiralLand_00): Idle IS "dormant" — it holds
-# dead-still until the hero crosses into AggroRadius, then winds up and charges (Adam: "waiting for
-# our heroes to cross their path").
-# PLACEMENT MATH (build_world1_lantern_climb): spire_wp[0] is canyon-local (-650, 0, SPIRE_BASE_Z=6000);
-# world = + origin(OX 12100, OY 0, OZ -350) = (11450, 0, 5650) = the base-landing TOP. The Alpha
-# capsule half-height is 90, so actor Z = 5650 + 95 = 5745 rests its feet flush on the landing (a few
-# uu of clearance avoids spawn penetration). Dead-centre of the 500x500 base landing where the hero
-# steps off the gondola approach — the gatekeeper they must cross; the two base minions flank it at y±180.
+# ===================== WORLD-1 FIRST BOSS: Shellback Alpha, at the FOOT of the zig-zag climb =====
+# The lowest-level boss (Story Bible §11 cheap-boss): the Roly grown ~2.7x — Cannonball roll, three
+# flip-stomps to drive it off, no HP bar. Staged at the BOTTOM of the switchback ("zig-zag") staircase,
+# on the canyon floor, BEFORE the spiral begins (Adam: "fight the boss as they're chased up to the
+# top"). It Idles (dormant) until the hero crosses into AggroRadius, then winds up + charges across
+# the floor.
+# PLACEMENT (build_world1_lantern_climb): the canyon floor TOP is world z0 (FLOOR_TOP 350 canyon-local
+# + OZ -350). The hero enters the canyon via the west doorway (~world 9800,0,0) and heads to the
+# flight-0 base (~world 10150,-2200,0) to start climbing; the boss sits squarely in that path on the
+# floor at world (10300,-1600). Alpha capsule half-height is 90 -> actor z 95 = feet flush on the
+# floor. A WIDE AggroRadius engages the whole canyon-bottom so it charges the moment the hero arrives.
 BOSS_CLS = unreal.load_class(None, "/Script/SuperClaudeBros2.ShellbackAlpha")
 if BOSS_CLS:
-    boss = eas.spawn_actor_from_class(BOSS_CLS, unreal.Vector(11450.0, 0.0, 5745.0))
+    boss = eas.spawn_actor_from_class(BOSS_CLS, unreal.Vector(10300.0, -1600.0, 95.0))
     boss.set_actor_label("Boss_ShellbackAlpha_W1")
-    # Wake-on-approach radius: tight enough it stays asleep while the hero climbs the lower canyon,
-    # wide enough that stepping onto the base landing trips it. (Class default 1100 -> 850 for a gate.)
+    # Wide wake radius: engages as the hero reaches the foot of the zig-zag, then charges them across
+    # the canyon floor (the boss rolls on flat ground; it fights at the bottom). Class default 1100 -> 1400.
     try:
-        boss.set_editor_property("AggroRadius", 850.0)
+        boss.set_editor_property("AggroRadius", 1400.0)
     except Exception:
         pass
     # --- anti-lag for one big boss body (large-character law): cull from far, no RT, don't self-cull

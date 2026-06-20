@@ -62,8 +62,8 @@ if len(bosses) == 1:
         aggro = b.get_editor_property("AggroRadius")
     except Exception:
         aggro = -1.0
-    near_base = abs(bl.x - 11450) < 400 and abs(bl.y - 0) < 400 and abs(bl.z - 5745) < 400
-    boss_ok = near_base and abs(aggro - 850.0) < 1.0
+    near_base = abs(bl.x - 10300) < 500 and abs(bl.y + 1600) < 500 and abs(bl.z - 95) < 500
+    boss_ok = near_base and abs(aggro - 1400.0) < 1.0
     print(f"  boss: 1x Boss_ShellbackAlpha_W1 at ({bl.x:.0f},{bl.y:.0f},{bl.z:.0f}) AggroRadius={aggro:.0f} "
           f"near_base={near_base}")
 else:
