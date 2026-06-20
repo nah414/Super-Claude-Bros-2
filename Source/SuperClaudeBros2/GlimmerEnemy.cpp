@@ -286,10 +286,16 @@ void AGlimmerEnemy::ChaseHero(ASparkHeroCharacter* Hero)
 	// Commit to the hunt: a notch quicker than the patrol amble (reads as "coming for you").
 	GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 
-	// In strike range + off cooldown -> POUNCE. This is the active attack the player sees.
+	// In strike range + off cooldown -> POUNCE, but ONLY if there's ground to land on. On a small
+	// spiral landing the lunge would overshoot the edge and the Glimmer would fall + clip through the
+	// floor below — there it just keeps hunting + bonking on contact instead of leaping.
+	const FVector ToHeroFlat(Hero->GetActorLocation().X - GetActorLocation().X,
+	                         Hero->GetActorLocation().Y - GetActorLocation().Y, 0.f);
+	const FVector LungeDir = ToHeroFlat.IsNearlyZero() ? GetActorForwardVector() : ToHeroFlat.GetSafeNormal();
 	if (FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= StrikeRange
 		&& Now() >= NextStrikeTime
-		&& GetCharacterMovement()->IsMovingOnGround())
+		&& GetCharacterMovement()->IsMovingOnGround()
+		&& HasLungeRoom(LungeDir))
 	{
 		CombatState = TEXT("POUNCE");
 		Lunge(Hero);
@@ -349,6 +355,29 @@ void AGlimmerEnemy::Lunge(ASparkHeroCharacter* Hero)
 	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 20.f),
 	                         FLinearColor(0.45f, 1.6f, 2.3f), 0.55f, 1500.f);   // a cold pounce flash
 	LaunchCharacter(Dir * LungeSpeed + FVector(0.f, 0.f, LungeLift), true, true);
+}
+
+// ---------------------------------------------------------------------------
+// Pounce-room check: ground must exist all along the lunge reach, or the Glimmer
+// would leap off a small landing (the spiral) into a gap and sink through the floor.
+// ---------------------------------------------------------------------------
+bool AGlimmerEnemy::HasLungeRoom(const FVector& Dir) const
+{
+	const UWorld* World = GetWorld();
+	if (World == nullptr) { return false; }
+	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	FCollisionQueryParams P(TEXT("GlimmerLungeRoom"), false, this);
+	if (const ASparkHeroCharacter* Hero = CachedHero.Get()) { P.AddIgnoredActor(Hero); }
+	// Every point along the lunge reach must have ground within a comfortable step-down.
+	for (const float D : { 160.f, 280.f, 400.f })
+	{
+		const FVector Probe = GetActorLocation() + Dir * D;
+		FHitResult Ground;
+		const bool bHit = World->LineTraceSingleByChannel(
+			Ground, Probe, Probe - FVector(0.f, 0.f, HalfHeight + 130.f), ECC_Visibility, P);
+		if (!bHit) { return false; }
+	}
+	return true;
 }
 
 // ---------------------------------------------------------------------------

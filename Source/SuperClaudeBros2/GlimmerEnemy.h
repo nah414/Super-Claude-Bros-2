@@ -164,11 +164,15 @@ private:
 	void Lunge(ASparkHeroCharacter* Hero);
 	float NextStrikeTime = -1000.f;
 
-	// TEMP DEBUG (Adam can't screenshot): float each Glimmer's current state over its head so we can
-	// SEE whether it hunts/pounces. Set false (or delete) once combat is confirmed working.
+	// Debug (off now that combat is confirmed): float each Glimmer's state over its head. Flip true
+	// to diagnose again. The state strings below are cheap to keep set.
 	UPROPERTY(EditAnywhere, Category = "Glimmer|Debug")
-	bool bShowCombatState = true;
+	bool bShowCombatState = false;
 	FString CombatState = TEXT("PATROL");
+
+	// Is there ground along the whole pounce path? Small spiral landings can't host the lunge — it
+	// overshoots the edge and the Glimmer falls + clips through the floor below. Gates the pounce.
+	bool HasLungeRoom(const FVector& Dir) const;
 
 	// Hero contact state
 	void HandleHeroContact(ASparkHeroCharacter* Hero);

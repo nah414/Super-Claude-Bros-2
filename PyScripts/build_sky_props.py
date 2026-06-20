@@ -27,7 +27,10 @@ M_RING = EAL.load_asset("/Game/Art/CityMat/M_MoonRing")
 # ~33-34deg elevation, well WEST of the east canyon spire so the staircase building no longer blocks
 # the view (Adam). Large moon to the NORTH (left when facing east down the boulevard), small to the SOUTH.
 LARGE_POS,  LARGE_SCALE = (-3000.0, 22000.0, 15000.0), 80.0    # reddish moon, north, ~r4000uu, ~34deg up
-SMALL_POS,  SMALL_SCALE = (-2000.0, -18000.0, 13000.0), 38.0   # pale-yellow moon, south, ~r1900uu (now visible)
+# Small moon now sits RIGHT NEXT TO the large one (Adam) with a gravity-style offset: same depth (Y),
+# nudged ~5000uu to the side (+X) and ~3850uu DOWN (-Z) so it reads as a companion caught in the big
+# moon's pull (a diagonal below-and-beside, ~400uu surface gap), below the ring plane so it doesn't clip.
+SMALL_POS,  SMALL_SCALE = (2000.0, 22000.0, 11150.0), 38.0     # pale-yellow companion, ~r1900uu
 RING_SCALE, RING_ROT    = 135.0, (14.0, 0.0, 10.0)            # ring just outside the large moon, tilted
 # ------------------------------------------------------------------------------------------------
 
