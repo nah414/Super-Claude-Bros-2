@@ -128,6 +128,17 @@ void ASparkHeroGameMode::BeginPlay()
 		float Delay = 3.f;
 		FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotDelay="), Delay);
 
+		// A parsed delay of <= 0 (e.g. -SCB2ShotDelay=0, or a malformed value that
+		// resolves non-positive) fires the capture timer before the offscreen render
+		// thread has produced a frame, so FScreenshotRequest never resolves and the
+		// process hangs indefinitely. Clamp back to the 3.0s default to stay safe.
+		if (Delay <= 0.f)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("SCB2: SCB2ShotDelay resolved to %.3f (<= 0); clamping to 3.0s default."), Delay);
+			Delay = 3.f;
+		}
+
 		// Optional framing: -SCB2ShotArm=160 pulls the camera in for hero close-ups,
 		// -SCB2ShotYaw=180 orbits it (180 = face-on portrait).
 		float ShotArm = 0.f, ShotYaw = 0.f;
