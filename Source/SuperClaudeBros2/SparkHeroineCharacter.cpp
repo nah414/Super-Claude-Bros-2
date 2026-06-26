@@ -38,6 +38,9 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerKick1(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Kick1_Anim.A_Heroine_Kick1_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerKick2(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Kick2_Anim.A_Heroine_Kick2_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerKick3(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_Kick3_Anim.A_Heroine_Kick3_Anim"));
+	// Her flag-capture finish clips (Meshy stage 36) — fall back to Claude's if missing.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerFlagGrab(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_FlagGrab_Anim.A_Heroine_FlagGrab_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerFlagVictory(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_FlagVictory_Anim.A_Heroine_FlagVictory_Anim"));
 
 	if (HerModel.Succeeded() && SkelBody)
 	{
@@ -54,6 +57,8 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	HitReactAnim = Pick(HerHitReact, HitReactAnim);
 	RelightAnim = Pick(HerRelight, RelightAnim);
 	CrouchAnim = Pick(HerCrouch, CrouchAnim);
+	FlagGrabAnim = Pick(HerFlagGrab, FlagGrabAnim);
+	FlagVictoryAnim = Pick(HerFlagVictory, FlagVictoryAnim);
 
 	// DUAL FAMILIES (Adam's RPG layout): LMB = her HOOK punches, RMB = her
 	// signature KICKS. All windows data-scanned (hooks: impact 0.725/0.475/

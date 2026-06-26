@@ -23,6 +23,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Sound/SoundBase.h"
+#include "Components/AudioComponent.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
 
@@ -47,6 +48,18 @@ void ASparkHeroGameMode::OnWorldGoalLit()
 {
 	if (bWorldWon) { return; }
 	bWorldWon = true;
+
+	// Duck the world music under the fanfare, then sound the victory sting — the audio half of
+	// the celebration (both guarded, so a missing audio pack just stays silent).
+	if (MusicComp)
+	{
+		MusicComp->AdjustVolume(0.6f, 0.12f);   // (fade seconds, target volume multiplier)
+	}
+	if (USoundBase* Sting = LoadObject<USoundBase>(nullptr,
+			TEXT("/Game/Art/Audio/music_victory_sting.music_victory_sting")))
+	{
+		UGameplayStatics::PlaySound2D(this, Sting, 1.0f);
+	}
 
 	// The First Lantern roars: kindle the whole city back to amber — the celebration.
 	if (AActor* Found = UGameplayStatics::GetActorOfClass(this, ALightNetworkManager::StaticClass()))
@@ -106,16 +119,27 @@ void ASparkHeroGameMode::BeginPlay()
 	const TCHAR* AmbPath = bNeonCity
 		? TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop")
 		: TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop");
-	const TCHAR* MusicPath = bNeonCity
-		? TEXT("/Game/Art/Audio/music_city_loop.music_city_loop")
-		: TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop");
 	if (USoundBase* Amb = LoadObject<USoundBase>(nullptr, AmbPath))
 	{
 		UGameplayStatics::PlaySound2D(this, Amb, 0.7f);
 	}
-	if (USoundBase* Music = LoadObject<USoundBase>(nullptr, MusicPath))
+
+	// NeonCity now plays the UPGRADED v2 track; fall back to the original (or none) if the v2
+	// asset isn't imported yet. Retain the component (SpawnSound2D returns it) so the win can
+	// DUCK the music under the victory fanfare.
+	USoundBase* Music = nullptr;
+	if (bNeonCity)
 	{
-		UGameplayStatics::PlaySound2D(this, Music, 0.5f);
+		Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_city_loop_v2.music_city_loop_v2"));
+		if (!Music) { Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_city_loop.music_city_loop")); }
+	}
+	else
+	{
+		Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop"));
+	}
+	if (Music)
+	{
+		MusicComp = UGameplayStatics::SpawnSound2D(this, Music, 0.5f);
 	}
 
 	// ----- Claude's eyes: automated capture mode -----

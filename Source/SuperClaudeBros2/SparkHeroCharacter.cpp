@@ -137,6 +137,9 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> Kick1Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Kick1_Anim.A_Hero_Kick1_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> Kick2Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Kick2_Anim.A_Hero_Kick2_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> KickHeavyClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_KickHeavy_Anim.A_Hero_KickHeavy_Anim"));
+	// The flag-capture finish clips (Meshy stage 36): grip the pole, then a fist-pump victory.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FlagGrabClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_FlagGrab_Anim.A_Hero_FlagGrab_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FlagVictoryClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_FlagVictory_Anim.A_Hero_FlagVictory_Anim"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -180,6 +183,8 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	Kick1Anim = Kick1Clip.Succeeded() ? Kick1Clip.Object : nullptr;
 	Kick2Anim = Kick2Clip.Succeeded() ? Kick2Clip.Object : nullptr;
 	KickHeavyAnim = KickHeavyClip.Succeeded() ? KickHeavyClip.Object : nullptr;
+	FlagGrabAnim = FlagGrabClip.Succeeded() ? FlagGrabClip.Object : nullptr;
+	FlagVictoryAnim = FlagVictoryClip.Succeeded() ? FlagVictoryClip.Object : nullptr;
 	// Scan-set windows (June 12): straight-kick impact frac 0.50, knee drive
 	// 0.21, roundhouse foot at head height 0.73 — each lands mid-beat.
 	Kick1ClipStartFraction = 0.30f;  Kick1ClipRate = 2.3f;
@@ -1510,6 +1515,36 @@ void ASparkHeroCharacter::EndActionClip()
 	bActionAnimActive = false;
 	if (SkelBody) { SkelBody->SetPlayRate(1.f); }
 	AnimState = EHeroAnimState::None;                 // force a fresh locomotion pick
+}
+
+// ---------------------------------------------------------------------------
+// The flag-capture finish (Meshy stage 36): grip the pole, then a fist-pump victory.
+// Two single-node clips chained on one timer (grab ~2.6s -> victory ~1.5s -> resume
+// locomotion), at natural rate; movement is stilled so the hero plants for the moment.
+// All clips null-safe — the game runs before they import.
+// ---------------------------------------------------------------------------
+void ASparkHeroCharacter::PlayFlagCapture()
+{
+	if (GetCharacterMovement()) { GetCharacterMovement()->StopMovementImmediately(); }
+
+	if (FlagGrabAnim)
+	{
+		PlayActionClip(FlagGrabAnim, 0.1f, 0.f, 1.0f);   // natural-rate grip of the pole
+		GetWorldTimerManager().SetTimer(FlagCaptureTimer, this,
+			&ASparkHeroCharacter::PlayFlagVictory, FMath::Max(FlagGrabAnim->GetPlayLength(), 0.1f), false);
+	}
+	else
+	{
+		PlayFlagVictory();
+	}
+}
+
+void ASparkHeroCharacter::PlayFlagVictory()
+{
+	if (!FlagVictoryAnim) { EndActionClip(); return; }
+	PlayActionClip(FlagVictoryAnim, 0.1f, 0.f, 1.0f);    // natural-rate celebration
+	GetWorldTimerManager().SetTimer(FlagCaptureTimer, this,
+		&ASparkHeroCharacter::EndActionClip, FMath::Max(FlagVictoryAnim->GetPlayLength(), 0.1f), false);
 }
 
 // ---------------------------------------------------------------------------

@@ -701,6 +701,9 @@ protected:
 	UPROPERTY() TObjectPtr<UAnimSequence> HitReactAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> RelightAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> CrouchAnim;
+	// The flag-capture finish (Meshy stage 36): grip the pole, then a fist-pump victory.
+	UPROPERTY() TObjectPtr<UAnimSequence> FlagGrabAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> FlagVictoryAnim;
 	bool bHasSkeletalModel = false;
 
 private:
@@ -712,8 +715,10 @@ private:
 	// the locomotion state machine waits, then resumes via the None sentinel.
 	void PlayActionClip(UAnimSequence* Clip, float FitDuration, float StartFraction = 0.f, float OverrideRate = 0.f);
 	void EndActionClip();
+	void PlayFlagVictory();          // 2nd beat of the flag-capture finish (timer target)
 	bool bActionAnimActive = false;
 	FTimerHandle HitReactTimerHandle;
+	FTimerHandle FlagCaptureTimer;   // grab -> victory -> resume chain on flag capture
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();
@@ -744,4 +749,9 @@ private:
 	// before/without the audio pack and shake classes.
 	void PlaySfx(const TCHAR* AssetPath) const;
 	void PlayShake(TSubclassOf<class UCameraShakeBase> ShakeClass) const;
+
+public:
+	/** The crown flag-capture finish: grip the pole, then a fist-pump victory (Meshy stage 36).
+	    Called by AFlagpoleGoal when a hero claims the flag. Null-clip safe. */
+	void PlayFlagCapture();
 };

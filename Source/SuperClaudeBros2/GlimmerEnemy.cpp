@@ -9,6 +9,7 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "SparkHeroCharacter.h"
 #include "SparkImpactBurst.h"
@@ -484,6 +485,16 @@ void AGlimmerEnemy::Die(bool bByStomp)
 	SetActorEnableCollision(false);
 
 	OnGlimmerSquashed(bByStomp);
+
+	// Give the defeat a SOUND. The stomp finally plays sfx_stomp (it was imported but never
+	// wired); any other kill plays the new sfx_enemy_defeat. Both guarded — silent if missing.
+	const TCHAR* SfxPath = bByStomp
+		? TEXT("/Game/Art/Audio/sfx_stomp.sfx_stomp")
+		: TEXT("/Game/Art/Audio/sfx_enemy_defeat.sfx_enemy_defeat");
+	if (USoundBase* Sfx = LoadObject<USoundBase>(nullptr, SfxPath))
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, Sfx, GetActorLocation());
+	}
 
 	// Let the flattened body linger a beat, then clean up.
 	GetWorldTimerManager().SetTimer(DestroyTimerHandle, this, &AGlimmerEnemy::FinishDeath,

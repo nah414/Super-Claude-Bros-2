@@ -7,6 +7,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "SparkHeroGameMode.generated.h"
 
+class UAudioComponent;
+
 UCLASS()
 class ASparkHeroGameMode : public AGameModeBase
 {
@@ -33,4 +35,9 @@ protected:
 private:
 	bool bWorldWon = false;
 	FTimerHandle WinTravelTimer;
+
+	/** The looping world music, retained (via SpawnSound2D) so the win can DUCK it under the
+	    victory fanfare. Null if the audio pack isn't imported — every use is guarded. */
+	UPROPERTY()
+	TObjectPtr<UAudioComponent> MusicComp = nullptr;
 };

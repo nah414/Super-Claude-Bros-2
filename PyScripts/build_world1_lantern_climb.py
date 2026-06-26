@@ -46,6 +46,7 @@ M_WATER = mat("M_HoloBillboard") or M_ASPHALT
 
 LANTERN_CLASS = unreal.load_class(None, "/Script/SuperClaudeBros2.Lantern")
 NETMGR_CLASS = unreal.load_class(None, "/Script/SuperClaudeBros2.LightNetworkManager")
+FLAGPOLE_CLASS = unreal.load_class(None, "/Script/SuperClaudeBros2.FlagpoleGoal")
 
 # World offset applied by build_canyon() to every placed actor (0,0,0 = standalone).
 OX = OY = OZ = 0.0
@@ -120,6 +121,19 @@ def lantern(x, y, label, *, z, checkpoint=False, goal=False, dark=False, gutteri
     a.set_actor_scale3d(unreal.Vector(scale, scale, scale))
     a.set_actor_label(f"LC_Lantern_{label}")
     P["lantern"] += 1
+    return a
+
+
+def flagpole(x, y, label, *, z, pole_height=14.0, raise_seconds=1.5, scale=1.0):
+    """The crown VICTORY POLE — the Mario flag finish. Touching it (or pressing E) raises the
+    banner up the mast and wins the world via the same idempotent hook as the lantern relight.
+    Rides the OX/OY/OZ merge offset like lantern(), so co-locates with the goal lantern."""
+    a = eas.spawn_actor_from_class(FLAGPOLE_CLASS, unreal.Vector(x + OX, y + OY, z + OZ))
+    setp(a, ["pole_height", "PoleHeight"], pole_height)
+    setp(a, ["raise_seconds", "RaiseSeconds"], raise_seconds)
+    a.set_actor_scale3d(unreal.Vector(scale, scale, scale))
+    a.set_actor_label(f"LC_Flagpole_{label}")
+    P["flagpole"] += 1
     return a
 
 
@@ -287,6 +301,10 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
     # player can aim for it, but not Lit, so the hold-E rite to fully kindle it is the win.
     lantern(0.0, 0.0, "FIRST", z=CROWN_Z, goal=True, guttering=True, relight_radius=0.0, auto=0.0,
             scale=3.0, intensity=7000.0, radius=3000.0)
+    # Mario-style FLAG CAPTURE, standing on the crown landing beside the beacon. Base is flush
+    # with the final landing (CROWN_Z-90) so the hero overlaps the capture trigger on arrival;
+    # walk into it (or press E) to raise the banner and win.
+    flagpole(0.0, 0.0, "CROWN", z=CROWN_Z - 90.0, pole_height=14.0, raise_seconds=1.5)
 
     # ---- 8 enterable shells ----
     shell(-1850, -1400, 900, 900, 760, 560, "S1_basement", door_yaw=0)
