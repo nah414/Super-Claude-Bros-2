@@ -1,71 +1,99 @@
-"""WORLD-1 SKY PROPS (Adam): two moons in the night sky — a LARGE reddish moon with an orbital RING,
-and a SMALLER pale-yellow moon. Placed as far, unlit-emissive meshes INSIDE the StarDome (radius
-~60000 around world ~6000,0,2000), so they read as distant moons over the starfield.
+"""WORLD-1 SKY BODIES: the Meshy celestial meshes (large red moon + ring-less pale companion + a gas
+giant planet) placed as 3D bodies INSIDE the star dome, so the textured all-sky map (T_StarMap on the
+dome) is the farthest backdrop and these read as nearer objects (Adam's "space dimensioning"). Replaces
+the old engine-sphere emissive moons. Each body's self-lit material (M_*_lit) is already on its mesh.
 
-Idempotent: clears any prior MoonLarge/MoonSmall/MoonRing, then re-adds + saves. Run -RenderOffscreen
-(map save needs render). Standalone OR as a chain step after build_neon_city (which wipes + rebuilds
-the map). All positions/sizes are constants below — easy to nudge from Adam's playtest feedback.
-
-NOTE: these are world-fixed meshes (like the StarDome), so they parallax slightly as the hero crosses
-the level. If they need to feel truly locked to the sky, the next step is a camera-following sky actor.
+Dome center (6000,0,2000), radius ~26000. Moons sit at r~20000, planet at r~15000 — all INSIDE the dome
+so it never occludes them (the old bug). Idempotent: clears prior MoonLarge/MoonSmall/MoonRing/Planet.
+Run with rendering (map save):
+  UnrealEditor-Cmd <uproject> -run=pythonscript -script=PyScripts/build_sky_props.py
+      -unattended -nosplash -RenderOffscreen -nopause
 """
+import math
 import unreal
 
 EAL = unreal.EditorAssetLibrary
 eas = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+
 assert unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/NeonCity"), "LOAD_NEONCITY_FAILED"
+CX, CY, CZ = 6000.0, 0.0, 2000.0     # dome center
 
-SPHERE = unreal.load_asset("/Engine/BasicShapes/Sphere")     # 100uu dia -> 50uu radius at scale 1
-PLANE = unreal.load_asset("/Engine/BasicShapes/Plane")       # 100uu square at scale 1
-M_RED = EAL.load_asset("/Game/Art/CityMat/M_MoonRed")
-M_YEL = EAL.load_asset("/Game/Art/CityMat/M_MoonYellow")
-M_RING = EAL.load_asset("/Game/Art/CityMat/M_MoonRing")
+# label, mesh path, direction (will be normalized), radius from center, scale
+#   moons hang in the WESTERN sky (look-back from the +X-facing spawn): large high, pale companion
+#   lower-left. The planet sits forward+up in a different region so it reads as its own world.
+# Moons get DEPTH separation (Adam: not smushed; one in front of the other): the LIGHT large moon sits
+# farther + high; the DARK small moon sits at half the radius on a slightly-offset heading, so it reads
+# as a distinct body IN FRONT of the large one (closer = drawn in front), not merged side-by-side.
+BODIES = [
+    ("MoonLarge", "/Game/Art/Celestial/moon_large_red/SM_moon_large_red",
+     (-0.82, 0.00, 0.52), 24000.0, 30.0),     # light, FAR, high in the west
+    ("MoonSmall", "/Game/Art/Celestial/moon_small_pale/SM_moon_small_pale",
+     (-0.84, 0.10, 0.46), 12000.0, 12.0),     # dark, NEAR (in front), slightly off the large's heading
+    ("Planet", "/Game/Art/Celestial/planet_gasgiant/SM_planet_gasgiant",
+     (0.62, 0.22, 0.52), 15000.0, 22.0),
+]
 
-# ---- tunables (world coords) -------------------------------------------------------------------
-# Both moons now sit over the SPAWN / west end (PlayerStart ~ -4500,0,120), out to the sides + up at
-# ~33-34deg elevation, well WEST of the east canyon spire so the staircase building no longer blocks
-# the view (Adam). Large moon to the NORTH (left when facing east down the boulevard), small to the SOUTH.
-LARGE_POS,  LARGE_SCALE = (-3000.0, 22000.0, 15000.0), 80.0    # reddish moon, north, ~r4000uu, ~34deg up
-# Small moon now sits RIGHT NEXT TO the large one (Adam) with a gravity-style offset: same depth (Y),
-# nudged ~5000uu to the side (+X) and ~3850uu DOWN (-Z) so it reads as a companion caught in the big
-# moon's pull (a diagonal below-and-beside, ~400uu surface gap), below the ring plane so it doesn't clip.
-SMALL_POS,  SMALL_SCALE = (2000.0, 22000.0, 11150.0), 38.0     # pale-yellow companion, ~r1900uu
-RING_SCALE, RING_ROT    = 135.0, (14.0, 0.0, 10.0)            # ring just outside the large moon, tilted
-# ------------------------------------------------------------------------------------------------
-
+# clear any prior sky bodies (old engine-sphere moons + ring + any earlier placement)
+removed = 0
 for a in list(eas.get_all_level_actors()):
-    if a.get_actor_label() in ("MoonLarge", "MoonSmall", "MoonRing"):
-        eas.destroy_actor(a)
+    try:
+        if a.get_actor_label() in ("MoonLarge", "MoonSmall", "MoonRing", "Planet", "Nebula"):
+            eas.destroy_actor(a)
+            removed += 1
+    except Exception:
+        pass
 
-
-def sky_mesh(mesh, mat, loc, scale, label, rot=None):
-    a = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(*loc))
-    smc = a.static_mesh_component
-    smc.set_static_mesh(mesh)
-    a.set_actor_scale3d(unreal.Vector(scale, scale, scale))
-    if rot:
-        a.set_actor_rotation(unreal.Rotator(rot[0], rot[1], rot[2]), False)
-    if mat:
-        smc.set_material(0, mat)
+def sky_flags(smc):
     smc.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
     for p, v in (("visible_in_ray_tracing", False), ("cast_shadow", False),
-                 ("ld_max_draw_distance", 0.0)):   # 0 = never distance-cull (it IS the sky backdrop)
+                 ("ld_max_draw_distance", 0.0)):
         try:
             smc.set_editor_property(p, v)
         except Exception:
             pass
+
+
+placed = 0
+moonlarge_loc = None
+for label, path, d, radius, scale in BODIES:
+    sm = EAL.load_asset(path)
+    if not sm:
+        print(f"BODY_SKIP {label}: mesh missing {path}")
+        continue
+    n = math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])
+    loc = unreal.Vector(CX + d[0] / n * radius, CY + d[1] / n * radius, CZ + d[2] / n * radius)
+    a = eas.spawn_actor_from_class(unreal.StaticMeshActor, loc)
+    smc = a.static_mesh_component
+    smc.set_static_mesh(sm)              # the SM already carries its M_*_lit emissive material
+    a.set_actor_scale3d(unreal.Vector(scale, scale, scale))
+    sky_flags(smc)
     a.set_actor_label(label)
-    return a
+    if label == "MoonLarge":
+        moonlarge_loc = loc
+    placed += 1
+    print(f"BODY_PLACED {label}: scale {scale} @ ({loc.x:.0f},{loc.y:.0f},{loc.z:.0f}) r{radius:.0f}")
 
+# orbital RING around the large moon (Adam: add the ring back). M_MoonRing annulus = 0.35..0.47 of the
+# plane, so scale ~96 gives a ring radius (~3360-4500uu) just outside the moon (~2850uu radius @ scale 30).
+RING_SCALE, RING_ROT = 96.0, (16.0, 0.0, 12.0)   # (pitch, yaw, roll) — tilt so it reads as an open ellipse
+ring_mat = EAL.load_asset("/Game/Art/CityMat/M_MoonRing")
+plane = unreal.load_asset("/Engine/BasicShapes/Plane")
+if moonlarge_loc and ring_mat and plane:
+    r = eas.spawn_actor_from_class(unreal.StaticMeshActor, moonlarge_loc)
+    rsmc = r.static_mesh_component
+    rsmc.set_static_mesh(plane)
+    r.set_actor_scale3d(unreal.Vector(RING_SCALE, RING_SCALE, RING_SCALE))
+    r.set_actor_rotation(unreal.Rotator(RING_ROT[0], RING_ROT[1], RING_ROT[2]), False)
+    rsmc.set_material(0, ring_mat)
+    sky_flags(rsmc)
+    r.set_actor_label("MoonRing")
+    placed += 1
+    print(f"BODY_PLACED MoonRing: scale {RING_SCALE} @ large moon")
+else:
+    print(f"RING_SKIP: moonloc={moonlarge_loc is not None} mat={ring_mat is not None} plane={plane is not None}")
 
-big = sky_mesh(SPHERE, M_RED, LARGE_POS, LARGE_SCALE, "MoonLarge")
-ring = sky_mesh(PLANE, M_RING, LARGE_POS, RING_SCALE, "MoonRing", rot=RING_ROT)
-small = sky_mesh(SPHERE, M_YEL, SMALL_POS, SMALL_SCALE, "MoonSmall")
-
-ok = all(x is not None for x in (big, ring, small)) and all(m is not None for m in (M_RED, M_YEL, M_RING))
-print(f"SKY_PROPS: MoonLarge+MoonRing+MoonSmall placed (mats_ok={M_RED is not None},"
-      f"{M_YEL is not None},{M_RING is not None})")
+print(f"SKY_BODIES: cleared {removed}, placed {placed}")
 saved = les.save_current_level()
-print(f"SKY_PROPS_SAVED: {saved}  ok={ok}")
+print(f"SKY_BODIES_SAVED: {saved}")
 print("SKY_PROPS_DONE")

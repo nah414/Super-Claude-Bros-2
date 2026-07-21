@@ -366,44 +366,51 @@ finish(mat, "M_Interior", [
     ("rough", MEL.connect_material_property(irough, "", unreal.MaterialProperty.MP_ROUGHNESS)),
 ])
 
-# ---- M_StarNebula: a starfield + faint nebula for the sky dome (city floating in space) ----
-# Unlit, two-sided (renders from inside the dome). Emissive = sparse white stars (thresholded
-# high-freq noise) + a faint violet/teal nebula (low-freq noise). No textures.
+# ---- M_StarNebula: the REAL all-sky map (ESO Milky Way panorama, T_StarMap) on the dome. The dome is
+# a UV sphere with lat-long UVs, so sampling the equirectangular map by TexCoord0 maps it straight onto
+# the sky. We view the dome from INSIDE (two-sided), so flip U (u_tiling = -1) to un-mirror it. Unlit +
+# is_sky + a tunable brightness. (The procedural band/discrete stars are gone — this is the whole sky.)
+_STARMAP = EAL.load_asset("/Game/Art/Sky/T_StarMap")
+SKY_BRIGHTNESS = 1.0                                  # tune: raise to make the Milky Way pop, lower to calm it
 mat = new_material("M_StarNebula")
 mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
 mat.set_editor_property("two_sided", True)
-# Is Sky = True so the real-time-capture SkyLight captures the StarDome as the sky (F4 removed the
-# SkyAtmosphere; without a sky the SkyLight errors + re-capture loops). Keeps the starry-space look.
 try:
     mat.set_editor_property("is_sky", True)
 except Exception as _e:
     unreal.log_warning(f"M_StarNebula is_sky not settable: {_e}")
-# stars: high-freq noise -> saturate((n - 0.975) * 16) = SPARSE crisp pinpoints. Threshold 0.975
-# (was 0.95) ~HALVES the count (Adam: still too many). A SECOND noise (svar, 0.35..1.0) multiplies
-# each star's brightness so they VARY dim<->bright like a real night sky. Warm-neutral white, no blue.
-nstar = _noise(mat, -1200, -200, scale=4.0, levels=1)
-ssub = _x(mat, unreal.MaterialExpressionSubtract, -980, -200)
-MEL.connect_material_expressions(nstar, "", ssub, "A")
-MEL.connect_material_expressions(_const(mat, 0.985, -1200, -60), "", ssub, "B")  # 0.975->0.985: ~ -65% count
-sscl = _mul(mat, ssub, _const(mat, 30.0, -980, -60), -800, -200)                 # 16->30: keep them crisp
-sclamp = _x(mat, unreal.MaterialExpressionClamp, -640, -200)
-MEL.connect_material_expressions(sscl, "", sclamp, "")
-svar = _noise(mat, -1200, -420, scale=3.3, levels=1, omin=0.45, omax=1.0)        # brightness var (floor up)
-starlit = _mul(mat, sclamp, svar, -620, -260)
-star = _mul(mat, starlit, _rgb(mat, (3.4, 3.4, 3.1), -640, -60), -460, -200)     # brighter = more prominent
-# nebula: low-freq noise -> a WHISPER of violet<->teal, much darker than before so the sky reads as
-# near-black night, not a glowing space haze (the old wash was most of the "blueish" Adam saw).
-nneb = _noise(mat, -1200, 260, scale=0.045, levels=4)
-nneb2 = _noise(mat, -1200, 460, scale=0.02, levels=3)
-nebtint = _lerp(mat, _rgb(mat, (0.018, 0.010, 0.020), -980, 320),
-                _rgb(mat, (0.006, 0.018, 0.020), -980, 440), nneb2, -800, 380)
-neb = _mul(mat, nneb, nebtint, -600, 320)                                     # faint nebula clouds
-emis = _x(mat, unreal.MaterialExpressionAdd, -300, 60)
-MEL.connect_material_expressions(star, "", emis, "A")
-MEL.connect_material_expressions(neb, "", emis, "B")
-finish(mat, "M_StarNebula", [
-    ("emissive", MEL.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
-])
+if _STARMAP:
+    uv = _x(mat, unreal.MaterialExpressionTextureCoordinate, -560, 0)
+    uv.set_editor_property("u_tiling", -1.0)          # flip horizontally: un-mirror the inside-of-dome view
+    uv.set_editor_property("v_tiling", 1.0)
+    samp = _x(mat, unreal.MaterialExpressionTextureSample, -340, 0)
+    samp.set_editor_property("texture", _STARMAP)
+    MEL.connect_material_expressions(uv, "", samp, "UVs")
+    emis = _mul(mat, samp, _const(mat, SKY_BRIGHTNESS, -340, 240), -80, 60)
+    finish(mat, "M_StarNebula", [
+        ("emissive", MEL.connect_material_property(emis, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+    ])
+else:
+    unreal.log_warning("M_StarNebula: /Game/Art/Sky/T_StarMap missing — run import_skymap.py first; using flat dark sky")
+    dark = _rgb(mat, (0.01, 0.012, 0.02), -300, 0)
+    finish(mat, "M_StarNebula", [
+        ("emissive", MEL.connect_material_property(dark, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
+    ])
+
+# ---- M_Star_<bucket>: tiny unlit emissive star materials in real B-V color families. build_starfield.py
+# assigns one per star by color index; per-star SIZE (by magnitude) + bloom give the brightness range. ----
+def _star_mat(name, rgb, intensity=8.0):
+    m = new_material(name)
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    m.set_editor_property("two_sided", True)
+    c = _rgb(m, tuple(round(v * intensity, 3) for v in rgb), -400, 0)
+    finish(m, name, [("emissive", MEL.connect_material_property(c, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR))])
+
+_star_mat("M_Star_BlueWhite",   (0.74, 0.84, 1.00))
+_star_mat("M_Star_White",       (0.95, 0.97, 1.00))
+_star_mat("M_Star_YellowWhite", (1.00, 0.97, 0.90))
+_star_mat("M_Star_Yellow",      (1.00, 0.90, 0.72))
+_star_mat("M_Star_Orange",      (1.00, 0.78, 0.50))
 
 # ============================================================================
 # MOONS (Adam): a large REDDISH moon with an orbital RING + a smaller PALE-YELLOW moon. Unlit
@@ -424,7 +431,7 @@ mat = new_material("M_MoonYellow")
 mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
 mat.set_editor_property("two_sided", True)
 _motty = _noise(mat, -1000, 0, scale=1.1, levels=3, omin=0.5, omax=1.0)
-_moonyel = _mul(mat, _rgb(mat, (0.72, 0.66, 0.46), -800, -160), _motty, -420, -40)  # MATTE pale-yellow rock
+_moonyel = _mul(mat, _rgb(mat, (0.40, 0.32, 0.19), -800, -160), _motty, -420, -40)  # DARKER amber/ochre (Adam: darker so the small moon stands out), was (0.72,0.66,0.46)
 finish(mat, "M_MoonYellow", [
     ("emissive", MEL.connect_material_property(_moonyel, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)),
 ])

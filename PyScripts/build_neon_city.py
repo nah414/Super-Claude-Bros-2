@@ -293,7 +293,7 @@ M_STARS = mat("M_StarNebula")
 if star_sphere and M_STARS:
     dome = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(6000, 0, 2000))
     dome.static_mesh_component.set_static_mesh(star_sphere)
-    dome.set_actor_scale3d(unreal.Vector(1200.0, 1200.0, 1200.0))  # ~60000uu radius — encloses W1
+    dome.set_actor_scale3d(unreal.Vector(520.0, 520.0, 520.0))  # ~26000uu radius — pulled CLOSER (Adam); still clears the ~16000uu skyline ring; real stars sit at r22000 just inside
     dome.static_mesh_component.set_material(0, M_STARS)
     dome.static_mesh_component.set_editor_property("cast_shadow", False)
     # NoCollision via the PROFILE (set_collision_enabled alone gets re-applied from the mesh's

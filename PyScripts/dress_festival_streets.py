@@ -340,7 +340,9 @@ def spawn_enemy(kind, x, y, z, idx):
 
 # 8 street patrol + 13 side-room guards (one per room, on/near each pedestal). z60/70 chars, z150/170 moths.
 STREET_ROOM_ENEMIES = [
-    ("Glimmer", -5200, 0, 60), ("Glimmer", -3600, -820, 60), ("Roly", -2400, 200, 60),
+    # (removed the Glimmer at -5200,0 — it sat ~700uu DIRECTLY BEHIND the -4500,0 spawn and aggro'd
+    #  the hero on spawn before they could even turn; the -3600,-820 one ahead is the intended first fight)
+    ("Glimmer", -3600, -820, 60), ("Roly", -2400, 200, 60),
     ("Glimmer", -1200, 830, 60), ("FlitMoth", 700, 0, 150), ("Glimmer", 1700, -830, 60),
     ("Roly", 3500, 150, 60), ("Glimmer", 3900, 820, 60),
     ("Glimmer", -6100, 1600, 70), ("Glimmer", -4600, 1600, 70), ("FlitMoth", -2260, -1600, 170),
@@ -353,7 +355,7 @@ _enemy_n = 0
 for _i, (_k, _x, _y, _z) in enumerate(STREET_ROOM_ENEMIES, start=1):
     if spawn_enemy(_k, _x, _y, _z, _i):
         _enemy_n += 1
-print(f"W1_ENEMIES_STREET_ROOM: {_enemy_n}/21")
+print(f"W1_ENEMIES_STREET_ROOM: {_enemy_n}/{len(STREET_ROOM_ENEMIES)}")
 
 saved = ELSS.save_current_level()
 print(f"FEST_DRESS_DONE: {P['prop']} props, {P['bldg']} buildings, {P['wall']} walls, "

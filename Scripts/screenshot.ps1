@@ -14,7 +14,10 @@ param(
 $MapArg = if ($Map) { $Map } else { '' }
 Write-Host "`n=== Launching game for screenshot (map='$Map' -> $Out) ===" -ForegroundColor Cyan
 
-& $Editor "$ProjectFile" $MapArg -game -windowed -ResX=1600 -ResY=900 `
+# -RenderOffscreen is the key for dispatch/headless: the render thread runs without a
+# visible window, so FScreenshotRequest resolves (a plain -game -windowed launch hangs
+# waiting for a display it never gets). This is the proven FIRST-LIGHT config.
+& $Editor "$ProjectFile" $MapArg -game -RenderOffscreen -ResX=1600 -ResY=900 `
     -SCB2Shot="$Out" -SCB2ShotDelay=$Delay `
     -unattended -nosplash -nosound -stdout 2>$null | Out-Null
 
