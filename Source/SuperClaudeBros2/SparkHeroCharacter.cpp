@@ -1172,6 +1172,13 @@ void ASparkHeroCharacter::TryStartClimb()
 	{
 		return;
 	}
+	// Boundary law (Adam 2026-07-21): a NoClimb-tagged actor refuses the grip outright —
+	// perimeter walls and the sky shell are the world's edges, not climb-architecture.
+	// Stops the "crawling beyond the wall limits" oddities without dulling city climbs.
+	if (WallHit.GetActor() && WallHit.GetActor()->ActorHasTag(NoClimbTag))
+	{
+		return;
+	}
 
 	bClimbing = true;
 	ClimbWallNormal = WallHit.ImpactNormal;

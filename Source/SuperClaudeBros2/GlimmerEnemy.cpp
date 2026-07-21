@@ -102,6 +102,7 @@ void AGlimmerEnemy::BeginPlay()
 	Super::BeginPlay();
 
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
+	HitPoints = FMath::Max(1, MaxHitPoints);   // Adam's 3-hit crystal (tunable per-instance)
 
 	// The crystal sprite brings its own face — placeholder eyes and tint stay off.
 	if (bHasRealModel)
@@ -218,13 +219,22 @@ void AGlimmerEnemy::Tick(float DeltaSeconds)
 	// Stunned (now only from a power-stagger — the contact bonk no longer self-stuns): hold a beat.
 	if (Now() < StunnedUntilTime) { CombatState = TEXT("STUN"); return; }
 
-	// AGGRO-ON-SIGHT: a hero inside AggroRadius is HUNTED. ChaseHero closes the gap and, once
-	// inside StrikeRange, POUNCES (the active attack). The contact backstop above still owns the
-	// bonk/stomp/dash outcome when the pounce lands.
-	if (Hero && FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= AggroRadius)
+	// AGGRO-ON-SIGHT, HUNT-TO-THE-END (Adam 2026-07-21): a hero inside AggroRadius is SEEN,
+	// and a seen hero is hunted UNTIL DEFEATED — walking out of range no longer drops the
+	// chase. ChaseHero closes the gap and, once inside StrikeRange, POUNCES (the active
+	// attack). The contact backstop above still owns the bonk/stomp/dash outcome.
+	if (Hero)
 	{
-		ChaseHero(Hero);
-		return;
+		if (!bAggroLocked
+			&& FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) <= AggroRadius)
+		{
+			bAggroLocked = true;   // first sight — the hunt is on, for good
+		}
+		if (bAggroLocked)
+		{
+			ChaseHero(Hero);
+			return;
+		}
 	}
 
 	// Patrol: walk the platform, turning back at walls and ledges.
@@ -412,10 +422,10 @@ void AGlimmerEnemy::HandleHeroContact(ASparkHeroCharacter* Hero)
 	{
 		if (bStomp)
 		{
-			// Bounce the hero off our flattened remains (Z only — keep his run speed).
+			// Bounce the hero off the crystal either way (Z only — keep his run speed).
 			Hero->LaunchCharacter(FVector(0.f, 0.f, StompBounce), false, true);
 		}
-		Die(bStomp);
+		ApplyHit(bStomp, Hero);   // 3-hit crystal: crack, crack, shatter
 		return;
 	}
 
@@ -447,8 +457,40 @@ void AGlimmerEnemy::TakeStrike()
 {
 	if (!bDead)
 	{
-		Die(false);   // squashed sideways — same exit as a dash kill
+		ApplyHit(false, CachedHero.Get());   // combo strikes chip the crystal like any hit
 	}
+}
+
+// ---------------------------------------------------------------------------
+// One landed hit (Adam's 3-hit law): crack the crystal, show it, shatter at 0.
+// ---------------------------------------------------------------------------
+void AGlimmerEnemy::ApplyHit(bool bByStomp, ASparkHeroCharacter* Hero)
+{
+	if (bDead) { return; }
+	if ((Now() - LastDamageTime) < DamageCooldown) { return; }   // one dash = ONE hit
+	LastDamageTime = Now();
+	bAggroLocked = true;   // being struck counts as seeing the hero — the hunt is on
+
+	HitPoints = FMath::Max(0, HitPoints - 1);
+	if (HitPoints <= 0)
+	{
+		Die(bByStomp);
+		return;
+	}
+
+	// Non-lethal: every contact SHOWS (universal impact law) — a cold cracked-crystal
+	// flash, a flinch, and a shove away from the blow so the exchange reads clearly.
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
+	                         FLinearColor(0.9f, 2.2f, 2.6f), 0.6f, 1900.f);
+	TakeStagger(0.35f);
+	if (Hero)
+	{
+		FVector Away = GetActorLocation() - Hero->GetActorLocation();
+		Away.Z = 0.f;
+		Away = Away.IsNearlyZero() ? GetActorForwardVector() : Away.GetSafeNormal();
+		LaunchCharacter(Away * 420.f + FVector(0.f, 0.f, 160.f), true, true);
+	}
+	OnGlimmerDamaged(HitPoints);
 }
 
 void AGlimmerEnemy::TakeStagger(float Seconds)

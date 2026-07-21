@@ -11,9 +11,13 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "SparkCameraShakes.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroGameMode.h"
+#include "SparkImpactBurst.h"
+#include "GameFramework/PlayerController.h"
 #include "Sound/SoundBase.h"
+#include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 
 AFlagpoleGoal::AFlagpoleGoal()
@@ -139,8 +143,32 @@ void AFlagpoleGoal::Tick(float DeltaSeconds)
 	RaiseElapsed += DeltaSeconds;
 	const float P = FMath::Clamp(RaiseElapsed / FMath::Max(RaiseSeconds, 0.01f), 0.f, 1.f);
 	const float Eased = FMath::InterpEaseOut(0.f, 1.f, P, 2.0f);   // snappy pop, decelerating
-	BannerMesh->SetRelativeLocation(FVector(0.f, 55.f, FMath::Lerp(BannerBottomZ, BannerTopZ, Eased)));
-	if (P >= 1.f) { bRaising = false; }
+	const float BannerZ = FMath::Lerp(BannerBottomZ, BannerTopZ, Eased);
+	BannerMesh->SetRelativeLocation(FVector(0.f, 55.f, BannerZ));
+
+	// Drama: sparks chase the banner up the mast — the light climbs WITH the flag.
+	if (RaiseBurstInterval > 0.f && RaiseElapsed >= NextRaiseBurstTime)
+	{
+		NextRaiseBurstTime = RaiseElapsed + RaiseBurstInterval;
+		const FVector BurstPos = GetActorLocation()
+			+ GetActorRotation().RotateVector(FVector(0.f, 55.f, BannerZ));
+		ASparkImpactBurst::Burst(this, BurstPos, BannerColor * 1.8f, 0.45f, 1200.f);
+	}
+
+	if (P >= 1.f)
+	{
+		bRaising = false;
+
+		// The summit finale: a crown of light erupts at the ball topper + a camera thump —
+		// the banner ARRIVING is its own event, not just the end of a lerp.
+		const FVector TopPos = GetActorLocation() + FVector(0.f, 0.f, PoleHeight * 100.f + 16.f);
+		ASparkImpactBurst::Burst(this, TopPos, BannerColor * 2.6f, 1.5f, 3800.f);
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PC->ClientStartCameraShake(USparkBigLandShake::StaticClass(), 1.2f);
+		}
+		if (CaptureSound) { UGameplayStatics::PlaySoundAtLocation(this, CaptureSound, TopPos); }
+	}
 }
 
 void AFlagpoleGoal::CaptureFlag()
@@ -149,6 +177,30 @@ void AFlagpoleGoal::CaptureFlag()
 	bCaptured = true;
 	bRaising = true;
 	RaiseElapsed = 0.f;
+	NextRaiseBurstTime = 0.f;
+
+	// --- DRAMA (Adam 2026-07-21): the claim is a MOMENT — flash, slow-mo beat, camera thump. ---
+	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 130.f),
+	                         BannerColor * 2.2f, 1.1f, 3200.f);
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PC->ClientStartCameraShake(USparkBigLandShake::StaticClass(), 1.6f);
+	}
+	if (CaptureSlowMoRate > 0.f && CaptureSlowMoRate < 1.f)
+	{
+		UGameplayStatics::SetGlobalTimeDilation(this, CaptureSlowMoRate);
+		if (UWorld* W = GetWorld())
+		{
+			// Timer runs on DILATED time: duration = real-seconds x rate, so the hold
+			// lasts CaptureSlowMoSeconds of wall-clock before snapping back to 1.0.
+			W->GetTimerManager().SetTimer(SlowMoTimerHandle,
+				FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					UGameplayStatics::SetGlobalTimeDilation(this, 1.f);
+				}),
+				CaptureSlowMoSeconds * CaptureSlowMoRate, false);
+		}
+	}
 
 	// The capturing hero performs the flagpole finish — grip the pole, then a fist-pump
 	// victory (Meshy stage 36). Null-safe inside the hero if the clips aren't present.

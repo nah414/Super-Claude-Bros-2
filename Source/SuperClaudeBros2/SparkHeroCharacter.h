@@ -242,6 +242,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
 	FName ClimbableTag = FName("Climbable");
 
+	/** Surfaces that must NEVER be gripped even with bClimbAnywhere: perimeter/barrier
+	    walls and the sky shell (Adam 2026-07-21: heroes crawling beyond the wall limits).
+	    Tagged per-map by the level scripts — the squid climbs the CITY, not the edges
+	    of the world. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	FName NoClimbTag = FName("NoClimb");
+
 	// ---------------- THE SPARK SURGE KIT (Powers Codex §2 — Adam: build the FULL
 	// hero now, stage per-world later) ----------------
 	/** The 1–10 staging gate. L1 verbs+combo · L2 Spark Aura · L3 Charged Haymaker ·

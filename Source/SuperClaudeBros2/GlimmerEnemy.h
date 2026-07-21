@@ -119,9 +119,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float SquashLingerTime = 0.6f;
 
+	// ---------------- Toughness (Adam 2026-07-21: "hit 3 times to defeat") ----------------
+	/** Hits (stomp / dash / combo strike) needed to defeat this Glimmer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	int32 MaxHitPoints = 3;
+
+	/** Post-hit invulnerability window so one dash can't land 3 hits in 3 frames. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float DamageCooldown = 0.5f;
+
 	// ---------------- Event hooks (Niagara/SFX wire in later, in Blueprint) ----------------
 	UFUNCTION(BlueprintImplementableEvent, Category = "Glimmer|Events")
 	void OnGlimmerSquashed(bool bByStomp);
+
+	/** A non-lethal hit landed — crystal cracked, HitsRemaining left. VFX/SFX seam. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Glimmer|Events")
+	void OnGlimmerDamaged(int32 HitsRemaining);
 
 	/** A hero strike landed (the Spark Combo). Motes die to any beat — the
 	    mass-class ladder, applied by fist. */
@@ -176,6 +189,12 @@ private:
 
 	// Hero contact state
 	void HandleHeroContact(ASparkHeroCharacter* Hero);
+	// One landed hit (stomp/dash/strike): decrement HitPoints, show the crack, die at 0.
+	void ApplyHit(bool bByStomp, ASparkHeroCharacter* Hero);
+	int32 HitPoints = 3;
+	float LastDamageTime = -1000.f;
+	// Once a hero is SEEN (or strikes us), the hunt never ends until defeat (Adam 2026-07-21).
+	bool bAggroLocked = false;
 	void Die(bool bByStomp);
 	void FinishDeath();
 	float LastHitTime = -1000.f;

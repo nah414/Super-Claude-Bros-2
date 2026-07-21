@@ -55,6 +55,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flagpole|Audio")
 	TObjectPtr<USoundBase> RaiseSound;
 
+	// ---------------- Drama (Adam 2026-07-21: "make the flag light interaction more dramatic") ----------------
+	/** Time-dilation rate for the capture slow-mo beat (1 = off). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flagpole|Drama")
+	float CaptureSlowMoRate = 0.35f;
+
+	/** Real-time seconds the capture slow-mo holds before snapping back. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flagpole|Drama")
+	float CaptureSlowMoSeconds = 0.45f;
+
+	/** Seconds between spark bursts chasing the banner up the mast (0 = off). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flagpole|Drama")
+	float RaiseBurstInterval = 0.18f;
+
 	// ---------------- IInteractable (a TAP of E also claims the flag) ----------------
 	virtual EInteractKind GetInteractKind() const override { return EInteractKind::Tap; }
 	virtual bool CanInteract(const ASparkHeroCharacter* Hero) const override { return !bCaptured; }
@@ -96,6 +109,8 @@ private:
 	bool  bCaptured = false;
 	bool  bRaising  = false;
 	float RaiseElapsed = 0.f;
+	float NextRaiseBurstTime = 0.f;    // drama: next spark-burst beat while raising
+	FTimerHandle SlowMoTimerHandle;    // drama: restores normal time after the capture beat
 	float BannerBottomZ = 0.f;   // banner start height (just above the trigger)
 	float BannerTopZ    = 0.f;   // banner finish height (just under the ball topper)
 
