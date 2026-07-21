@@ -1730,7 +1730,13 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		const float Reach = GetCapsuleComponent()->GetScaledCapsuleRadius() + ClimbCheckDistance + 10.f;
 		const bool bWallStillThere = GetWorld()->LineTraceSingleByChannel(
 			WallHit, Start, Start - ClimbWallNormal * Reach, ECC_Visibility, ClimbParams);
-		if (!bWallStillThere || Move->IsMovingOnGround())
+		// The HOLD must obey the same laws as the GRAB (Adam 2026-07-21: "still climbing
+		// into a void") — without these, a hero who gripped a legal wall could strafe onto
+		// a NoClimb boundary wall or crest onto a sky-facing slab and keep crawling.
+		const bool bHoldValid = bWallStillThere
+			&& FMath::Abs(WallHit.ImpactNormal.Z) <= 0.6f
+			&& !(WallHit.GetActor() && WallHit.GetActor()->ActorHasTag(NoClimbTag));
+		if (!bHoldValid || Move->IsMovingOnGround())
 		{
 			StopClimb();
 		}

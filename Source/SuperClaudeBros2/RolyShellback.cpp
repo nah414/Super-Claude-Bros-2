@@ -55,6 +55,7 @@ void ARolyShellback::BeginPlay()
 	ShellMesh->SetRelativeLocation(FVector(0.f, 0.f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 	ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
 	ShellMesh->SetRelativeScale3D(FVector(BodyScale));
+	bBossShell = HitsToDefeat > 1;   // the Alpha fights by the boss rules below
 }
 
 ASparkHeroCharacter* ARolyShellback::ResolveHero() const
@@ -190,17 +191,52 @@ void ARolyShellback::TakeStrike()
 void ARolyShellback::ReceiveDefeatHit(bool bByStomp)
 {
 	if (State == EShellState::Dead) { return; }
+
+	// BOSS ARMOR (Adam 2026-07-21: "the Boss should always be more difficult"). An
+	// UPRIGHT boss-shell takes NO damage at all: punches CLANG off the armor, and only
+	// a STOMP flips it belly-up. The soft belly is the only thing that can be hurt —
+	// flip it, punish it, survive the next charge, repeat. (The old code let one
+	// punch-combo string land all 3 defeat-hits in a second: the "one blow" kill.)
+	if (bBossShell && !bFlipped)
+	{
+		if (bByStomp)
+		{
+			GetCharacterMovement()->StopMovementImmediately();
+			bFlipped = true;
+			ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
+			                         FLinearColor(2.4f, 1.6f, 0.6f), 1.2f, 3200.f, 0.22f);
+			EnterState(EShellState::Recover, FlipRecoverSeconds);
+		}
+		else
+		{
+			// armor clang — loud, visible, harmless: teaches "stomp it first"
+			ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 45.f),
+			                         FLinearColor(1.1f, 1.15f, 1.4f), 0.5f, 1500.f);
+		}
+		return;
+	}
+
+	// Paced damage: one combo string can no longer shred the whole health bar.
+	if ((Now() - LastDefeatHitTime) < DamageCooldown) { return; }
+	LastDefeatHitTime = Now();
+
 	if (--HitsToDefeat <= 0)
 	{
 		Die(bByStomp);
 		return;
 	}
-	// A boss-shell SURVIVES — it flips belly-up, soft and open: stomp it again.
-	GetCharacterMovement()->StopMovementImmediately();
-	bFlipped = true;
+
+	// Damaged but alive: a cracked-shell flash — and the boss ANGRILY rights itself
+	// on the spot, winding up a revenge charge. One wound per flip: the full fight is
+	// three complete stomp->flip->punish cycles with live cannonballs between them.
 	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
 	                         FLinearColor(2.4f, 1.6f, 0.6f), 1.2f, 3200.f, 0.22f);
-	EnterState(EShellState::Recover, FlipRecoverSeconds);
+	if (bBossShell)
+	{
+		bFlipped = false;
+		ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+		EnterState(EShellState::Wind, WindSeconds + 0.2f);   // readable revenge tell
+	}
 }
 
 void ARolyShellback::TakeStagger(float Seconds)
