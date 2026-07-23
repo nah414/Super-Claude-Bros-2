@@ -6,7 +6,8 @@
 param(
     [string]$Map   = '',
     [string]$Out   = "$env:TEMP\scb2_shot.png",
-    [float] $Delay = 3.0
+    [float] $Delay = 3.0,
+    [string]$Extra = ''   # extra game flags, space-separated (e.g. "-SCB2ShotPitch=55 -SCB2ShotArm=1200")
 )
 
 . "$PSScriptRoot\env.ps1"
@@ -17,8 +18,12 @@ Write-Host "`n=== Launching game for screenshot (map='$Map' -> $Out) ===" -Foreg
 # -RenderOffscreen is the key for dispatch/headless: the render thread runs without a
 # visible window, so FScreenshotRequest resolves (a plain -game -windowed launch hangs
 # waiting for a display it never gets). This is the proven FIRST-LIGHT config.
+$ExtraArgs = @()
+if ($Extra) { $ExtraArgs = $Extra -split '\s+' }
+# NOTE (2026-07-23): -SCB2ShotDelay=$Delay unquoted passed the LITERAL string
+# "$Delay" — the C++ clamp guard silently rescued every W2 run at 3.0s. Quote it.
 & $Editor "$ProjectFile" $MapArg -game -RenderOffscreen -ResX=1600 -ResY=900 `
-    -SCB2Shot="$Out" -SCB2ShotDelay=$Delay `
+    -SCB2Shot="$Out" -SCB2ShotDelay="$Delay" @ExtraArgs `
     -unattended -nosplash -nosound -stdout 2>$null | Out-Null
 
 if (Test-Path $Out) {

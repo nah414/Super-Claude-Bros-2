@@ -14,6 +14,7 @@
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
 
+#include "Camera/CameraActor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
@@ -192,15 +193,40 @@ void ASparkHeroGameMode::BeginPlay()
 		}
 
 		// Optional framing: -SCB2ShotArm=160 pulls the camera in for hero close-ups,
-		// -SCB2ShotYaw=180 orbits it (180 = face-on portrait).
-		float ShotArm = 0.f, ShotYaw = 0.f;
+		// -SCB2ShotYaw=180 orbits it (180 = face-on portrait), -SCB2ShotPitch=55
+		// tilts it (+ = look up — the Reach's roots_up vantage), and
+		// -SCB2ShotAt=x,y,z teleports the hero first (W3 vertical vantages).
+		float ShotArm = 0.f, ShotYaw = 0.f, ShotPitch = 0.f;
+		FString ShotAt;
 		const bool bHasArm = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotArm="), ShotArm);
 		const bool bHasYaw = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotYaw="), ShotYaw);
-		if (bHasArm || bHasYaw)
+		const bool bHasPitch = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotPitch="), ShotPitch);
+		// bShouldStopOnSeparator=false: the value is a comma list; default parsing
+		// stops at the first comma and hands back a lone "0".
+		const bool bHasAt = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotAt="), ShotAt,
+		                                  /*bShouldStopOnSeparator*/ false);
+		if (bHasArm || bHasYaw || bHasPitch || bHasAt)
 		{
 			if (ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(
 					UGameplayStatics::GetPlayerPawn(this, 0)))
 			{
+				if (bHasAt)
+				{
+					TArray<FString> Parts;
+					ShotAt.ParseIntoArray(Parts, TEXT(","));
+					if (Parts.Num() == 3)
+					{
+						const FVector Dest(FCString::Atof(*Parts[0]),
+						                   FCString::Atof(*Parts[1]),
+						                   FCString::Atof(*Parts[2]));
+						Hero->TeleportTo(Dest, Hero->GetActorRotation());
+					}
+					else
+					{
+						UE_LOG(LogTemp, Warning,
+							TEXT("SCB2: -SCB2ShotAt wants x,y,z — got '%s'; ignoring."), *ShotAt);
+					}
+				}
 				if (bHasArm)
 				{
 					Hero->BaseArmLength = ShotArm;
@@ -210,13 +236,58 @@ void ASparkHeroGameMode::BeginPlay()
 					Hero->SpringArm->bEnableCameraLag = false;
 					Hero->SpringArm->bEnableCameraRotationLag = false;
 				}
-				if (bHasYaw)
+				if (bHasYaw || bHasPitch)
 				{
 					if (AController* C = Hero->GetController())
 					{
-						C->SetControlRotation(FRotator(0.f, ShotYaw, 0.f));
+						C->SetControlRotation(FRotator(ShotPitch, ShotYaw, 0.f));
 					}
 				}
+			}
+		}
+
+		// -SCB2ShotCam=x,y,z,pitch,yaw — a FREE camera, detached from the hero.
+		// The spring arm's collision probe pins look-up framings at the hero's
+		// feet (it cannot descend through the floor), so world-scale vantages
+		// (a 400m tree from its roots, the crown looking down) view through a
+		// spawned CameraActor instead.
+		FString ShotCam;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotCam="), ShotCam,
+		                  /*bShouldStopOnSeparator*/ false))
+		{
+			TArray<FString> CamParts;
+			ShotCam.ParseIntoArray(CamParts, TEXT(","));
+			if (CamParts.Num() == 5)
+			{
+				const FVector CamLoc(FCString::Atof(*CamParts[0]),
+				                     FCString::Atof(*CamParts[1]),
+				                     FCString::Atof(*CamParts[2]));
+				const FRotator CamRot(FCString::Atof(*CamParts[3]),
+				                      FCString::Atof(*CamParts[4]), 0.f);
+				if (ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(CamLoc, CamRot))
+				{
+					// Possession lands AFTER BeginPlay in standalone -game, and the
+					// controller's bAutoManageActiveCameraTarget re-targets the pawn a
+					// frame later — so the free cam takes the view on a short timer,
+					// after possession settles (the KrakenNear pattern).
+					FTimerHandle CamTimer;
+					GetWorldTimerManager().SetTimer(CamTimer, [this, Cam]()
+					{
+						if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+						{
+							PC->bAutoManageActiveCameraTarget = false;
+							PC->SetViewTargetWithBlend(Cam, 0.f);
+							UE_LOG(LogTemp, Display,
+								TEXT("SCB2: free shot cam took the view at %s"),
+								*Cam->GetActorLocation().ToCompactString());
+						}
+					}, 0.6f, false);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("SCB2: -SCB2ShotCam wants x,y,z,pitch,yaw — got '%s'; ignoring."), *ShotCam);
 			}
 		}
 
