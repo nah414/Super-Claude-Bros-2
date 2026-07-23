@@ -262,6 +262,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
 	FName NoClimbTag = FName("NoClimb");
 
+	// -------- The climb RIG (W3 round 2, Adam's photos: "they sink into the skins") --------
+	/** Outward push of the visual body while climbing, uu. The capsule hugs the wall
+	    closer than the mesh's forward half-depth — without this the limbs bury in bark. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float ClimbBodyOutset = 26.f;
+
+	/** Chest-toward-wall lean while climbing, degrees (0 disables). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float ClimbLeanDegrees = 8.f;
+
+	/** uu climbed per full reach-cycle of the climb loop clip — rates the loop to the
+	    wall the way footfalls rate walks to the ground (checklist 7.5-3; scan-set). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float ClimbCycleReach = 110.f;
+
+	/** The latch one-shot's window (scan-set; auto-fit is the fallback, never the ship). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float ClimbGrabClipStartFraction = 0.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Anim")
+	float ClimbGrabClipRate = 0.f;
+
 	// ---------------- THE SPARK SURGE KIT (Powers Codex §2 — Adam: build the FULL
 	// hero now, stage per-world later) ----------------
 	/** The 1–10 staging gate. L1 verbs+combo · L2 Spark Aura · L3 Charged Haymaker ·
@@ -458,6 +480,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "SparkHero")
 	bool IsClimbing() const { return bClimbing; }
+
+	/** -SCB2ShotClimb harness seam: feeds forward input + a nudge so the REAL Tick
+	    probe grabs a wall honestly, then drives the loop state via vertical velocity.
+	    UpSign: +1 climb up, -1 climb down, 0 hang. Capture-only; never gameplay. */
+	void Debug_ForceClimb(float UpSign);
 
 	/** L2+ and the flame is lit: the Spark Aura calms wild things (read by fauna). */
 	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
@@ -743,10 +770,17 @@ protected:
 	// The flag-capture finish (Meshy stage 36): grip the pole, then a fist-pump victory.
 	UPROPERTY() TObjectPtr<UAnimSequence> FlagGrabAnim;
 	UPROPERTY() TObjectPtr<UAnimSequence> FlagVictoryAnim;
+	// The climb rig (Meshy stage 37): latch, ascend, descend, hang. All nullptr-safe —
+	// every climb case falls back to CrouchAnim until the clips import.
+	UPROPERTY() TObjectPtr<UAnimSequence> ClimbGrabAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> ClimbUpAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> ClimbDownAnim;
+	UPROPERTY() TObjectPtr<UAnimSequence> ClimbHangAnim;
 	bool bHasSkeletalModel = false;
 
 private:
-	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump, Crouch, Climb };
+	enum class EHeroAnimState : uint8 { None, Idle, Walk, Run, Jump, Crouch,
+	                                    ClimbHang, ClimbUp, ClimbDown };
 	EHeroAnimState AnimState = EHeroAnimState::None;
 	void UpdateHeroAnimation();
 
@@ -758,6 +792,8 @@ private:
 	bool bActionAnimActive = false;
 	FTimerHandle HitReactTimerHandle;
 	FTimerHandle FlagCaptureTimer;   // grab -> victory -> resume chain on flag capture
+	FTimerHandle ClimbGrabTimer;     // the latch one-shot's release back to the loop
+	FVector SkelBodyRestLocation = FVector(0.f, 0.f, -72.f);   // captured at BeginPlay
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();

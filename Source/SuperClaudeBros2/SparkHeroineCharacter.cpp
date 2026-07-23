@@ -41,6 +41,11 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	// Her flag-capture finish clips (Meshy stage 36) — fall back to Claude's if missing.
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerFlagGrab(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_FlagGrab_Anim.A_Heroine_FlagGrab_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerFlagVictory(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_FlagVictory_Anim.A_Heroine_FlagVictory_Anim"));
+	// Her climb rig (Meshy stage 37) — falls back to Claude's, then CrouchAnim.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerClimbGrab(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_ClimbGrab_Anim.A_Heroine_ClimbGrab_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerClimbUp(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_ClimbUp_Anim.A_Heroine_ClimbUp_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerClimbDown(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_ClimbDown_Anim.A_Heroine_ClimbDown_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> HerClimbHang(TEXT("/Game/Art/HeroineSkelV2/A_Heroine_ClimbHang_Anim.A_Heroine_ClimbHang_Anim"));
 
 	if (HerModel.Succeeded() && SkelBody)
 	{
@@ -59,6 +64,10 @@ ASparkHeroineCharacter::ASparkHeroineCharacter()
 	CrouchAnim = Pick(HerCrouch, CrouchAnim);
 	FlagGrabAnim = Pick(HerFlagGrab, FlagGrabAnim);
 	FlagVictoryAnim = Pick(HerFlagVictory, FlagVictoryAnim);
+	ClimbGrabAnim = Pick(HerClimbGrab, ClimbGrabAnim);
+	ClimbUpAnim = Pick(HerClimbUp, ClimbUpAnim);
+	ClimbDownAnim = Pick(HerClimbDown, ClimbDownAnim);
+	ClimbHangAnim = Pick(HerClimbHang, ClimbHangAnim);
 
 	// DUAL FAMILIES (Adam's RPG layout): LMB = her HOOK punches, RMB = her
 	// signature KICKS. All windows data-scanned (hooks: impact 0.725/0.475/

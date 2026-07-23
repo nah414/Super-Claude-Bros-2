@@ -78,6 +78,10 @@ def ground_z(x, y):
     d_axis = math.hypot(x - CX, y - CY)
     if d_axis < 3400.0:
         g += min(300.0, (3400.0 - d_axis) * 0.12)
+    for hx, hy, a, c in F["floor"].get("carves", []):   # the river remembers (v3)
+        d2 = ((x - hx) ** 2 + (y - hy) ** 2) / (a * a)
+        if d2 < 1.0:
+            g -= c * (1.0 - d2) ** 2
     return g
 
 
@@ -221,7 +225,9 @@ if fverts:
                 CY + math.sin(rb["theta"]) * (R_ROOT + 1750.0))
     ground_ok = True
     for px, py, pname in ((0.0, 0.0, "spawn"), (0.0, 4300.0, "camp-roots"),
-                          (ridge_pt[0], ridge_pt[1], "root-ridge")):
+                          (ridge_pt[0], ridge_pt[1], "root-ridge"),
+                          (3400.0, 14400.0, "river-bed"),
+                          (F["pool"]["center"][0], F["pool"]["center"][1], "pool-basin")):
         best, best_d = None, 1e18
         for v in fverts:
             d = (v.x - px) ** 2 + (v.y - py) ** 2
@@ -463,33 +469,44 @@ for s in F["branch_sockets"]:                         # every tip wears leaves
         canopy_n += 1
 print(f"REACH_MARKER: {canopy_n} canopy masses raised (crown + tips)")
 
-# ---- waterfalls (tiled sheets, so the streak texture never stretches) + pools ----
+# ---- waterfalls v2: THREE tangential columns per fall (Adam: "a lot denser") ----
+# Columns sit side-by-side ALONG the tangent, never stacked radially — a
+# sightline crosses <=2 sheets, honoring the translucency law with mist+water.
 fall_n = 0
 SEG = 3000.0
 for wf in F["waterfalls"]:
     th = math.radians(wf["theta_deg"])
     r_off = 260.0 if wf["land"] == "floor" else 820.0
+    tx, ty = -math.sin(th), math.cos(th)          # tangent (horizontal)
     n_seg = max(1, int(round(wf["drop"] / SEG)))
-    for k in range(n_seg):
-        z_top = wf["z_top"] - k * SEG
-        loc = surface_point(z_top - SEG, th, out=r_off)
-        place(kit("water_sheet"), loc, f"VR_Fall_{wf['name']}_{k}",
-              yaw=wf["theta_deg"] + 90.0,
-              scale=unreal.Vector(1.6, 1.0, SEG / 1000.0), shadow=False)
-        fall_n += 1
+    for col, (t_off, sx) in enumerate(((0.0, 3.0), (-300.0, 2.4), (300.0, 2.4))):
+        for k in range(n_seg):
+            z_top = wf["z_top"] - k * SEG
+            loc = surface_point(z_top - SEG, th, out=r_off)
+            loc.x += tx * t_off
+            loc.y += ty * t_off
+            place(kit("water_sheet"), loc, f"VR_Fall_{wf['name']}_{col}_{k}",
+                  yaw=wf["theta_deg"] + 90.0 + random.uniform(-6.0, 6.0),
+                  scale=unreal.Vector(sx, 1.0, SEG / 1000.0), shadow=False)
+            fall_n += 1
     land = surface_point(wf["z_top"] - wf["drop"], th, out=r_off)
     if wf["land"] == "floor":
-        land.z = ground_z(land.x, land.y) + 8.0
-        pool_scale = 2.6
+        land.z = F["pool"]["z_surface"]           # the sky-fall dies in the pool
     else:
         cxp, cyp, cz = pad_centers[f"pad_{wf['land'].lower()}"]
         th_out = math.atan2(cyp - CY, cxp - CX)
         land = unreal.Vector(cxp + math.cos(th_out) * 400.0,
                              cyp + math.sin(th_out) * 400.0, cz - 52.0)
-        pool_scale = 1.0
-    place(kit("pool_disc"), land, f"VR_Pool_{wf['name']}", scale=pool_scale, shadow=False)
-    fall_n += 1
-print(f"REACH_MARKER: {fall_n} waterfall pieces falling from the sky")
+        place(kit("pool_disc"), land, f"VR_Pool_{wf['name']}", scale=1.0, shadow=False)
+        fall_n += 1
+    for mi, (ms, mz, moff) in enumerate(((1.6, 90.0, 300.0), (1.2, 45.0, -260.0),
+                                         (1.0, 20.0, 60.0), (0.9, 15.0, -80.0))):
+        place(kit("mist_puff"),
+              unreal.Vector(land.x + tx * moff, land.y + ty * moff, land.z + mz),
+              f"VR_Mist_{wf['name']}_{mi}", yaw=random.uniform(0, 360),
+              scale=ms, shadow=False)
+        fall_n += 1
+print(f"REACH_MARKER: {fall_n} waterfall pieces falling from the sky (v2 dense)")
 
 # ---- cloud shelves: the altitude made visible ----
 cloud_n = 0
@@ -560,15 +577,12 @@ print(f"REACH_MARKER: horizon ring of {hz['count']} giants, {village_k} villages
 # ---- the under-dark: gloom shell + root-line seep + dormant sap-veins ----
 place(kit("gloom_ring"), unreal.Vector(0.0, 0.0, 0.0), "VR_GloomRing", shadow=False)
 place(kit("gloom_disc"), unreal.Vector(0.0, 0.0, 0.0), "VR_GloomDisc", shadow=False)
+# v3: the EXTERIOR seep ring is gone — translucent violet over sunlit bark can
+# only render pastel-pink (Adam's photos + CP-R1 retake both convicted it).
+# Daylight was never the seep's canon home; the root-line violet arrives with
+# C3's root-dark. The chimney interior keeps its seeps, where dark makes
+# violet read TRUE.
 seep_n = 0
-for i in range(len(BUTTRESSES)):
-    b0 = BUTTRESSES[i]
-    b1 = BUTTRESSES[(i + 1) % len(BUTTRESSES)]
-    mid = b0["theta"] + wrap_dt(b1["theta"] - b0["theta"]) / 2.0
-    loc = surface_point(40.0, mid, out=-(300.0 * 2.5 - 30.0))
-    place(kit("seep_card"), loc, f"VR_Seep{i}", yaw=math.degrees(mid),
-          scale=unreal.Vector(2.5, 3.0, 1.4), shadow=False)
-    seep_n += 1
 vein_n = 0
 for v in F["sap_veins"]:
     th = math.radians(v["theta_deg"])
@@ -608,6 +622,331 @@ for name, (pos, _yaw) in camp_positions.items():
     actor_count += 1
     pollen_n += 1
 print(f"REACH_MARKER: breath driver placed + {pollen_n} pollen drifts (10Hz lungs, gold dust)")
+
+# ================= PHASE E (Round 2): the river, the Hollow, the showdown, LIFE =================
+RIV = F["river"]
+POOLJ = F["pool"]
+TUN = F["tunnel"]
+ARN = F["arena"]
+CHIM = F["chimney"]
+M_TUNSAP = mat("M_VR_TunnelSap")
+M_ALPHA = mat("M_VR_AlphaShell")
+
+# ---- the river runs to the world's edge ----
+place(kit("river_surface"), unreal.Vector(0.0, 0.0, 0.0), "VR_River", shadow=False)
+place(kit("pool_surface"), unreal.Vector(0.0, 0.0, 0.0), "VR_PoolSurface", shadow=False)
+wpA, wpB = RIV["waypoints"][-2], RIV["waypoints"][-1]
+seg_l = math.hypot(wpB[0] - wpA[0], wpB[1] - wpA[1])
+ltx, lty = (wpB[0] - wpA[0]) / seg_l, (wpB[1] - wpA[1]) / seg_l
+lpx, lpy = -lty, ltx
+z_edge = RIV["surface_z"][-1]
+for si, p_off in enumerate((-150.0, 150.0)):
+    place(kit("water_sheet"),
+          unreal.Vector(wpB[0] + ltx * 620.0 + lpx * p_off,
+                        wpB[1] + lty * 620.0 + lpy * p_off, z_edge - 2650.0),
+          f"VR_EdgeFall_{si}", yaw=math.degrees(math.atan2(lty, ltx)) + 90.0,
+          scale=unreal.Vector(1.8, 1.0, 2.6), shadow=False)
+for si, (d_off, p_off, ms) in enumerate(((700.0, 0.0, 2.2), (760.0, 260.0, 1.5))):
+    place(kit("mist_puff"),
+          unreal.Vector(wpB[0] + ltx * d_off + lpx * p_off,
+                        wpB[1] + lty * d_off + lpy * p_off, z_edge - 2400.0),
+          f"VR_EdgeMist_{si}", scale=ms, shadow=False)
+for si in range(4):
+    b_side = 1.0 if si % 2 == 0 else -1.0
+    b_d = 400.0 + 700.0 * (si // 2)
+    place(CUBE, unreal.Vector(wpB[0] - ltx * b_d + lpx * b_side * (RIV["width"] / 2 + 90),
+                              wpB[1] - lty * b_d + lpy * b_side * (RIV["width"] / 2 + 90),
+                              z_edge + 60.0),
+          f"VR_RiverRim_{si}", yaw=math.degrees(math.atan2(lty, ltx)),
+          scale=unreal.Vector(3.0, 0.14, 0.10), material=M_EDGE, shadow=False)
+print("REACH_MARKER: the river runs east and falls off the world")
+
+# ---- the Sapline Hollow: knothole -> helix -> arena among the clouds ----
+place(kit("tunnel_helix"), unreal.Vector(0.0, 0.0, 0.0), "VR_TunnelHelix")
+th_e = math.radians(TUN["theta_entry_deg"])
+mouth = unreal.Vector(CX + TUN["r0"] * math.cos(th_e),
+                      CY + TUN["r0"] * math.sin(th_e), TUN["z0"] - 12.0)
+place(kit("knothole_arch"), mouth, "VR_Arch_Mouth",
+      yaw=TUN["theta_entry_deg"] + 90.0, scale=1.25)
+th_x = math.radians(ARN["gap_theta_deg"])
+emerge = unreal.Vector(CX + TUN["r1"] * math.cos(th_x),
+                       CY + TUN["r1"] * math.sin(th_x), ARN["z_top"] - 4.0)
+place(kit("knothole_arch"), emerge, "VR_Arch_Emerge",
+      yaw=ARN["gap_theta_deg"] + 90.0, scale=1.25)
+sap_n = 0
+for k in range(14):
+    t = (k + 0.5) / 14.0
+    th_t = th_e + t * TUN["turns"] * 2.0 * math.pi
+    r_c = TUN["r0"] + (TUN["r1"] - TUN["r0"]) * min(1.0, t / (0.25 / TUN["turns"]))
+    zc = TUN["z0"] + (TUN["z1"] - TUN["z0"]) * t
+    side = (TUN["tube_r"] - 60.0) * (1.0 if k % 2 == 0 else -1.0)
+    r_strip = r_c + side                       # alternating inner/outer tube wall
+    place(CYL, unreal.Vector(CX + r_strip * math.cos(th_t),
+                             CY + r_strip * math.sin(th_t), zc - 90.0),
+          f"VR_TunnelSap_{sap_n}", yaw=math.degrees(th_t),
+          scale=unreal.Vector(0.09, 0.09, 4.2), material=M_TUNSAP, shadow=False)
+    sap_n += 1
+for name, pos, chk in (("Mouth", unreal.Vector(CX + 620.0 * math.cos(th_e),
+                                               CY + 620.0 * math.sin(th_e), TUN["z0"] + 6.0), False),
+                       ("Arena", unreal.Vector(CX + 1850.0 * math.cos(th_x),
+                                               CY + 1850.0 * math.sin(th_x), ARN["z_top"] + 4.0), True)):
+    lant = eas.spawn_actor_from_class(cls("Lantern"), pos, rot(0))
+    lant.set_actor_label(f"VR_HollowLantern_{name}")
+    ls = lant.get_component_by_class(unreal.LightStateComponent)
+    if ls:
+        ls.set_editor_property("group_name", "VR_Hollow")
+    if chk:
+        try:
+            lant.set_editor_property("is_checkpoint", True)
+        except Exception as e:
+            print(f"REACH_WARN: hollow lantern checkpoint: {e}")
+    actor_count += 1
+print(f"REACH_MARKER: the Sapline Hollow rises ({sap_n} sap strips, 2 lanterns)")
+
+# ---- the arena among the clouds ----
+place(kit("arena_pad"), unreal.Vector(CX, CY, ARN["z_top"] - 128.0), "VR_ArenaPad")
+for k in range(ARN["knots"]):
+    kth = math.radians((30.0, 100.0, 170.0, 280.0, 330.0)[k])
+    kr = 1600.0 + 400.0 * (k % 2)
+    place(kit("knot_boulder"),
+          unreal.Vector(CX + kr * math.cos(kth), CY + kr * math.sin(kth),
+                        ARN["z_top"] + 150.0),
+          f"VR_Knot_{k}", yaw=random.uniform(0, 360), scale=random.uniform(1.1, 1.6))
+for k in range(6):
+    bth = math.radians(k * 60.0 + 15.0)
+    place(CUBE, unreal.Vector(CX + (ARN["r"] + 40.0) * math.cos(bth),
+                              CY + (ARN["r"] + 40.0) * math.sin(bth),
+                              ARN["z_top"] + ARN["rim_h"] + 20.0),
+          f"VR_ArenaRim_{k}", yaw=math.degrees(bth) + 90.0,
+          scale=unreal.Vector(4.5, 0.14, 0.10), material=M_EDGE, shadow=False)
+print("REACH_MARKER: the Beacon bowl waits among the clouds")
+
+# ---- THE SHOWDOWN: the Shellback Alpha holds the crown ----
+alpha_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.ShellbackAlpha")
+if alpha_cls:
+    alpha = eas.spawn_actor_from_class(
+        alpha_cls, unreal.Vector(CX, CY + 1300.0, ARN["z_top"] + 90.0 * 1.4 + 8.0), rot(-90.0))
+    alpha.set_actor_label("VR_Boss_ShellbackAlpha")
+    alpha.set_actor_scale3d(unreal.Vector(1.4, 1.4, 1.4))
+    for prop, val in (("aggro_radius", 1500.0), ("AggroRadius", 1500.0)):
+        try:
+            alpha.set_editor_property(prop, val)
+            break
+        except Exception:
+            continue
+    scarred = 0
+    for comp in alpha.get_components_by_class(unreal.StaticMeshComponent):
+        if comp.get_editor_property("static_mesh"):
+            comp.set_material(0, M_ALPHA)
+            scarred += 1
+    actor_count += 1
+    print(f"REACH_MARKER: the SHELLBACK ALPHA holds the crown (scarred {scarred} mesh)")
+else:
+    print("REACH_WARN: ShellbackAlpha class missing — the crown waits empty")
+
+# ---- LIFE: rolys, glimmers, wings, moths (+ new species when compiled) ----
+life_n = 0
+for i, (rx, ry) in enumerate(((0.0, 2500.0), (4200.0, 8200.0), (-3800.0, 7000.0),
+                              (2600.0, 12900.0), (-1500.0, 3400.0))):
+    roly = eas.spawn_actor_from_class(cls("RolyShellback"),
+                                      unreal.Vector(rx, ry, ground_z(rx, ry) + 60.0),
+                                      rot(random.uniform(0, 360)))
+    roly.set_actor_label(f"VR_Roly_{i}")
+    for prop in ("aggro_radius", "AggroRadius"):
+        try:
+            roly.set_editor_property(prop, 700.0)
+            break
+        except Exception:
+            continue
+    life_n += 1
+glim_spots = []
+for sname in ("bough_mid_in", "bough_c", "bough_high_in"):
+    s = next(x for x in F["branch_sockets"] if x["name"] == sname)
+    th = math.radians(s["theta_deg"])
+    base = surface_point(s["z"], th, out=-250.0)
+    d = 7600.0 * s["scale"] * 0.45
+    glim_spots.append((base.x + math.cos(th) * d, base.y + math.sin(th) * d,
+                       s["z"] + math.sin(math.radians(s["pitch_deg"])) * d + 170.0 * s["scale"]))
+cxp, cyp, cz = pad_centers["pad_crownbase"]
+glim_spots.append((cxp, cyp, cz))
+for i, (gx, gy, gz) in enumerate(glim_spots):
+    g = eas.spawn_actor_from_class(cls("GlimmerEnemy"),
+                                   unreal.Vector(gx, gy, gz + 160.0), rot(0))
+    g.set_actor_label(f"VR_Glimmer_{i}")
+    life_n += 1
+for i in range(7):
+    if i < 3:
+        wz, wr = random.uniform(38500.0, 41000.0), random.uniform(1800.0, 2600.0)
+    elif i < 5:
+        wz, wr = 26500.0, random.uniform(2400.0, 3200.0)
+    else:
+        wz, wr = 42900.0, 3600.0
+    wth = random.uniform(0, 2.0 * math.pi)
+    w = eas.spawn_actor_from_class(cls("GlassWing"),
+                                   unreal.Vector(CX + wr * math.cos(wth),
+                                                 CY + wr * math.sin(wth), wz),
+                                   rot(random.uniform(0, 360)))
+    w.set_actor_label(f"VR_GlassWing_{i}")
+    w.set_editor_property("orbit_radius", random.uniform(700.0, 1500.0))
+    w.set_editor_property("orbit_speed", random.uniform(200.0, 380.0))
+    try:
+        w.set_editor_property("glow_tint", unreal.LinearColor(2.2, 1.6, 0.6, 1.0))
+    except Exception as e:
+        print(f"REACH_WARN: glasswing tint: {e}")
+    life_n += 1
+moth_i = 0
+for band in F["moss_bands"][:2]:
+    for t in (0.3, 0.55):
+        z = band["z0"] + (band["z1"] - band["z0"]) * t
+        th_deg = band["th0"] + (band["th1"] - band["th0"]) * t
+        p = surface_point(z, math.radians(th_deg), out=560.0)
+        mth = eas.spawn_actor_from_class(cls("FlitMoth"), p, rot(0))
+        mth.set_actor_label(f"VR_Moth_{moth_i}")
+        moth_i += 1
+        life_n += 1
+wg = eas.spawn_actor_from_class(cls("FlitMoth"),
+                                unreal.Vector(CX, CY - R_CROWN - 700.0, H + 420.0), rot(0))
+wg.set_actor_label(f"VR_Moth_{moth_i}")
+life_n += 1
+for cls_name, spawns in (
+        ("LeafGlider", ((CX + 2200.0, CY, 37500.0), (CX - 2600.0, CY + 800.0, 37800.0),
+                        (-4000.0, 7200.0, 20500.0), (2800.0, 5200.0, 4200.0))),
+        ("BarkSkitter", ((0.0, 0.0, 1500.0), (0.0, 0.0, 2600.0),
+                         (0.0, 0.0, 5200.0), (0.0, 0.0, 8000.0)))):
+    species = unreal.load_class(None, f"/Script/SuperClaudeBros2.{cls_name}")
+    if not species:
+        print(f"REACH_WARN: {cls_name} not compiled yet — skipped this pass")
+        continue
+    for i, (sx2, sy2, sz2) in enumerate(spawns):
+        a = eas.spawn_actor_from_class(species, unreal.Vector(sx2, sy2, sz2), rot(0))
+        a.set_actor_label(f"VR_{cls_name}_{i}")
+        if cls_name == "BarkSkitter":
+            for prop, val in (("axis_x", CX), ("axis_y", CY), ("z_mid", sz2)):
+                try:
+                    a.set_editor_property(prop, val)
+                except Exception:
+                    pass
+        life_n += 1
+actor_count += life_n
+print(f"REACH_MARKER: {life_n} creatures live in the Reach")
+
+# ---- FOLIAGE: the floor grows an understory ----
+FERN, VINE, FUNGUS, FLOWER = (kit("fern_clump"), kit("vine_curtain"),
+                              kit("fungus_shelf"), kit("flower_stalk"))
+
+
+def near_river(x, y):
+    best = 1e18
+    for wpx, wpy in RIV["waypoints"]:
+        best = min(best, math.hypot(x - wpx, y - wpy))
+    return best
+
+
+flora_n = 0
+for i in range(12):                                  # the banks get their ferns DIRECTLY
+    wpx, wpy = RIV["waypoints"][(i * 2) % len(RIV["waypoints"])]
+    ang = random.uniform(0, 2.0 * math.pi)
+    d = random.uniform(520.0, 900.0)
+    fx, fy = wpx + math.cos(ang) * d, wpy + math.sin(ang) * d
+    if math.hypot(fx - CX, fy - CY) < 3600.0 or near_river(fx, fy) < 430.0:
+        continue
+    place(FERN, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_BankFern_{i}",
+          yaw=random.uniform(0, 360), scale=random.uniform(0.9, 1.6))
+    flora_n += 1
+attempts = 0
+while flora_n < 30 and attempts < 300:               # then the free wilderness scatter
+    attempts += 1
+    fx = CX + random.uniform(-13500.0, 13500.0)
+    fy = CY + random.uniform(-13500.0, 13500.0)
+    if math.hypot(fx - CX, fy - CY) < 3600.0 or near_river(fx, fy) < 450.0:
+        continue
+    place(FERN, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_Fern_{flora_n}",
+          yaw=random.uniform(0, 360), scale=random.uniform(0.8, 1.6))
+    flora_n += 1
+for i in range(18):
+    fx = CX + random.uniform(-12000.0, 12000.0)
+    fy = CY + random.uniform(-12000.0, 12000.0)
+    if math.hypot(fx - CX, fy - CY) < 3600.0 or near_river(fx, fy) < 420.0:
+        continue
+    place(FLOWER, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_Flower_{i}",
+          yaw=random.uniform(0, 360), scale=random.uniform(0.9, 1.5))
+    flora_n += 1
+for i in range(8):
+    fz = random.uniform(300.0, 3000.0)
+    fth = math.radians(random.uniform(60.0, 130.0))
+    p = surface_point(fz, fth, out=-90.0)
+    place(FUNGUS, p, f"VR_Fungus_{i}", yaw=math.degrees(fth) - 90.0,
+          scale=random.uniform(0.55, 0.95))
+    flora_n += 1
+vine_i = 0
+for s in F["branch_sockets"]:
+    if s["arch"] != "b1" or vine_i >= 14:
+        continue
+    th = math.radians(s["theta_deg"])
+    base = surface_point(s["z"], th, out=-250.0)
+    for frac in (0.35, 0.65):
+        if vine_i >= 14:
+            break
+        d = 7600.0 * s["scale"] * frac
+        place(VINE, unreal.Vector(base.x + math.cos(th) * d, base.y + math.sin(th) * d,
+                                  s["z"] + math.sin(math.radians(s["pitch_deg"])) * d
+                                  - 360.0 * s["scale"]),
+              f"VR_Vine_{vine_i}", yaw=random.uniform(0, 360),
+              scale=random.uniform(0.8, 1.2), shadow=False)
+        vine_i += 1
+        flora_n += 1
+for i, sname in enumerate(("bough_a", "bough_c", "bough_d", "bough_f", "bough_g",
+                           "bough_i", "spiral_cb_in", "bough_mid_in", "bough_high_in",
+                           "bough_j", "twig_a", "twig_c")):
+    s = next(x for x in F["branch_sockets"] if x["name"] == sname)
+    th = math.radians(s["theta_deg"])
+    base = surface_point(s["z"], th, out=-250.0)
+    place(FERN, unreal.Vector(base.x + math.cos(th) * 620.0 * s["scale"],
+                              base.y + math.sin(th) * 620.0 * s["scale"],
+                              s["z"] + 170.0 * s["scale"]),
+          f"VR_BoughFern_{i}", yaw=random.uniform(0, 360), scale=0.6)
+    flora_n += 1
+print(f"REACH_MARKER: {flora_n} plants in the understory")
+
+# ---- the chimney becomes a discovery (the dark room Adam found) ----
+door_th = math.radians(CHIM["door_theta_deg"])
+for i, (lth_deg, lr) in enumerate(((200.0, 900.0), (250.0, 1100.0), (300.0, 850.0))):
+    lth = math.radians(lth_deg)
+    lp = unreal.Vector(CX + lr * math.cos(lth), CY + lr * math.sin(lth), 0.0)
+    lp.z = ground_z(lp.x, lp.y) + 4.0
+    lant = eas.spawn_actor_from_class(cls("Lantern"), lp, rot(0))
+    lant.set_actor_label(f"VR_ChimneyLantern_{i}")
+    ls = lant.get_component_by_class(unreal.LightStateComponent)
+    if ls:
+        ls.set_editor_property("group_name", "VR_Chimney")
+    if i == 1:
+        try:
+            lant.set_editor_property("is_checkpoint", True)
+        except Exception:
+            pass
+    actor_count += 1
+for i in range(4):
+    sth = math.radians(160.0 + i * 50.0)
+    p = surface_point(180.0, sth, out=-(300.0 * 1.6 - 30.0))
+    place(kit("seep_card"), p, f"VR_ChimneySeep_{i}", yaw=math.degrees(sth) + 180.0,
+          scale=1.6, shadow=False)
+for i in range(5):
+    sr = random.uniform(500.0, 2000.0)
+    sth = random.uniform(0, 2.0 * math.pi)
+    p = unreal.Vector(CX + sr * math.cos(sth), CY + sr * math.sin(sth), 0.0)
+    p.z = ground_z(p.x, p.y) + 30.0
+    place(SPHERE, p, f"VR_ChimneySeed_{i}", scale=0.5,
+          material=mat("M_VR_VioletSeep"), shadow=False)
+for i in range(6):
+    d = 600.0 + i * 320.0
+    p = unreal.Vector(CX + d * math.cos(door_th), CY + d * math.sin(door_th), 0.0)
+    p.z = ground_z(p.x, p.y) + 150.0
+    place(CYL, p, f"VR_ChimneyCrumb_{i}", scale=unreal.Vector(0.07, 0.07, 2.4),
+          material=M_TUNSAP, shadow=False)
+door_p = surface_point(90.0, door_th, out=60.0)
+place(kit("knothole_arch"), door_p, "VR_Arch_ChimneyDoor",
+      yaw=CHIM["door_theta_deg"] + 90.0, scale=1.1)
+print("REACH_MARKER: the chimney is a discovery now (lit, seeded, and it has a door)")
 
 # ---------------- save law ----------------
 print(f"REACH_MARKER: {actor_count} actors placed")

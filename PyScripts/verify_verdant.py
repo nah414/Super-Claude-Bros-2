@@ -45,7 +45,10 @@ for bone in ("StageSpawn", "StageSun", "StageAtmosphere", "StageSkyLight"):
     if bone not in labels:
         print(f"REACH_FAIL: stage bone missing: {bone}")
         checks_ok = False
-checks_ok = checks_ok and len(vr) >= 300
+if not any(l.startswith("VR_Boss_") for l in labels):
+    print("REACH_FAIL: the Shellback Alpha is missing from the crown")
+    checks_ok = False
+checks_ok = checks_ok and len(vr) >= 500
 
 assert checks_ok, "VERDANT_VERIFY_FAILED"
 print("VERDANT_VERIFY_DONE — the Reach is real on disk")

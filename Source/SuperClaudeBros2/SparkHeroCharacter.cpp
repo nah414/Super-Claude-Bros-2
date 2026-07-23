@@ -140,6 +140,11 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	// The flag-capture finish clips (Meshy stage 36): grip the pole, then a fist-pump victory.
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FlagGrabClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_FlagGrab_Anim.A_Hero_FlagGrab_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> FlagVictoryClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_FlagVictory_Anim.A_Hero_FlagVictory_Anim"));
+	// The climb rig (Meshy stage 37): latch / ascend / descend / hang.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbGrabClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbGrab_Anim.A_Hero_ClimbGrab_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbUpClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbUp_Anim.A_Hero_ClimbUp_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbDownClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbDown_Anim.A_Hero_ClimbDown_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbHangClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbHang_Anim.A_Hero_ClimbHang_Anim"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -185,11 +190,18 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	KickHeavyAnim = KickHeavyClip.Succeeded() ? KickHeavyClip.Object : nullptr;
 	FlagGrabAnim = FlagGrabClip.Succeeded() ? FlagGrabClip.Object : nullptr;
 	FlagVictoryAnim = FlagVictoryClip.Succeeded() ? FlagVictoryClip.Object : nullptr;
+	ClimbGrabAnim = ClimbGrabClip.Succeeded() ? ClimbGrabClip.Object : nullptr;
+	ClimbUpAnim = ClimbUpClip.Succeeded() ? ClimbUpClip.Object : nullptr;
+	ClimbDownAnim = ClimbDownClip.Succeeded() ? ClimbDownClip.Object : nullptr;
+	ClimbHangAnim = ClimbHangClip.Succeeded() ? ClimbHangClip.Object : nullptr;
 	// Scan-set windows (June 12): straight-kick impact frac 0.50, knee drive
 	// 0.21, roundhouse foot at head height 0.73 — each lands mid-beat.
 	Kick1ClipStartFraction = 0.30f;  Kick1ClipRate = 2.3f;
 	Kick2ClipStartFraction = 0.08f;  Kick2ClipRate = 2.7f;
 	KickHeavyClipStartFraction = 0.58f;  KickHeavyClipRate = 2.25f;
+	// Climb-grab window (stage-37 scan: grip peak at frac 0.50 of 1.27s; the
+	// heroine's scan matched exactly, so she inherits these).
+	ClimbGrabClipStartFraction = 0.15f;  ClimbGrabClipRate = 2.4f;
 
 	// --- Camera rig: spring arm with collision probe + lag, free orbit ---
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -327,6 +339,13 @@ void ASparkHeroCharacter::PlayShake(TSubclassOf<UCameraShakeBase> ShakeClass) co
 void ASparkHeroCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// The climb rig restores to THIS, not to a hard-coded rest — robust to the
+	// heroine (or any future body) changing the base offset (absolute-offset law).
+	if (SkelBody)
+	{
+		SkelBodyRestLocation = SkelBody->GetRelativeLocation();
+	}
 
 	// L9 amplification: the spark learns a second air dash.
 	if (HasPowerLevel(9))
@@ -1202,6 +1221,31 @@ void ASparkHeroCharacter::TryStartClimb()
 	const FVector IntoWall = ClimbWallNormal * FVector::DotProduct(Move->Velocity, ClimbWallNormal);
 	Move->Velocity = (Move->Velocity - IntoWall) * ClimbGrabMomentumRetain;
 	SetActorRotation(FRotationMatrix::MakeFromX(-ClimbWallNormal).Rotator());
+
+	// THE SINK FIX (Adam's photos: limbs buried in bark). After the rotation above,
+	// actor-local +X points INTO the wall — push the visual body OUT along -X, an
+	// ABSOLUTE set from rest (the crouch law, cpp OnStartCrouch: never a delta).
+	// Screenshot truth owns the sign; both knobs are EditAnywhere.
+	if (SkelBody)
+	{
+		SkelBody->SetRelativeLocation(SkelBodyRestLocation + FVector(-ClimbBodyOutset, 0.f, 0.f));
+	}
+	if (VisualRoot && ClimbLeanDegrees != 0.f)
+	{
+		VisualRoot->SetRelativeRotation(FRotator(-ClimbLeanDegrees, 0.f, 0.f));
+	}
+
+	// The latch beat: a windowed one-shot before the loop takes over (7.5-2/-5:
+	// windowed, guarded, and never stomped — StopClimb leaves it to finish).
+	if (ClimbGrabAnim && !bActionAnimActive)
+	{
+		PlayActionClip(ClimbGrabAnim, 0.35f, ClimbGrabClipStartFraction, ClimbGrabClipRate);
+		GetWorldTimerManager().SetTimer(ClimbGrabTimer, this,
+			&ASparkHeroCharacter::EndActionClip, 0.45f, false);
+	}
+	UE_LOG(LogTemp, Display, TEXT("REACH_MARKER: VR_CLIMB grab at %s offset=%s"),
+		*GetActorLocation().ToCompactString(),
+		SkelBody ? *SkelBody->GetRelativeLocation().ToCompactString() : TEXT("none"));
 }
 
 void ASparkHeroCharacter::StopClimb()
@@ -1211,7 +1255,75 @@ void ASparkHeroCharacter::StopClimb()
 	UCharacterMovementComponent* Move = GetCharacterMovement();
 	Move->SetMovementMode(MOVE_Falling);
 	Move->GravityScale = bFastFalling ? FastFallGravityScale : BaseGravityScale;
+	// Absolute restore of the climb-time visual offsets (never accumulate).
+	if (SkelBody)
+	{
+		SkelBody->SetRelativeLocation(SkelBodyRestLocation);
+	}
+	if (VisualRoot)
+	{
+		VisualRoot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
 	AnimState = EHeroAnimState::None;   // re-pick locomotion
+}
+
+// -SCB2ShotClimb harness seam: nudge into the REAL grab laws (no state forcing),
+// then drive the loop with vertical velocity so captures photograph each state.
+void ASparkHeroCharacter::Debug_ForceClimb(float UpSign)
+{
+	// The actor's yaw is untrustworthy under -unattended (controller yaw owns it
+	// — Sonnet photographed facing +X at a +Y wall). Scout 8 compass directions
+	// and aim the grab laws at the NEAREST wall instead.
+	FVector BestDir = GetActorForwardVector();
+	float BestDist = 1e9f;
+	FHitResult Scout;
+	FCollisionQueryParams ScoutParams(TEXT("ForceClimbScout"), false, this);
+	// Scout from 300uu up: at ground level the trunk base is all skirt-slope and
+	// noise-bumps (floor-like normals) — honest vertical bark lives higher.
+	const FVector ScoutEye = GetActorLocation() + FVector(0.f, 0.f, 300.f);
+	for (int32 i = 0; i < 8; ++i)
+	{
+		const float A = i * PI / 4.f;
+		const FVector Dir(FMath::Cos(A), FMath::Sin(A), 0.f);
+		if (GetWorld()->LineTraceSingleByChannel(Scout, ScoutEye,
+				ScoutEye + Dir * 900.f, ECC_Visibility, ScoutParams)
+			&& FMath::Abs(Scout.ImpactNormal.Z) < 0.55f
+			&& Scout.Distance < BestDist)
+		{
+			BestDist = static_cast<float>(Scout.Distance);
+			BestDir = Dir;
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("REACH_MARKER: VR_CLIMB scout dist=%.0f dir=%s"),
+		BestDist < 1e8f ? BestDist : -1.f, *BestDir.ToCompactString());
+	LastWorldMoveInput = BestDir;
+	SetActorRotation(BestDir.Rotation());
+	// Lift before the sail: the hero has usually settled to the trunk BASE by now,
+	// where skirt-slope normals refuse the grab — mid-bark is honest wall.
+	SetActorLocation(GetActorLocation() + FVector(0.f, 0.f, 450.f));
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		if (Move->IsMovingOnGround())
+		{
+			Move->SetMovementMode(MOVE_Falling);
+		}
+	}
+	TryStartClimb();
+	if (bClimbing && GetCharacterMovement())
+	{
+		GetCharacterMovement()->Velocity = FVector(0.f, 0.f, UpSign * ClimbSpeed * 0.8f);
+	}
+	else if (GetCharacterMovement())
+	{
+		// First probe missed — sail at the wall; the per-tick probe (the real
+		// grab law) catches on arrival, then vertical velocity picks the state.
+		GetCharacterMovement()->Velocity = BestDir * 460.f
+			+ FVector(0.f, 0.f, 140.f + UpSign * 120.f);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("REACH_MARKER: VR_CLIMB force sign=%.0f climbing=%d skel_offset=%s"),
+		UpSign, bClimbing ? 1 : 0,
+		SkelBody ? *SkelBody->GetRelativeLocation().ToCompactString() : TEXT("none"));
 }
 
 // ---------------------------------------------------------------------------
@@ -2028,7 +2140,12 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 	EHeroAnimState Desired;
 	if (bClimbing)
 	{
-		Desired = EHeroAnimState::Climb;
+		// The climb rig: state by vertical velocity with a +-60 deadband so the
+		// loop doesn't flicker at the top of a reach.
+		const float Vz = static_cast<float>(Move->Velocity.Z);
+		Desired = (Vz > 60.f) ? EHeroAnimState::ClimbUp
+		        : (Vz < -60.f) ? EHeroAnimState::ClimbDown
+		        : EHeroAnimState::ClimbHang;
 	}
 	else if (!Move->IsMovingOnGround())
 	{
@@ -2072,11 +2189,24 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 				SkelBody->PlayAnimation(CrouchAnim, true);   // cautious sway, looped
 			}
 			break;
-		case EHeroAnimState::Climb:
-			if (CrouchAnim)
+		case EHeroAnimState::ClimbUp:
+			if (UAnimSequence* Up = ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get())
 			{
-				SkelBody->PlayAnimation(CrouchAnim, true);   // crawl reads as climb
-				SkelBody->SetPlayRate(0.8f);                 // (proper climb clip queued)
+				SkelBody->PlayAnimation(Up, true);           // the real reach cycle
+			}
+			break;
+		case EHeroAnimState::ClimbDown:
+			if (UAnimSequence* Down = ClimbDownAnim ? ClimbDownAnim.Get()
+			                        : ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get())
+			{
+				SkelBody->PlayAnimation(Down, true);
+			}
+			break;
+		case EHeroAnimState::ClimbHang:
+			if (UAnimSequence* Hang = ClimbHangAnim ? ClimbHangAnim.Get() : CrouchAnim.Get())
+			{
+				SkelBody->PlayAnimation(Hang, true);
+				SkelBody->SetPlayRate(ClimbHangAnim ? 1.f : 0.5f);
 			}
 			break;
 		case EHeroAnimState::Run:
@@ -2106,6 +2236,20 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 	if (AnimState == EHeroAnimState::Crouch)
 	{
 		SkelBody->SetPlayRate(FMath::Clamp(GroundSpeed / 220.f, 0.35f, 1.4f));
+	}
+	else if (AnimState == EHeroAnimState::ClimbUp || AnimState == EHeroAnimState::ClimbDown)
+	{
+		// Rate the reach-cycle to the wall (7.5-3): one cycle per ClimbCycleReach uu.
+		UAnimSequence* Loop = (AnimState == EHeroAnimState::ClimbUp)
+			? (ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get())
+			: (ClimbDownAnim ? ClimbDownAnim.Get()
+			   : ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get());
+		if (Loop)
+		{
+			const float Vz = FMath::Abs(static_cast<float>(GetCharacterMovement()->Velocity.Z));
+			SkelBody->SetPlayRate(FMath::Clamp(
+				Vz * Loop->GetPlayLength() / FMath::Max(ClimbCycleReach, 1.f), 0.5f, 2.5f));
+		}
 	}
 	else if (AnimState == EHeroAnimState::Walk)
 	{

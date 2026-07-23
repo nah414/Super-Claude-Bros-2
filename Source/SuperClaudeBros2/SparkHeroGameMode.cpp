@@ -143,12 +143,16 @@ void ASparkHeroGameMode::BeginPlay()
 	// Per-map ambience + music (loop flags set on the SoundWave assets at import;
 	// all optional — the game runs silently before the audio pack is imported).
 	const bool bNeonCity = GetWorld() && GetWorld()->GetMapName().Contains(TEXT("NeonCity"));
+	// The Verdant Reach (W3, on the World Stage): NO night crickets, NO glade music —
+	// AVerdantBreath owns this world's air (wind bed + gust swells). A future
+	// music_reach_loop slots into this same branch.
+	const bool bVerdant = GetWorld() && GetWorld()->GetMapName().Contains(TEXT("WorldStageTesting"));
 	// NeonCity ambience swapped from amb_rain_loop -> amb_night_loop: the rain was eliminated
 	// (Adam, June 19), so World 1 plays a dry night ambience, no rain patter.
 	const TCHAR* AmbPath = bNeonCity
 		? TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop")
 		: TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop");
-	if (USoundBase* Amb = LoadObject<USoundBase>(nullptr, AmbPath))
+	if (USoundBase* Amb = bVerdant ? nullptr : LoadObject<USoundBase>(nullptr, AmbPath))
 	{
 		UGameplayStatics::PlaySound2D(this, Amb, 0.7f);
 	}
@@ -162,7 +166,7 @@ void ASparkHeroGameMode::BeginPlay()
 		Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_city_loop_v2.music_city_loop_v2"));
 		if (!Music) { Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_city_loop.music_city_loop")); }
 	}
-	else
+	else if (!bVerdant)
 	{
 		Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop"));
 	}
@@ -219,7 +223,9 @@ void ASparkHeroGameMode::BeginPlay()
 						const FVector Dest(FCString::Atof(*Parts[0]),
 						                   FCString::Atof(*Parts[1]),
 						                   FCString::Atof(*Parts[2]));
-						Hero->TeleportTo(Dest, Hero->GetActorRotation());
+						const bool bMoved = Hero->TeleportTo(Dest, Hero->GetActorRotation());
+						UE_LOG(LogTemp, Display, TEXT("SCB2: ShotAt teleport to %s -> %s"),
+							*Dest.ToCompactString(), bMoved ? TEXT("OK") : TEXT("BLOCKED"));
 					}
 					else
 					{
@@ -536,6 +542,25 @@ void ASparkHeroGameMode::BeginPlay()
 					Hero->CaptureStrike();
 				}
 			}, FMath::Max(Delay - 0.15f, 0.05f), false);
+		}
+
+		// -SCB2ShotClimb=up|down|hang: nudge the hero into the REAL grab laws just
+		// before the shutter (recipe §6: extend the harness per new verb). Spawn
+		// beside any wall via -SCB2ShotAt; bClimbAnywhere makes every wall legal.
+		FString ShotClimb;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotClimb="), ShotClimb))
+		{
+			const float UpSign = ShotClimb.Equals(TEXT("down"), ESearchCase::IgnoreCase) ? -1.f
+			                   : ShotClimb.Equals(TEXT("hang"), ESearchCase::IgnoreCase) ? 0.f : 1.f;
+			FTimerHandle ClimbTimer;
+			GetWorldTimerManager().SetTimer(ClimbTimer, [this, UpSign]()
+			{
+				if (ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(
+						UGameplayStatics::GetPlayerPawn(this, 0)))
+				{
+					Hero->Debug_ForceClimb(UpSign);
+				}
+			}, FMath::Max(Delay - 1.4f, 0.05f), false);
 		}
 
 		FTimerHandle ShotTimer;
