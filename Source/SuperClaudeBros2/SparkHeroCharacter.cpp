@@ -259,6 +259,15 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	PulseLight->SetLightColor(FColor(255, 170, 70));
 	PulseLight->SetCastShadows(false);
 
+	// --- Beacon Nova's sky-stab pillar (hidden until a cast detonates it) ---
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> PillarCyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	PillarMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PillarMesh"));
+	PillarMesh->SetupAttachment(RootComponent);
+	PillarMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (PillarCyl.Succeeded()) { PillarMesh->SetStaticMesh(PillarCyl.Object); }
+	PillarMesh->SetCastShadow(false);
+	PillarMesh->SetVisibility(false);
+
 	// --- Ember Guard's ring of fire: CONE flame-licks (flames are cones, not
 	// balls — Adam round 9), hidden until the guard burns ---
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
@@ -1380,7 +1389,7 @@ float ASparkHeroCharacter::GetPowerReadyIn(ESparkPower Power) const
 }
 
 // Spawn one spark blast from the hero's hand, flying flat along Direction.
-void ASparkHeroCharacter::FireBlast(const FVector& Direction)
+void ASparkHeroCharacter::FireBlast(const FVector& Direction, int32 Tier)
 {
 	FVector SpawnLoc = GetActorLocation() + GetActorForwardVector() * 50.f + FVector(0.f, 0.f, 20.f);
 	if (bHasSkeletalModel && SkelBody && HandBoneName != NAME_None)
@@ -1391,8 +1400,49 @@ void ASparkHeroCharacter::FireBlast(const FVector& Direction)
 	SpawnParams.Owner = this;
 	SpawnParams.Instigator = this;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	GetWorld()->SpawnActor<ASparkBlastProjectile>(ASparkBlastProjectile::StaticClass(),
-		SpawnLoc, Direction.Rotation(), SpawnParams);
+	if (ASparkBlastProjectile* Blast = GetWorld()->SpawnActor<ASparkBlastProjectile>(
+			ASparkBlastProjectile::StaticClass(), SpawnLoc, Direction.Rotation(), SpawnParams))
+	{
+		Blast->ApplyTier(Tier);   // tier = size, heat, speed, and bite
+	}
+}
+
+void ASparkHeroCharacter::Debug_CastPower(ESparkPower Power, int32 Tier)
+{
+	// Harness-only: force the tier, clear the cooldowns, fire — so screenshots
+	// can catch the spectacle mid-bloom.
+	BoltTier = NovaTier = RingTier = FMath::Clamp(Tier, 1, 3);
+	BurstReadyTime = WaveReadyTime = GuardReadyTime = 0.f;
+	UE_LOG(LogTemp, Display, TEXT("MOONWORKS_MARKER: harness cast power=%d tier=%d"),
+	       static_cast<int32>(Power), Tier);
+	switch (Power)
+	{
+	case ESparkPower::Nova:     DoBeaconWave(); break;
+	case ESparkPower::FireRing: HandleGuardPressed(); break;
+	default:                    DoPrismBurst(); break;
+	}
+}
+
+int32 ASparkHeroCharacter::GetPowerTier(ESparkPower Power) const
+{
+	switch (Power)
+	{
+	case ESparkPower::Nova:     return NovaTier;
+	case ESparkPower::FireRing: return RingTier;
+	default:                    return BoltTier;
+	}
+}
+
+void ASparkHeroCharacter::RaiseAllPowerTiers(int32 By)
+{
+	BoltTier = FMath::Clamp(BoltTier + By, 1, 3);
+	NovaTier = FMath::Clamp(NovaTier + By, 1, 3);
+	RingTier = FMath::Clamp(RingTier + By, 1, 3);
+	// The climb is felt, not read: a gold ground-flash marks the moment.
+	FirePulse(520.f, 0.6f, 9000.f);
+	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 10.f); }
+	UE_LOG(LogTemp, Display, TEXT("MOONWORKS_MARKER: power tiers now B%d/N%d/R%d"),
+	       BoltTier, NovaTier, RingTier);
 }
 
 void ASparkHeroCharacter::DoPrismBurst()
@@ -1400,15 +1450,22 @@ void ASparkHeroCharacter::DoPrismBurst()
 	// L4 — THE SPARK BLAST (Adam's round-6 redesign): power shoots FROM THE HAND —
 	// a glowing amber orb that flies where you face and bursts Motes on contact.
 	if (Now() < BurstReadyTime) { return; }
-	BurstReadyTime = Now() + BurstCooldown;
+	// Tier 3 shoots faster as well as harder.
+	BurstReadyTime = Now() + BurstCooldown * (BoltTier >= 3 ? 0.78f : 1.f);
 
 	// Aim where the player looks (camera yaw), flat — platformer-honest.
 	const float Yaw = Controller ? static_cast<float>(Controller->GetControlRotation().Yaw)
 	                             : static_cast<float>(GetActorRotation().Yaw);
 	const FVector Aim = FRotationMatrix(FRotator(0.f, Yaw, 0.f)).GetUnitAxis(EAxis::X);
 
-	FireBlast(Aim);
-	if (EmberMeter) { EmberMeter->FlashGlow(0.25f, 5.f); }
+	// TIER FAN: T1 one bolt · T2 a three-bolt spread · T3 a five-bolt volley.
+	const int32 NumOrbs = (BoltTier >= 3) ? 5 : (BoltTier == 2 ? 3 : 1);
+	for (int32 i = 0; i < NumOrbs; ++i)
+	{
+		const float Offset = (i - (NumOrbs - 1) * 0.5f) * 12.f;
+		FireBlast(Aim.RotateAngleAxis(Offset, FVector::UpVector), BoltTier);
+	}
+	if (EmberMeter) { EmberMeter->FlashGlow(0.25f, 5.f + 2.f * BoltTier); }
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_doublejump.sfx_doublejump"));
 	OnHeroPrismBurst(BurstRadius);
 }
@@ -1421,13 +1478,36 @@ void ASparkHeroCharacter::DoBeaconWave()
 	if (Now() < WaveReadyTime) { return; }
 	WaveReadyTime = Now() + WaveCooldown;
 
-	for (int32 i = 0; i < 12; ++i)
+	// TIER RING: 12 / 18 / 24 bolts; the shockwave and flash grow with the tier.
+	const float TierScale = 1.f + 0.35f * (NovaTier - 1);
+	const int32 NumRays = 12 + 6 * (NovaTier - 1);
+	for (int32 i = 0; i < NumRays; ++i)
 	{
-		const float Rad = FMath::DegreesToRadians(i * 30.f);
-		FireBlast(FVector(FMath::Cos(Rad), FMath::Sin(Rad), 0.f));
+		const float Rad = FMath::DegreesToRadians(i * (360.f / NumRays));
+		FireBlast(FVector(FMath::Cos(Rad), FMath::Sin(Rad), 0.f), NovaTier);
 	}
-	FirePulse(WaveRadius, 0.7f, 12000.f);
-	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 16.f); }
+	FirePulse(WaveRadius * TierScale, 0.7f, 12000.f * (1.f + 0.5f * (NovaTier - 1)));
+	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 16.f + 6.f * (NovaTier - 1)); }
+
+	// THE SKY-STAB (July 23 redesign): a pillar of light punches upward at the
+	// cast and collapses; a ring of ember-bursts detonates around the hero; at
+	// T2+ the nova echoes — a SECOND, wider detonation a third of a second later.
+	PillarStartTime = Now();
+	if (PillarMesh) { PillarMesh->SetVisibility(true); }
+	for (int32 i = 0; i < 10; ++i)
+	{
+		const float A = FMath::DegreesToRadians(i * 36.f + 18.f);
+		const FVector At = GetActorLocation()
+			+ FVector(FMath::Cos(A), FMath::Sin(A), 0.f) * (WaveRadius * TierScale * 0.45f)
+			+ FVector(0.f, 0.f, 30.f);
+		// Cosmetic scale (<0.8): the burst budget skips these under load, never the hits.
+		ASparkImpactBurst::Burst(this, At, FLinearColor(3.6f, 2.2f, 0.8f), 0.75f, 2600.f);
+	}
+	if (NovaTier >= 2)
+	{
+		WaveEchoTime = Now() + 0.35f;
+		WaveEchoScale = TierScale;
+	}
 	PlayShake(USparkBigLandShake::StaticClass());
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_land.sfx_land"));
 	OnHeroBeaconWave(WaveRadius);
@@ -1435,16 +1515,16 @@ void ASparkHeroCharacter::DoBeaconWave()
 	TArray<FOverlapResult> Hits;
 	FCollisionQueryParams Params(TEXT("BeaconWave"), false, this);
 	GetWorld()->OverlapMultiByChannel(Hits, GetActorLocation(), FQuat::Identity, ECC_Pawn,
-	                                  FCollisionShape::MakeSphere(WaveRadius), Params);
+	                                  FCollisionShape::MakeSphere(WaveRadius * TierScale), Params);
 	for (const FOverlapResult& Hit : Hits)
 	{
 		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
 		{
-			Glimmer->TakeStagger(BurstStagger * 1.5f);
+			Glimmer->TakeStagger(BurstStagger * (1.f + 0.5f * NovaTier));
 		}
 		else if (ABramblehulk* Hulk = Cast<ABramblehulk>(Hit.GetActor()))
 		{
-			Hulk->AddCalm(Hulk->WaveCalmBonus);   // light reaches the storm's heart
+			Hulk->AddCalm(Hulk->WaveCalmBonus * NovaTier);   // light reaches the storm's heart
 		}
 	}
 	// TODO(M0.2): ILightResponsive sweep — relight every lantern in WaveRadius.
@@ -1487,9 +1567,11 @@ void ASparkHeroCharacter::HandleGuardPressed()
 	if (Now() < GuardReadyTime) { return; }
 	GuardReadyTime = Now() + GuardCooldown;
 
-	const float Duration = HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration;
+	// The tier holds the ring longer and burns it brighter.
+	const float Duration = (HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration)
+		+ 0.75f * (RingTier - 1);
 	EmberMeter->ActivateGuard(Duration);
-	EmberMeter->FlashGlow(0.5f, 6.f);
+	EmberMeter->FlashGlow(0.5f + 0.15f * RingTier, 6.f + 3.f * RingTier);
 	GuardVisualUntil = Now() + Duration;   // the RING OF FIRE burns this long
 	OnHeroEmberGuard();
 }
@@ -1808,14 +1890,22 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 			if (!Orb) { continue; }
 			Orb->SetVisibility(bGuardBurning);
 			if (!bGuardBurning) { continue; }
-			const float Angle = FMath::DegreesToRadians(i * 36.f) + T * 2.8f;   // the ring spins
-			const float Bob = 12.f * FMath::Sin(T * 5.f + i * 1.7f);
-			const float Flick = 0.11f + 0.05f * FMath::Sin(T * 11.f + i * 2.3f);
-			const float Lick = 2.0f + 0.9f * FMath::Sin(T * 13.f + i * 3.1f);   // flames LICK upward
-			Orb->SetRelativeLocation(FVector(FMath::Cos(Angle) * 105.f,
-			                                 FMath::Sin(Angle) * 105.f,
-			                                 -34.f + Bob));
-			Orb->SetRelativeScale3D(FVector(Flick, Flick, Flick * Lick));
+			// THE BLADE ORBIT (July 23 redesign — the bobbing "tears" are gone):
+			// two counter-rotating rings of flame SHARDS, blades laid along their
+			// tangents like a spinning sawblade of kept-fire. Low ring spins with
+			// the clock, high ring against it — edge, not droplets.
+			const bool bLowRing = i < 5;
+			const int32 Idx = bLowRing ? i : i - 5;
+			const float Angle = FMath::DegreesToRadians(Idx * 72.f)
+				+ T * (bLowRing ? 3.8f : -4.6f);
+			const float R = bLowRing ? 92.f : 116.f;
+			const float Z = bLowRing ? -26.f : 24.f;
+			Orb->SetRelativeLocation(FVector(FMath::Cos(Angle) * R,
+			                                 FMath::Sin(Angle) * R, Z));
+			Orb->SetRelativeRotation(FRotator(bLowRing ? 74.f : -74.f,
+				FMath::RadiansToDegrees(Angle) + (bLowRing ? 90.f : -90.f), 0.f));
+			const float Pulse = 0.85f + 0.25f * FMath::Sin(T * 9.f + i * 2.1f);
+			Orb->SetRelativeScale3D(FVector(0.09f, 0.05f, 0.62f) * Pulse);
 			if (GuardFlameMIDs.IsValidIndex(i) && GuardFlameMIDs[i])
 			{
 				const float Heat = 0.7f + 0.5f * FMath::Sin(T * 17.f + i * 2.9f);
@@ -1856,6 +1946,38 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 					Glimmer->TakeStrike();
 				}
 			}
+		}
+	}
+
+	// Beacon Nova's sky-stab pillar: punches up at the cast, collapses in 0.45s.
+	if (PillarMesh)
+	{
+		const float PillarAge = Now() - PillarStartTime;
+		if (PillarAge >= 0.f && PillarAge < 0.45f)
+		{
+			const float F = 1.f - PillarAge / 0.45f;             // 1 -> 0
+			const float FootZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			PillarMesh->SetRelativeLocation(FVector(0.f, 0.f, FootZ + 1300.f));
+			PillarMesh->SetRelativeScale3D(FVector(0.25f + 1.15f * F, 0.25f + 1.15f * F, 26.f));
+			PillarMesh->SetVisibility(true);
+		}
+		else if (PillarMesh->IsVisible())
+		{
+			PillarMesh->SetVisibility(false);
+		}
+	}
+	// T2+ nova echo: the second, wider detonation.
+	if (WaveEchoTime > 0.f && Now() >= WaveEchoTime)
+	{
+		WaveEchoTime = -1000.f;
+		FirePulse(WaveRadius * WaveEchoScale * 1.25f, 0.5f, 9000.f);
+		for (int32 i = 0; i < 6; ++i)
+		{
+			const float A = FMath::DegreesToRadians(i * 60.f);
+			const FVector At = GetActorLocation()
+				+ FVector(FMath::Cos(A), FMath::Sin(A), 0.f) * (WaveRadius * WaveEchoScale * 0.9f)
+				+ FVector(0.f, 0.f, 30.f);
+			ASparkImpactBurst::Burst(this, At, FLinearColor(4.2f, 2.6f, 1.f), 0.78f, 3000.f);
 		}
 	}
 

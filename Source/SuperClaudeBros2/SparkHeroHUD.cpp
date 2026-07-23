@@ -72,6 +72,10 @@ void ASparkHeroHUD::DrawHUD()
 	{
 		const bool bSel = Hero->GetSelectedPower() == Slot.P;
 		DrawRect(bSel ? BorderColor : FLinearColor(0.f, 0.f, 0.f, 0.7f), SX, SY, SlotW, SlotH);
+		// The tier pip: each power wears its rank in gold (I / II / III).
+		static const TCHAR* Pips[4] = { TEXT("I"), TEXT("I"), TEXT("II"), TEXT("III") };
+		DrawText(Pips[FMath::Clamp(Hero->GetPowerTier(Slot.P), 1, 3)],
+		         FLinearColor(1.f, 0.84f, 0.35f), SX + SlotW - 26.f * S, SY + 4.f * S, Small, S);
 		const float ReadyIn = Hero->GetPowerReadyIn(Slot.P);
 		if (ReadyIn > 0.05f)
 		{
@@ -110,6 +114,8 @@ void ASparkHeroHUD::DrawHUD()
 		Map.Contains(TEXT("NeonCity")) ? TEXT("ANTHROPICA — Festival District") :
 		Map.Contains(TEXT("RosterHall")) ? TEXT("THE ROSTER HALL") :
 		Map.Contains(TEXT("MoonlitGlade")) ? TEXT("THE MOONLIT GLADE") :
+		Map.Contains(TEXT("WorldStageTesting")) ? TEXT("THE MOONLIT GLADE — WORLD 2") :
+		Map.Contains(TEXT("LanternClimb")) ? TEXT("ANTHROPICA — WORLD 1") :
 		Map.Contains(TEXT("FeelGym")) ? TEXT("THE FEEL GYM") : TEXT("THE LANTERN ROAD");
 	DrawText(WorldName, BorderColor, 24.f * S, 12.f * S, Medium, S);
 	DrawText(FString::Printf(TEXT("SPARK LEVEL %d"), Hero->PowerLevel),

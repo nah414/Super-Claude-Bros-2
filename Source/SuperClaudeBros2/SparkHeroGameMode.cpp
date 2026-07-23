@@ -3,6 +3,7 @@
 #include "Bramblehulk.h"
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
+#include "GladeProwler.h"
 #include "RustWarlord.h"
 #include "HollowWarden.h"
 #include "LumenDragonlord.h"
@@ -68,8 +69,11 @@ void ASparkHeroGameMode::OnWorldGoalLit()
 	}
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 9.f, FColor::Orange,
-			TEXT("THE FIRST LANTERN ROARS  —  ANTHROPICA is lit.  THE ROAD OPENS."));
+		const FString WonMap = GetWorld() ? GetWorld()->GetMapName() : TEXT("");
+		const TCHAR* WinLine = WonMap.Contains(TEXT("WorldStageTesting"))
+			? TEXT("THE MOONWELL SHINES  —  THE GLADE IS BRIGHT.  THE ROAD GOES ON.")
+			: TEXT("THE FIRST LANTERN ROARS  —  ANTHROPICA is lit.  THE ROAD OPENS.");
+		GEngine->AddOnScreenDebugMessage(-1, 9.f, FColor::Orange, WinLine);
 	}
 	// Travel to the next world after the celebration, if one is wired (else W1 stands alone).
 	if (!NextWorldMap.IsNone())
@@ -85,6 +89,24 @@ void ASparkHeroGameMode::OnWorldGoalLit()
 void ASparkHeroGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// THE WORLD ROAD (Adam, July 23: "just like any game — the worlds run in
+	// succession"): per-map defaults for the win-travel chain. An explicit
+	// EditAnywhere NextWorldMap still wins over the road.
+	//   World 1 (the Lantern Climb) -> World 2 (the Glade stage) -> the Roster
+	//   Hall, where the champions take the curtain call.
+	if (NextWorldMap.IsNone() && GetWorld())
+	{
+		const FString ThisMap = GetWorld()->GetMapName();
+		if (ThisMap.Contains(TEXT("LanternClimb")))
+		{
+			NextWorldMap = TEXT("WorldStageTesting");
+		}
+		else if (ThisMap.Contains(TEXT("WorldStageTesting")))
+		{
+			NextWorldMap = TEXT("RosterHall");
+		}
+	}
 
 	// -game windowed launches can come up WITHOUT keyboard focus (the Live
 	// Coding console spawns right after the game window and steals it) — the
@@ -208,6 +230,76 @@ void ASparkHeroGameMode::BeginPlay()
 						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);
+		}
+
+		// -SCB2ProwlerNear: teleport the Glade Prowler to dueling distance (he will
+		// SPOT the hero and engage on camera) + log his live animation vitals twice,
+		// one second apart — position delta proves whether the pose evaluates.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2ProwlerNear")))
+		{
+			FTimerHandle NearTimer;
+			GetWorldTimerManager().SetTimer(NearTimer, [this]()
+			{
+				AGladeProwler* Prowler = Cast<AGladeProwler>(
+					UGameplayStatics::GetActorOfClass(this, AGladeProwler::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Prowler && Pawn)
+				{
+					Prowler->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 560.f + FVector(0.f, 0.f, 30.f));
+				}
+			}, 1.0f, false);
+
+			auto LogVitals = [this](const TCHAR* Tag)
+			{
+				AGladeProwler* Prowler = Cast<AGladeProwler>(
+					UGameplayStatics::GetActorOfClass(this, AGladeProwler::StaticClass()));
+				if (!Prowler) { return; }
+				// ACharacter's built-in (empty) Mesh comes first — probe the component
+				// that actually WEARS the model.
+				USkeletalMeshComponent* Body = nullptr;
+				TArray<USkeletalMeshComponent*> Bodies;
+				Prowler->GetComponents<USkeletalMeshComponent>(Bodies);
+				for (USkeletalMeshComponent* B : Bodies)
+				{
+					if (B && B->GetSkeletalMeshAsset()) { Body = B; break; }
+				}
+				UE_LOG(LogTemp, Display, TEXT("MOONWORKS_MARKER: prowler skel comps=%d modeled=%d"),
+				       Bodies.Num(), Body ? 1 : 0);
+				if (!Body) { return; }
+				UE_LOG(LogTemp, Display,
+					TEXT("MOONWORKS_MARKER: prowler vitals %s: playing=%d pos=%.3f rate=%.2f dilation=%.2f uro=%d tickopt=%d rendered=%d"),
+					Tag, Body->IsPlaying() ? 1 : 0, Body->GetPosition(), Body->GetPlayRate(),
+					Prowler->CustomTimeDilation, Body->bEnableUpdateRateOptimizations ? 1 : 0,
+					static_cast<int32>(Body->VisibilityBasedAnimTickOption),
+					Body->bRecentlyRendered ? 1 : 0);
+			};
+			FTimerHandle ProbeA, ProbeB;
+			GetWorldTimerManager().SetTimer(ProbeA, [LogVitals]() { LogVitals(TEXT("t4")); }, 4.0f, false);
+			GetWorldTimerManager().SetTimer(ProbeB, [LogVitals]() { LogVitals(TEXT("t5")); }, 5.0f, false);
+		}
+
+		// -SCB2ShotPower=bolt|nova|ring [-SCB2ShotTier=3]: cast the power just
+		// before the shutter so captures photograph the spectacle (recipe §6:
+		// extend the harness per new verb).
+		FString ShotPower;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotPower="), ShotPower))
+		{
+			int32 ShotTier = 3;
+			FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotTier="), ShotTier);
+			FTimerHandle PowerTimer;
+			GetWorldTimerManager().SetTimer(PowerTimer, [this, ShotPower, ShotTier]()
+			{
+				if (ASparkHeroCharacter* PowerHero = Cast<ASparkHeroCharacter>(
+						UGameplayStatics::GetPlayerPawn(this, 0)))
+				{
+					const ESparkPower P =
+						ShotPower.Equals(TEXT("nova"), ESearchCase::IgnoreCase) ? ESparkPower::Nova :
+						ShotPower.Equals(TEXT("ring"), ESearchCase::IgnoreCase) ? ESparkPower::FireRing :
+						ESparkPower::Bolt;
+					PowerHero->Debug_CastPower(P, ShotTier);
+				}
+			}, FMath::Max(Delay - 0.35f, 0.5f), false);
 		}
 
 		// -SCB2ReaverNear: same trick for rival #2 (dash trails want a camera).

@@ -98,6 +98,19 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
 	TObjectPtr<UPointLightComponent> PulseLight;
 
+	/** BEACON NOVA's sky-stab: a light pillar that flashes skyward on the cast
+	    and collapses in under half a second (the July 23 "plain jane" fix). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
+	TObjectPtr<UStaticMeshComponent> PillarMesh;
+
+	float PillarStartTime = -1000.f;
+	float WaveEchoTime = -1000.f;   // T2+: the nova detonates TWICE
+	float WaveEchoScale = 1.f;
+
+	/** Harness seam (recipe §6, extend per verb): set tiers, clear cooldowns,
+	    cast — so -SCB2ShotPower can photograph the spectacle. */
+	void Debug_CastPower(ESparkPower Power, int32 Tier);
+
 	/** Ember Guard's RING OF FIRE: orbs that orbit and flicker while the guard
 	    burns (Adam's round-6 look). Hidden outside the guard window. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SparkHero|Components")
@@ -257,6 +270,25 @@ public:
 	    Default 10 for Adam's playtests; world deployment stages this per relight. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power", meta = (ClampMin = "1", ClampMax = "10"))
 	int32 PowerLevel = 10;
+
+	/** POWER TIERS (Adam, July 23): each wheel power carries its own tier 1–3 —
+	    damage, size, and spectacle all scale with it. Victories climb the ladder:
+	    the Glade Prowler's defeat +1, the Bramblehulk's soothe +1. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power", meta = (ClampMin = "1", ClampMax = "3"))
+	int32 BoltTier = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power", meta = (ClampMin = "1", ClampMax = "3"))
+	int32 NovaTier = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power", meta = (ClampMin = "1", ClampMax = "3"))
+	int32 RingTier = 1;
+
+	UFUNCTION(BlueprintPure, Category = "SparkHero|Power")
+	int32 GetPowerTier(ESparkPower Power) const;
+
+	/** The victory seam: bosses call this; a celebration pulse marks the climb. */
+	UFUNCTION(BlueprintCallable, Category = "SparkHero|Power")
+	void RaiseAllPowerTiers(int32 By = 1);
 
 	/** L2 — Spark Aura: kept-fire radius that calms Mote-class wildlife. L7: ×1.5. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Power")
@@ -670,7 +702,7 @@ private:
 	// Power state (the Spark Surge kit)
 	void DoPrismBurst();
 	void DoBeaconWave();
-	void FireBlast(const FVector& Direction);
+	void FireBlast(const FVector& Direction, int32 Tier = 1);
 	void FirePulse(float Radius, float Duration, float LightIntensity);
 	FName HandBoneName = NAME_None;      // found at BeginPlay — blasts spawn here
 	float GuardVisualUntil = -1000.f;    // the fire ring burns until this moment
