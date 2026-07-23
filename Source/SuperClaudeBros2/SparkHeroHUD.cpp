@@ -113,8 +113,8 @@ void ASparkHeroHUD::DrawHUD()
 	const TCHAR* WorldName =
 		Map.Contains(TEXT("NeonCity")) ? TEXT("ANTHROPICA — Festival District") :
 		Map.Contains(TEXT("RosterHall")) ? TEXT("THE ROSTER HALL") :
-		Map.Contains(TEXT("MoonlitGlade")) ? TEXT("THE MOONLIT GLADE") :
-		Map.Contains(TEXT("WorldStageTesting")) ? TEXT("THE MOONLIT GLADE — WORLD 2") :
+		Map.Contains(TEXT("MoonlitGlade")) ? TEXT("THE MOONLIT GLADE — WORLD 2") :
+		Map.Contains(TEXT("WorldStageTesting")) ? TEXT("THE WORLD STAGE") :
 		Map.Contains(TEXT("LanternClimb")) ? TEXT("ANTHROPICA — WORLD 1") :
 		Map.Contains(TEXT("FeelGym")) ? TEXT("THE FEEL GYM") : TEXT("THE LANTERN ROAD");
 	DrawText(WorldName, BorderColor, 24.f * S, 12.f * S, Medium, S);

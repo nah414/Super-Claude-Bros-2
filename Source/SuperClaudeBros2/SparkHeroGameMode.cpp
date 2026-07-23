@@ -70,7 +70,7 @@ void ASparkHeroGameMode::OnWorldGoalLit()
 	if (GEngine)
 	{
 		const FString WonMap = GetWorld() ? GetWorld()->GetMapName() : TEXT("");
-		const TCHAR* WinLine = WonMap.Contains(TEXT("WorldStageTesting"))
+		const TCHAR* WinLine = (WonMap.Contains(TEXT("MoonlitGlade")) || WonMap.Contains(TEXT("WorldStageTesting")))
 			? TEXT("THE MOONWELL SHINES  —  THE GLADE IS BRIGHT.  THE ROAD GOES ON.")
 			: TEXT("THE FIRST LANTERN ROARS  —  ANTHROPICA is lit.  THE ROAD OPENS.");
 		GEngine->AddOnScreenDebugMessage(-1, 9.f, FColor::Orange, WinLine);
@@ -93,14 +93,20 @@ void ASparkHeroGameMode::BeginPlay()
 	// THE WORLD ROAD (Adam, July 23: "just like any game — the worlds run in
 	// succession"): per-map defaults for the win-travel chain. An explicit
 	// EditAnywhere NextWorldMap still wins over the road.
-	//   World 1 (the Lantern Climb) -> World 2 (the Glade stage) -> the Roster
-	//   Hall, where the champions take the curtain call.
+	//   World 1 (the Lantern Climb) -> World 2 (the Moonlit Glade, promoted
+	//   off the stage 2026-07-23) -> the Roster Hall curtain call. The stage
+	//   (WorldStageTesting) keeps a road to the Hall so win-travel stays
+	//   testable while World 3 rises there.
 	if (NextWorldMap.IsNone() && GetWorld())
 	{
 		const FString ThisMap = GetWorld()->GetMapName();
 		if (ThisMap.Contains(TEXT("LanternClimb")))
 		{
-			NextWorldMap = TEXT("WorldStageTesting");
+			NextWorldMap = TEXT("MoonlitGlade");
+		}
+		else if (ThisMap.Contains(TEXT("MoonlitGlade")))
+		{
+			NextWorldMap = TEXT("RosterHall");
 		}
 		else if (ThisMap.Contains(TEXT("WorldStageTesting")))
 		{
