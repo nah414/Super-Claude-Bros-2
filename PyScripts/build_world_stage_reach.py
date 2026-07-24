@@ -469,29 +469,55 @@ for s in F["branch_sockets"]:                         # every tip wears leaves
         canopy_n += 1
 print(f"REACH_MARKER: {canopy_n} canopy masses raised (crown + tips)")
 
-# ---- waterfalls v2: THREE tangential columns per fall (Adam: "a lot denser") ----
-# Columns sit side-by-side ALONG the tangent, never stacked radially — a
-# sightline crosses <=2 sheets, honoring the translucency law with mist+water.
+# ---- waterfalls v3: SCULPTED TORRENTS (Adam: "the water looks 2D") ----
+# Geometry first, shader second: stacked crescent torrent columns (seam-proof
+# harmonics), a spill lip pouring over the crest, churn at the landing, one
+# backing curtain for parallax. DETERMINISM GUARD: v2 consumed 3*n_seg+4 draws
+# per fall — v3 burns exactly that count and draws NOTHING, so every seeded
+# thing downstream stays byte-identical.
 fall_n = 0
 SEG = 3000.0
+TSEG = F["falls_geom"]["seg"]
+M_TCORE = mat("M_VR_TorrentCore")     # the opaque body inside each crescent
 for wf in F["waterfalls"]:
     th = math.radians(wf["theta_deg"])
     r_off = 260.0 if wf["land"] == "floor" else 820.0
-    tx, ty = -math.sin(th), math.cos(th)          # tangent (horizontal)
-    n_seg = max(1, int(round(wf["drop"] / SEG)))
-    for col, (t_off, sx) in enumerate(((0.0, 3.0), (-300.0, 2.4), (300.0, 2.4))):
-        for k in range(n_seg):
-            z_top = wf["z_top"] - k * SEG
-            loc = surface_point(z_top - SEG, th, out=r_off)
-            loc.x += tx * t_off
-            loc.y += ty * t_off
-            place(kit("water_sheet"), loc, f"VR_Fall_{wf['name']}_{col}_{k}",
-                  yaw=wf["theta_deg"] + 90.0 + random.uniform(-6.0, 6.0),
-                  scale=unreal.Vector(sx, 1.0, SEG / 1000.0), shadow=False)
+    tx, ty = -math.sin(th), math.cos(th)
+    n_old = max(1, int(round(wf["drop"] / SEG)))
+    for _ in range(3 * n_old + 4):
+        random.random()                            # the burn (see guard note)
+    n_t = max(1, int(round(wf["drop"] / TSEG)))
+    for k in range(n_t):
+        z_top = wf["z_top"] - k * TSEG
+        seg_r = r_off
+        if wf["name"] == "sky_fall" and 38500.0 <= z_top <= 39700.0 + TSEG:
+            seg_r = 700.0                          # the hero walks BEHIND the fall here
+        loc = surface_point(z_top - TSEG, th, out=seg_r)
+        place(kit("falls_torrent"), loc, f"VR_Fall_{wf['name']}_t{k}",
+              yaw=wf["theta_deg"], shadow=False)
+        fall_n += 1
+        # v4: the fall's BODY — masked core crescent tucked inside the shell,
+        # yaw-offset so the lumps interleave; z-scale untouched (seam law).
+        place(kit("falls_torrent"), loc, f"VR_FallCore_{wf['name']}_t{k}",
+              yaw=wf["theta_deg"] + 16.0, scale=unreal.Vector(0.8, 0.8, 1.0),
+              material=M_TCORE, shadow=False)
+        fall_n += 1
+    if F["falls_geom"].get("curtain") and wf["name"] == "sky_fall":
+        n_c = max(1, int(round(wf["drop"] / SEG)))
+        for k in range(n_c):
+            loc = surface_point(wf["z_top"] - (k + 1) * SEG, th, out=r_off - 80.0)
+            place(kit("water_sheet"), loc, f"VR_FallCurtain_{k}",
+                  yaw=wf["theta_deg"] + 90.0,
+                  scale=unreal.Vector(3.4, 1.0, SEG / 1000.0), shadow=False)
             fall_n += 1
+    lip = surface_point(wf["z_top"], th, out=r_off - 120.0)
+    place(kit("falls_lip"), lip, f"VR_FallLip_{wf['name']}",
+          yaw=wf["theta_deg"], pitch=-8.0, shadow=False)
+    fall_n += 1
     land = surface_point(wf["z_top"] - wf["drop"], th, out=r_off)
     if wf["land"] == "floor":
-        land.z = F["pool"]["z_surface"]           # the sky-fall dies in the pool
+        land.z = F["pool"]["z_surface"]
+        churn_s = 1.4
     else:
         cxp, cyp, cz = pad_centers[f"pad_{wf['land'].lower()}"]
         th_out = math.atan2(cyp - CY, cxp - CX)
@@ -499,14 +525,18 @@ for wf in F["waterfalls"]:
                              cyp + math.sin(th_out) * 400.0, cz - 52.0)
         place(kit("pool_disc"), land, f"VR_Pool_{wf['name']}", scale=1.0, shadow=False)
         fall_n += 1
-    for mi, (ms, mz, moff) in enumerate(((1.6, 90.0, 300.0), (1.2, 45.0, -260.0),
-                                         (1.0, 20.0, 60.0), (0.9, 15.0, -80.0))):
+        churn_s = 0.8
+    place(kit("falls_churn"), unreal.Vector(land.x, land.y, land.z + 12.0),
+          f"VR_Churn_{wf['name']}", yaw=wf["theta_deg"], scale=churn_s, shadow=False)
+    fall_n += 1
+    for mi, (ms, mz, moff) in enumerate(((1.5, 80.0, 300.0), (1.1, 40.0, -260.0),
+                                         (0.9, 18.0, 60.0))):
         place(kit("mist_puff"),
               unreal.Vector(land.x + tx * moff, land.y + ty * moff, land.z + mz),
-              f"VR_Mist_{wf['name']}_{mi}", yaw=random.uniform(0, 360),
+              f"VR_Mist_{wf['name']}_{mi}", yaw=float(mi) * 127.0,
               scale=ms, shadow=False)
         fall_n += 1
-print(f"REACH_MARKER: {fall_n} waterfall pieces falling from the sky (v2 dense)")
+print(f"REACH_MARKER: {fall_n} waterfall pieces falling from the sky (v3 TORRENTS)")
 
 # ---- cloud shelves: the altitude made visible ----
 cloud_n = 0
@@ -626,7 +656,7 @@ print(f"REACH_MARKER: breath driver placed + {pollen_n} pollen drifts (10Hz lung
 # ================= PHASE E (Round 2): the river, the Hollow, the showdown, LIFE =================
 RIV = F["river"]
 POOLJ = F["pool"]
-TUN = F["tunnel"]
+ST = F["stair"]
 ARN = F["arena"]
 CHIM = F["chimney"]
 M_TUNSAP = mat("M_VR_TunnelSap")
@@ -635,17 +665,47 @@ M_ALPHA = mat("M_VR_AlphaShell")
 # ---- the river runs to the world's edge ----
 place(kit("river_surface"), unreal.Vector(0.0, 0.0, 0.0), "VR_River", shadow=False)
 place(kit("pool_surface"), unreal.Vector(0.0, 0.0, 0.0), "VR_PoolSurface", shadow=False)
+# v3: the pool becomes a BODY of water — churn collar at the impact, floating
+# foam, rising bubbles (EmberDrift retinted white-teal), rapids rocks upstream.
+IMPACT = F["pool"]["impact"]
+PZ_S = F["pool"]["z_surface"]
+place(kit("churn_ring"), unreal.Vector(IMPACT[0], IMPACT[1], PZ_S + 8.0),
+      "VR_PoolChurnRing", shadow=False)
+for fi, fth in enumerate((40.0, 160.0, 280.0)):
+    place(kit("foam_patch"),
+          unreal.Vector(IMPACT[0] + 700.0 * math.cos(math.radians(fth)),
+                        IMPACT[1] + 700.0 * math.sin(math.radians(fth)), PZ_S + 16.0),
+          f"VR_PoolFoam_{fi}", yaw=fth * 2.0, shadow=False)
+bub = eas.spawn_actor_from_class(cls("EmberDrift"),
+                                 unreal.Vector(IMPACT[0], IMPACT[1], PZ_S + 60.0), rot(0))
+bub.set_actor_label("VR_PoolBubbles")
+bub.set_editor_property("num_motes", 70)
+bub.set_editor_property("extent", unreal.Vector(450.0, 450.0, 900.0))
+bub.set_editor_property("rise_speed", 55.0)
+bub.set_editor_property("wander_amp", 28.0)
+bub.set_editor_property("mote_scale", 0.02)
+bub.set_editor_property("tint", unreal.LinearColor(0.85, 1.15, 1.2, 1.0))
+actor_count += 1
+for ri, rp in enumerate(F["river"].get("rapids", [])):
+    place(kit("knot_boulder"), unreal.Vector(rp["x"], rp["y"], rp["z"] - 60.0),
+          f"VR_Rapids_{ri}", yaw=float(ri) * 73.0, scale=0.55 + 0.1 * (ri % 2))
+print("REACH_MARKER: the pool breathes (churn, foam, bubbles) + rapids set")
 wpA, wpB = RIV["waypoints"][-2], RIV["waypoints"][-1]
 seg_l = math.hypot(wpB[0] - wpA[0], wpB[1] - wpA[1])
 ltx, lty = (wpB[0] - wpA[0]) / seg_l, (wpB[1] - wpA[1]) / seg_l
 lpx, lpy = -lty, ltx
 z_edge = RIV["surface_z"][-1]
-for si, p_off in enumerate((-150.0, 150.0)):
-    place(kit("water_sheet"),
-          unreal.Vector(wpB[0] + ltx * 620.0 + lpx * p_off,
-                        wpB[1] + lty * 620.0 + lpy * p_off, z_edge - 2650.0),
-          f"VR_EdgeFall_{si}", yaw=math.degrees(math.atan2(lty, ltx)) + 90.0,
-          scale=unreal.Vector(1.8, 1.0, 2.6), shadow=False)
+place(kit("falls_torrent"),
+      unreal.Vector(wpB[0] + ltx * 620.0, wpB[1] + lty * 620.0, z_edge - 2650.0),
+      "VR_EdgeFall_t", yaw=math.degrees(math.atan2(lty, ltx)) + 180.0,
+      scale=unreal.Vector(1.0, 1.0, 0.66), shadow=False)
+place(kit("falls_torrent"),
+      unreal.Vector(wpB[0] + ltx * 620.0, wpB[1] + lty * 620.0, z_edge - 2650.0),
+      "VR_EdgeFall_core", yaw=math.degrees(math.atan2(lty, ltx)) + 196.0,
+      scale=unreal.Vector(0.8, 0.8, 0.66), material=M_TCORE, shadow=False)
+place(kit("falls_churn"),
+      unreal.Vector(wpB[0] + ltx * 680.0, wpB[1] + lty * 680.0, z_edge - 2600.0),
+      "VR_EdgeChurn", scale=0.9, shadow=False)
 for si, (d_off, p_off, ms) in enumerate(((700.0, 0.0, 2.2), (760.0, 260.0, 1.5))):
     place(kit("mist_puff"),
           unreal.Vector(wpB[0] + ltx * d_off + lpx * p_off,
@@ -661,47 +721,176 @@ for si in range(4):
           scale=unreal.Vector(3.0, 0.14, 0.10), material=M_EDGE, shadow=False)
 print("REACH_MARKER: the river runs east and falls off the world")
 
-# ---- the Sapline Hollow: knothole -> helix -> arena among the clouds ----
-place(kit("tunnel_helix"), unreal.Vector(0.0, 0.0, 0.0), "VR_TunnelHelix")
-th_e = math.radians(TUN["theta_entry_deg"])
-mouth = unreal.Vector(CX + TUN["r0"] * math.cos(th_e),
-                      CY + TUN["r0"] * math.sin(th_e), TUN["z0"] - 12.0)
-place(kit("knothole_arch"), mouth, "VR_Arch_Mouth",
-      yaw=TUN["theta_entry_deg"] + 90.0, scale=1.25)
+# ==== THE SAPLINE STAIR: weenie mouth -> bore -> OPEN spiral -> THE PLATFORM ====
+# Adam's hard requirement honored by construction: theta(1) = 115-625 = 210 deg
+# at z 42800 — the arena rim gap, the cloud platform, the showdown.
+def stair_point(t, out=0.0, up=0.0):
+    th_t = math.radians(ST["bore_theta1_deg"]) - math.radians(ST["sweep_deg"]) * t
+    rr = ST["r0"] + (ST["r1"] - ST["r0"]) * t + out
+    zc = ST["z0"] + (ST["z1"] - ST["z0"]) * (t ** ST["z_ease"]) + up
+    return unreal.Vector(CX + rr * math.cos(th_t), CY + rr * math.sin(th_t), zc), \
+           math.degrees(th_t)
+
+
+th_m = math.radians(ST["mouth_theta_deg"])
+place(kit("mouth_bore"), unreal.Vector(0.0, 0.0, 0.0), "VR_MouthBore")
+place(kit("stair_ramp"), unreal.Vector(0.0, 0.0, 0.0), "VR_StairRamp")
+mouth_base = surface_point(ST["mouth_z"] - ST["mouth_r"], th_m, out=-60.0)
+place(kit("mouth_ring"), mouth_base, "VR_MouthRing",
+      yaw=ST["mouth_theta_deg"] + 90.0)
+# the weenie's beam: crossed light-shaft cards rising OVER the crown-bowl rim
+for i, ly in enumerate((0.0, 90.0)):
+    place(kit("water_sheet"), surface_point(ST["mouth_z"] + 150.0, th_m, out=250.0),
+          f"VR_MouthShaft_{i}", yaw=ST["mouth_theta_deg"] + ly,
+          scale=unreal.Vector(3.2, 1.0, 2.6), material=mat("M_VR_LightShaft"),
+          shadow=False)
+# converging sap veins fan into the ring from the FIN band below
+for i in range(5):
+    vth_deg = ST["mouth_theta_deg"] - 26.0 + i * 13.0
+    p = surface_point(ST["mouth_z"] - 900.0 - abs(i - 2) * 260.0,
+                      math.radians(vth_deg), out=20.0)
+    place(CYL, p, f"VR_MouthVein_{i}", yaw=vth_deg, pitch=-6.0 + abs(i - 2) * 2.0,
+          scale=unreal.Vector(0.09, 0.09, 5.5), material=M_TUNSAP, shadow=False)
+# 3 amber blossoms crown the ring + 2 moths orbit it
+for i, (bth, bz) in enumerate(((ST["mouth_theta_deg"] - 9.0, ST["mouth_z"] + 560.0),
+                               (ST["mouth_theta_deg"] + 9.0, ST["mouth_z"] + 560.0),
+                               (ST["mouth_theta_deg"], ST["mouth_z"] - 540.0))):
+    place(SPHERE, surface_point(bz, math.radians(bth), out=180.0),
+          f"VR_MouthBlossom_{i}", scale=1.1, material=M_BLOSSOM, shadow=False)
+for i in range(2):
+    mm = eas.spawn_actor_from_class(cls("FlitMoth"),
+                                    surface_point(ST["mouth_z"] + 200.0 * i, th_m, out=420.0),
+                                    rot(0))
+    mm.set_actor_label(f"VR_MouthMoth_{i}")
+    actor_count += 1
+# the rim-gap arch marks the arrival onto the boss platform
 th_x = math.radians(ARN["gap_theta_deg"])
-emerge = unreal.Vector(CX + TUN["r1"] * math.cos(th_x),
-                       CY + TUN["r1"] * math.sin(th_x), ARN["z_top"] - 4.0)
-place(kit("knothole_arch"), emerge, "VR_Arch_Emerge",
-      yaw=ARN["gap_theta_deg"] + 90.0, scale=1.25)
-sap_n = 0
-for k in range(14):
-    t = (k + 0.5) / 14.0
-    th_t = th_e + t * TUN["turns"] * 2.0 * math.pi
-    r_c = TUN["r0"] + (TUN["r1"] - TUN["r0"]) * min(1.0, t / (0.25 / TUN["turns"]))
-    zc = TUN["z0"] + (TUN["z1"] - TUN["z0"]) * t
-    side = (TUN["tube_r"] - 60.0) * (1.0 if k % 2 == 0 else -1.0)
-    r_strip = r_c + side                       # alternating inner/outer tube wall
-    place(CYL, unreal.Vector(CX + r_strip * math.cos(th_t),
-                             CY + r_strip * math.sin(th_t), zc - 90.0),
-          f"VR_TunnelSap_{sap_n}", yaw=math.degrees(th_t),
-          scale=unreal.Vector(0.09, 0.09, 4.2), material=M_TUNSAP, shadow=False)
-    sap_n += 1
-for name, pos, chk in (("Mouth", unreal.Vector(CX + 620.0 * math.cos(th_e),
-                                               CY + 620.0 * math.sin(th_e), TUN["z0"] + 6.0), False),
+place(kit("knothole_arch"),
+      unreal.Vector(CX + 2600.0 * math.cos(th_x), CY + 2600.0 * math.sin(th_x),
+                    ARN["z_top"] - 4.0),
+      "VR_Arch_Emerge", yaw=ARN["gap_theta_deg"] + 90.0, scale=1.25)
+# 7 bark rib-arches over the open spiral (rhythm without enclosure)
+for i in range(7):
+    p, yaw_t = stair_point((i + 0.5) / 7.0, up=10.0)
+    place(kit("knothole_arch"), p, f"VR_StairRib_{i}", yaw=yaw_t + 90.0, scale=2.2)
+# the sap-light rail: ONE UnderstoryPatch (C++ HISM) of glowing posts.
+# (AddComponentByClass is NOT exposed to editor python — the patch actor's
+# Instances UPROPERTY is the saved truth, rebuilt on load by construction.)
+rail = eas.spawn_actor_from_class(cls("UnderstoryPatch"),
+                                  unreal.Vector(0.0, 0.0, 0.0), rot(0))
+rail.set_actor_label("VR_StairRail")
+rail.set_editor_property("plant_mesh", CYL)
+rail.set_editor_property("plant_material", M_TUNSAP)
+rail_xf = []
+for i in range(40):
+    p, _ = stair_point(i / 39.0, out=270.0, up=70.0)
+    rail_xf.append(unreal.Transform(p, unreal.Rotator(0.0, 0.0, 0.0),
+                                    unreal.Vector(0.06, 0.06, 0.7)))
+rail.set_editor_property("instances", rail_xf)
+actor_count += 1
+# blossoms along the rail + gust cards + gold pollen + the midway checkpoint
+for i in range(8):
+    p, _ = stair_point((i + 0.5) / 8.0, out=270.0, up=150.0)
+    place(SPHERE, p, f"VR_StairBlossom_{i}", scale=0.8, material=M_BLOSSOM,
+          shadow=False)
+for i, gt in enumerate((0.2, 0.45, 0.7, 0.9)):
+    p, yaw_t = stair_point(gt, out=330.0, up=180.0)
+    place(kit("seep_card"), p, f"VR_StairGust_{i}", yaw=yaw_t,
+          scale=unreal.Vector(2.0, 2.4, 1.6), material=mat("M_VR_Mist"), shadow=False)
+p_pol, _ = stair_point(0.55, up=400.0)
+pol = eas.spawn_actor_from_class(cls("EmberDrift"), p_pol, rot(0))
+pol.set_actor_label("VR_StairPollen")
+pol.set_editor_property("num_motes", 30)
+pol.set_editor_property("extent", unreal.Vector(900.0, 900.0, 500.0))
+pol.set_editor_property("rise_speed", 12.0)
+pol.set_editor_property("tint", unreal.LinearColor(2.1, 1.75, 0.5, 1.0))
+actor_count += 1
+p_mid, yaw_mid = stair_point(0.485, up=6.0)
+for name, pos, chk in (("Mouth", surface_point(ST["mouth_z"] - 540.0, th_m, out=330.0), False),
+                       ("Midway", p_mid, True),
                        ("Arena", unreal.Vector(CX + 1850.0 * math.cos(th_x),
-                                               CY + 1850.0 * math.sin(th_x), ARN["z_top"] + 4.0), True)):
+                                               CY + 1850.0 * math.sin(th_x),
+                                               ARN["z_top"] + 4.0), True)):
     lant = eas.spawn_actor_from_class(cls("Lantern"), pos, rot(0))
-    lant.set_actor_label(f"VR_HollowLantern_{name}")
+    lant.set_actor_label(f"VR_StairLantern_{name}")
     ls = lant.get_component_by_class(unreal.LightStateComponent)
     if ls:
-        ls.set_editor_property("group_name", "VR_Hollow")
+        ls.set_editor_property("group_name", "VR_Stair")
     if chk:
         try:
             lant.set_editor_property("is_checkpoint", True)
         except Exception as e:
-            print(f"REACH_WARN: hollow lantern checkpoint: {e}")
+            print(f"REACH_WARN: stair lantern {name}: {e}")
     actor_count += 1
-print(f"REACH_MARKER: the Sapline Hollow rises ({sap_n} sap strips, 2 lanterns)")
+# breadcrumbs: blossoms arc the crown bowl toward the mouth; moss cards ladder
+# down the outer bark to its doorstep
+for i in range(5):
+    d = 120.0 + i * 85.0
+    place(SPHERE, unreal.Vector(CX + d * math.cos(th_m), CY + d * math.sin(th_m),
+                                H - 250.0 + 40.0),
+          f"VR_BowlCrumb_{i}", scale=0.6, material=M_BLOSSOM, shadow=False)
+for i, mz in enumerate((39650.0, 39400.0, 39150.0, 38950.0)):
+    p = surface_point(mz, th_m, out=-(300.0 * 2.0 - 20.0))
+    place(kit("seep_card"), p, f"VR_MouthMoss_{i}", yaw=ST["mouth_theta_deg"],
+          scale=2.0, material=M_MOSS, shadow=False)
+# the canopy clears its corridors: POST-PASS v3 — self-verifying in-place
+# SHRINK (zero draws, nothing teleports). v2's lift/push surgery threw giant
+# blobs into the upper coil and the arena sky — learned by instrument. v3
+# shrinks offenders where they stand until the three protected airs are free:
+# the mouth doorstep, the spiral tube (the follow-cam rides IN it), and the
+# arena dome. Bounded: three rounds, then an honest report.
+mouth_p = surface_point(ST["mouth_z"], th_m, out=0.0)
+out_m = (math.cos(th_m), math.sin(th_m))
+probe_pts = []
+for d in (800.0, 1600.0, 2400.0):
+    for da in (-0.7, 0.0, 0.7):        # the approach CONE, not just the axis ray
+        ox, oy = math.cos(th_m + da), math.sin(th_m + da)
+        for pz in (38450.0, 39050.0):
+            probe_pts.append(unreal.Vector(mouth_p.x + ox * d,
+                                           mouth_p.y + oy * d, pz))
+for k in range(0, 131, 2):
+    p, _ = stair_point(k / 130.0)
+    for dz in (180.0, 480.0):
+        probe_pts.append(unreal.Vector(p.x, p.y, p.z + dz))
+for i in range(8):
+    aa = 2.0 * math.pi * i / 8.0
+    probe_pts.append(unreal.Vector(CX + 3400.0 * math.cos(aa),
+                                   CY + 3400.0 * math.sin(aa), 42650.0))
+probe_pts.append(unreal.Vector(CX, CY, 43400.0))
+
+
+def crown_blobs():
+    return [b for b in eas.get_all_level_actors()
+            if b.get_actor_label().startswith("VR_Canopy_crown")]
+
+
+def blob_offends(b):
+    o, e = b.get_actor_bounds(False)
+    for pt in probe_pts:
+        if (abs(pt.x - o.x) < e.x and abs(pt.y - o.y) < e.y
+                and abs(pt.z - o.z) < e.z):
+            return True
+    return False
+
+
+pruned = set()
+for _rnd in range(3):
+    offenders = [b for b in crown_blobs() if blob_offends(b)]
+    if not offenders:
+        break
+    for b in offenders:
+        s = b.get_actor_scale3d()
+        b.set_actor_scale3d(unreal.Vector(s.x * 0.55, s.y * 0.55, s.z * 0.55))
+        pruned.add(b.get_actor_label())
+# a blob PIVOTED inside protected air can shrink forever and never leave —
+# the stair carved that space; those blobs simply no longer fit the world.
+felled = 0
+for b in [b for b in crown_blobs() if blob_offends(b)]:
+    eas.destroy_actor(b)
+    actor_count -= 1
+    felled += 1
+print(f"REACH_MARKER: the SAPLINE STAIR rises (mouth, bore, open spiral, "
+      f"{len(pruned)} blobs pruned, {felled} felled) — it ends at the showdown")
 
 # ---- the arena among the clouds ----
 place(kit("arena_pad"), unreal.Vector(CX, CY, ARN["z_top"] - 128.0), "VR_ArenaPad")
@@ -947,6 +1136,103 @@ door_p = surface_point(90.0, door_th, out=60.0)
 place(kit("knothole_arch"), door_p, "VR_Arch_ChimneyDoor",
       yaw=CHIM["door_theta_deg"] + 90.0, scale=1.1)
 print("REACH_MARKER: the chimney is a discovery now (lit, seeded, and it has a door)")
+
+# ==== THE UNDERSTORY: 500 walk-through plants in ~7 HISM actors (Round 3) ====
+# A PRIVATE random stream (SEED+77): the seeded world never reshuffles, no
+# matter how this section grows. No collision anywhere — Adam walks THROUGH,
+# and the parting-brush WPO bends every frond around him.
+UNDERSTORY = (("puffgrass_tuft", "M_VR_FrondGold", 140, 0.7, 1.3),
+              ("star_rosette", "M_VR_FrondTeal", 70, 0.8, 1.4),
+              ("paddle_broadleaf", "M_VR_Frond", 90, 0.8, 1.5),
+              ("fiddlehead_curl", "M_VR_Frond", 60, 0.7, 1.3),
+              ("seedpod_stalk", "M_VR_FrondGold", 45, 0.8, 1.3),
+              ("reed_cluster", "M_VR_FrondGold", 55, 0.7, 1.2),
+              ("bellflower_stalk", "M_VR_FrondCream", 40, 0.8, 1.2))
+urand = random.Random(SEED + 77)
+clusters = []
+tries = 0
+while len(clusters) < 40 and tries < 600:
+    tries += 1
+    ux = CX + urand.uniform(-13500.0, 13500.0)
+    uy = CY + urand.uniform(-13500.0, 13500.0)
+    if math.hypot(ux - CX, uy - CY) < 3400.0 or near_river(ux, uy) < 500.0:
+        continue
+    clusters.append((ux, uy))
+for wpx, wpy in RIV["waypoints"]:                    # double density at the banks
+    a2 = urand.uniform(0.0, 2.0 * math.pi)
+    d2 = urand.uniform(700.0, 1600.0)
+    clusters.append((wpx + math.cos(a2) * d2, wpy + math.sin(a2) * d2))
+under_total = 0
+for stem, matn, count, s_lo, s_hi in UNDERSTORY:
+    ua = eas.spawn_actor_from_class(cls("UnderstoryPatch"),
+                                    unreal.Vector(0.0, 0.0, 0.0), rot(0))
+    ua.set_actor_label(f"VR_Under_{stem}")
+    ua.set_editor_property("plant_mesh", kit(stem))
+    ua.set_editor_property("plant_material", mat(matn))
+    xforms = []
+    guard = 0
+    while len(xforms) < count and guard < count * 6:
+        guard += 1
+        cx2, cy2 = clusters[urand.randrange(len(clusters))]
+        px2 = cx2 + urand.uniform(-900.0, 900.0)
+        py2 = cy2 + urand.uniform(-900.0, 900.0)
+        if math.hypot(px2 - CX, py2 - CY) < 3400.0 or near_river(px2, py2) < 430.0:
+            continue
+        xforms.append(unreal.Transform(
+            unreal.Vector(px2, py2, ground_z(px2, py2)),
+            unreal.Rotator(0.0, 0.0, urand.uniform(0.0, 360.0)),
+            unreal.Vector(urand.uniform(s_lo, s_hi), urand.uniform(s_lo, s_hi),
+                          urand.uniform(s_lo, s_hi))))
+    ua.set_editor_property("instances", xforms)
+    under_total += len(xforms)
+    actor_count += 1
+print(f"REACH_MARKER: the understory floods in — {under_total} plants in "
+      f"{len(UNDERSTORY)} HISM actors")
+
+# ==== THE EXOTIC CLUSTERS: six Meshy statement plants at the hero spots ====
+# Soft-guarded (the stage builds before the pack lands); scale normalized by
+# MEASURED height (pool_entry law) so import-scale drift can't shrink them.
+EXOTICS = (("giant_fiddlehead", 1300.0), ("bellbloom_cluster", 1100.0),
+           ("paddleleaf_giant", 900.0), ("seedpod_bush", 700.0),
+           ("reed_fan", 1200.0), ("mossbloom_boulder", 450.0))
+exotic_pool = []
+sms_exo = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+for stem, canon in EXOTICS:
+    sm = EAL.load_asset(f"{KIT}/{stem}")
+    if sm:
+        # get_bounding_box reports SOURCE units — the import already normalized
+        # via LOD build scale, so fold that in or we double-scale (the 25m
+        # paddleleaf bug: canon/raw re-applied on top of an applied scale).
+        b = sm.get_bounding_box()
+        bsz = sms_exo.get_lod_build_settings(sm, 0).build_scale3d.z
+        h = max((b.max.z - b.min.z) * bsz, 1.0)
+        print(f"REACH_MARKER: exotic {stem} rendered_h {h:.0f} f {canon / h:.2f}")
+        exotic_pool.append((stem, sm, canon / h, b.min.z * bsz))
+exo_n = 0
+if exotic_pool:
+    EXO_SPOTS = []
+    for i in range(4):                                 # Camp Roots approach
+        EXO_SPOTS.append((-900.0 + i * 600.0, 3300.0 + (i % 2) * 500.0))
+    for i, eth in enumerate((70.0, 150.0, 230.0, 320.0)):   # pool shore
+        EXO_SPOTS.append((IMPACT[0] + 1250.0 * math.cos(math.radians(eth)),
+                          IMPACT[1] + 1250.0 * math.sin(math.radians(eth))))
+    for i in range(1, 5):                              # river bends, both banks
+        wpx, wpy = RIV["waypoints"][i]
+        for sgn in (1.0, -1.0):
+            EXO_SPOTS.append((wpx + sgn * 780.0, wpy - sgn * 420.0))
+    for i in range(4):                                 # spawn vista frame
+        EXO_SPOTS.append((-1600.0 + i * 1050.0, 1100.0 + (i % 2) * 420.0))
+    for i, (ex, ey) in enumerate(EXO_SPOTS):
+        if near_river(ex, ey) < 460.0 or math.hypot(ex - CX, ey - CY) < 3400.0:
+            continue
+        stem, sm, f, minz = exotic_pool[i % len(exotic_pool)]
+        fs = f * (0.85 + 0.3 * ((i * 7) % 5) / 4.0)
+        place(sm, unreal.Vector(ex, ey, ground_z(ex, ey) - minz * fs),
+              f"VR_Exotic_{stem}_{i}", yaw=float(i) * 47.0, scale=fs)
+        exo_n += 1
+    print(f"REACH_MARKER: {exo_n} exotic statement plants at the hero spots")
+else:
+    print("REACH_WARN: exotic pack not imported yet — clusters skipped this pass")
 
 # ---------------- save law ----------------
 print(f"REACH_MARKER: {actor_count} actors placed")

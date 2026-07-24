@@ -63,6 +63,11 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialParameterCollection> BreathMPC;
 
+	// The parting brush (round 3): the understory reads the hero's position
+	// through the MPC. Cached weak pointer per the Load Law — re-resolved only
+	// when invalid, never a find-call every tick.
+	TWeakObjectPtr<APawn> HeroPawn;
+
 	UPROPERTY()
 	TArray<TObjectPtr<USoundBase>> GustSwells;
 

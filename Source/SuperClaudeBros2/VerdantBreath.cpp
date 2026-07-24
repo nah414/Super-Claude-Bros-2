@@ -3,6 +3,8 @@
 #include "Components/AudioComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Sound/SoundBase.h"
@@ -10,7 +12,9 @@
 AVerdantBreath::AVerdantBreath()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.TickInterval = 0.1f;   // Load Law: ambience at 10Hz, never per frame.
+	// Load Law: ambience is clocked, never per-frame. 20Hz since round 3 — the
+	// parting brush reads HeroPos and 10Hz made the bend visibly step.
+	PrimaryActorTick.TickInterval = 0.05f;
 
 	USceneComponent* Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
@@ -88,6 +92,18 @@ void AVerdantBreath::Tick(float DeltaSeconds)
 	{
 		UKismetMaterialLibrary::SetScalarParameterValue(this, BreathMPC, TEXT("Breath"), Breath);
 		UKismetMaterialLibrary::SetScalarParameterValue(this, BreathMPC, TEXT("Gust"), GustEnv);
+		// The parting brush: the fronds bend around whoever walks among them.
+		if (!HeroPawn.IsValid())
+		{
+			HeroPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
+		}
+		if (HeroPawn.IsValid())
+		{
+			const FVector L = HeroPawn->GetActorLocation();
+			UKismetMaterialLibrary::SetVectorParameterValue(this, BreathMPC, TEXT("HeroPos"),
+				FLinearColor(static_cast<float>(L.X), static_cast<float>(L.Y),
+				             static_cast<float>(L.Z), 1.f));
+		}
 	}
 	WindBed->SetVolumeMultiplier(WindBedVolume * (0.55f + 0.45f * FMath::Clamp(Base, 0.f, 1.f)));
 	GustLayer->SetVolumeMultiplier(FMath::Clamp(GustEnv, 0.f, 1.f));

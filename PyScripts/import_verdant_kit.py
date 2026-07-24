@@ -53,6 +53,11 @@ def mesh_ui():
     sd.set_editor_property("import_uniform_scale", 1.0)
     sd.set_editor_property("combine_meshes", True)
     sd.set_editor_property("auto_generate_collision", False)
+    try:
+        sd.set_editor_property("vertex_color_import_option",
+                               unreal.VertexColorImportOption.REPLACE)
+    except Exception as e:
+        print(f"REACH_WARN: vertex color import option: {e} — river foam mask may be lost")
     return ui
 
 
@@ -101,6 +106,7 @@ for name, m in MANIFEST["meshes"].items():
 TEXTURES = {           # name: srgb (masks stay linear)
     "bark": True, "ground_moss": True, "canopy_top": True,
     "moss_mask": False, "water_streak": False, "cloud_soft": False,
+    "foam": False, "caustic": False,
 }
 for stem, srgb in TEXTURES.items():
     png = os.path.join(TEX_DIR, f"{stem}.png")
@@ -123,6 +129,13 @@ for wav in ("amb_wind_loop", "amb_gust_a", "amb_gust_b", "amb_gust_c"):
     else:
         print(f"REACH_FAIL: audio {wav} missing")
         fail += 1
+
+# v3: the enclosed tunnel_helix retired — the Sapline Stair replaces it.
+for stale in ("tunnel_helix",):
+    path = f"{DEST}/{stale}"
+    if stale not in MANIFEST["meshes"] and EAL.does_asset_exist(path):
+        EAL.delete_asset(path)
+        print(f"REACH_MARKER: stale asset retired: {stale}")
 
 EAL.save_directory(DEST, recursive=True)
 EAL.save_directory(AUD_DEST, recursive=True)
