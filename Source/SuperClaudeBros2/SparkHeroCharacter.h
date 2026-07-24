@@ -829,4 +829,8 @@ public:
 	/** The crown flag-capture finish: grip the pole, then a fist-pump victory (Meshy stage 36).
 	    Called by AFlagpoleGoal when a hero claims the flag. Null-clip safe. */
 	void PlayFlagCapture();
+
+	/** External rescue (ARescueNet, the seal law's last brace): teleport-respawn
+	    with no flame-out and no ember cost. */
+	void RescueTo(const FVector& Loc, const FRotator& Rot) { RespawnAtTransform(Loc, Rot); }
 };

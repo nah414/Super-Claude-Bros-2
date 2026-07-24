@@ -266,9 +266,40 @@ for a in list(eas.get_all_level_actors()):
     elif label == "StageSkyLight":
         comp = a.get_component_by_class(unreal.SkyLightComponent)
         if comp:
-            comp.set_editor_property("intensity", 1.15)
+            comp.set_editor_property("intensity", 1.45)   # v4: 8:1 -> ~6.2:1 fill
             comp.recapture_sky()
 print("REACH_MARKER: morning light set (sun -14deg warm, shafts armed)")
+
+# v4 THE EXPOSURE LAW: no PPV existed — engine-default auto exposure (EV100
+# -10..+20, unclamped) crushed the shadow side to night-black in daylight.
+# ExtendDefaultLuminanceRange=True in DefaultEngine.ini -> values are EV100.
+ppv = eas.spawn_actor_from_class(unreal.PostProcessVolume, unreal.Vector(0, 0, 0), rot(0))
+ppv.set_actor_label("VR_ExposureLaw")
+ppv.set_editor_property("unbound", True)
+ppv.set_editor_property("priority", 1.0)
+ppv.set_editor_property("blend_weight", 1.0)
+pps = ppv.get_editor_property("settings")
+for pk, pv in (("override_auto_exposure_method", True),
+               ("auto_exposure_method", unreal.AutoExposureMethod.AEM_HISTOGRAM),
+               # Calibrated by shot (twice): natural sunny EV here is ~2-3; the
+               # CEILING at 3.5 is what lifts the shadow side, and the FLOOR
+               # stays wide open (-4) so lantern-lit interiors and dawn-sky
+               # frames may brighten freely.
+               ("override_auto_exposure_min_brightness", True),
+               ("auto_exposure_min_brightness", -4.0),
+               ("override_auto_exposure_max_brightness", True),
+               ("auto_exposure_max_brightness", 3.5),
+               ("override_auto_exposure_speed_up", True),
+               ("auto_exposure_speed_up", 5.0),
+               ("override_auto_exposure_speed_down", True),
+               ("auto_exposure_speed_down", 3.0)):
+    try:
+        pps.set_editor_property(pk, pv)
+    except Exception as e:
+        print(f"REACH_WARN: exposure {pk}: {e}")
+ppv.set_editor_property("settings", pps)
+actor_count += 1
+print("REACH_MARKER: the exposure law holds (EV100 clamp -4.0..3.5)")
 
 # ---------------- the warm green-gold air (ONE fog, volumetric for shafts) ----------------
 fog = eas.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0), rot(0))
@@ -277,7 +308,7 @@ fog_comp = fog.get_component_by_class(unreal.ExponentialHeightFogComponent)
 if fog_comp:
     fog_comp.set_editor_property("fog_density", 0.003)
     fog_comp.set_editor_property("fog_height_falloff", 0.005)
-    fog_comp.set_editor_property("start_distance", 3000.0)
+    fog_comp.set_editor_property("start_distance", 2200.0)   # v4: nearer fill
     for prop, val in (("directional_inscattering_luminance",
                        unreal.LinearColor(1.0, 0.82, 0.46, 1.0)),
                       ("directional_inscattering_exponent", 8.0)):
@@ -384,11 +415,21 @@ for band in F["moss_bands"]:
             + 6.0 * math.sin(z * 0.004)
         th = math.radians(th_deg)
         card_scale = random.uniform(1.7, 3.1)
+        yaw_j = random.uniform(-7.0, 7.0)
+        sy_j = random.uniform(0.8, 1.3)
+        sz_j = random.uniform(0.7, 1.2)
+        # v4: the mouth is a REAL hole now — the one FIN card inside the cut
+        # (z 39000, theta ~131) skips placement AFTER burning its 4 draws in
+        # original order, so every other card stays byte-identical.
+        if band["leg"] == "FIN" and abs(z - 39000.0) < 1.0:
+            moss_n += 1
+            z += band["step"]
+            continue
         loc = surface_point(z - 130.0, th, out=-(300.0 * card_scale - 20.0))
         place(kit("seep_card"), loc, f"VR_Moss_{band['leg']}_{moss_n}",
-              yaw=th_deg + random.uniform(-7.0, 7.0),
-              scale=unreal.Vector(card_scale, card_scale * random.uniform(0.8, 1.3),
-                                  card_scale * random.uniform(0.7, 1.2)),
+              yaw=th_deg + yaw_j,
+              scale=unreal.Vector(card_scale, card_scale * sy_j,
+                                  card_scale * sz_j),
               material=M_MOSS, shadow=False)
         moss_n += 1
         z += band["step"]
@@ -504,13 +545,16 @@ for wf in F["waterfalls"]:
         fall_n += 1
     if F["falls_geom"].get("curtain") and wf["name"] == "sky_fall":
         n_c = max(1, int(round(wf["drop"] / SEG)))
-        for k in range(n_c):
+        for k in range(1, n_c):     # v4: top card retired — it pierced the
             loc = surface_point(wf["z_top"] - (k + 1) * SEG, th, out=r_off - 80.0)
-            place(kit("water_sheet"), loc, f"VR_FallCurtain_{k}",
+            place(kit("water_sheet"), loc, f"VR_FallCurtain_{k}",   # rebased deck
                   yaw=wf["theta_deg"] + 90.0,
                   scale=unreal.Vector(3.4, 1.0, SEG / 1000.0), shadow=False)
             fall_n += 1
-    lip = surface_point(wf["z_top"], th, out=r_off - 120.0)
+    # v4: the sky_fall's lip rides the pushed-out torrent (out 580) — at the
+    # rebased ramp crossing (z~39433) the old out=140 lip speared the deck.
+    lip_out = 580.0 if wf["name"] == "sky_fall" else r_off - 120.0
+    lip = surface_point(wf["z_top"], th, out=lip_out)
     place(kit("falls_lip"), lip, f"VR_FallLip_{wf['name']}",
           yaw=wf["theta_deg"], pitch=-8.0, shadow=False)
     fall_n += 1
@@ -733,9 +777,22 @@ def stair_point(t, out=0.0, up=0.0):
 
 
 th_m = math.radians(ST["mouth_theta_deg"])
-place(kit("mouth_bore"), unreal.Vector(0.0, 0.0, 0.0), "VR_MouthBore")
+GLD = F["gallery"]
+
+
+def gallery_point(t, r=600.0, up=0.0):
+    gth = math.radians(GLD["theta0_deg"]) - math.radians(GLD["sweep_deg"]) * t
+    gz = GLD["z0"] + (GLD["z1"] - GLD["z0"]) * t + up
+    return unreal.Vector(CX + r * math.cos(gth), CY + r * math.sin(gth), gz), \
+        math.degrees(gth)
+
+
+# v4 THE HYBRID CLIMB: the seal first (liner), then the interior gallery, then
+# the rebased exterior ramp. The bore is gone — the mouth is a REAL hole now.
+place(kit("trunk_liner"), unreal.Vector(0.0, 0.0, 0.0), "VR_TrunkLiner")
+place(kit("verdant_gallery"), unreal.Vector(0.0, 0.0, 0.0), "VR_GalleryDeck")
 place(kit("stair_ramp"), unreal.Vector(0.0, 0.0, 0.0), "VR_StairRamp")
-mouth_base = surface_point(ST["mouth_z"] - ST["mouth_r"], th_m, out=-60.0)
+mouth_base = surface_point(39000.0 - ST["mouth_r"], th_m, out=-60.0)
 place(kit("mouth_ring"), mouth_base, "VR_MouthRing",
       yaw=ST["mouth_theta_deg"] + 90.0)
 # the weenie's beam: crossed light-shaft cards rising OVER the crown-bowl rim
@@ -805,8 +862,66 @@ pol.set_editor_property("extent", unreal.Vector(900.0, 900.0, 500.0))
 pol.set_editor_property("rise_speed", 12.0)
 pol.set_editor_property("tint", unreal.LinearColor(2.1, 1.75, 0.5, 1.0))
 actor_count += 1
+# ---- the gallery dressing: rail, veins, window shafts, the mid checkpoint ----
+g_rail = eas.spawn_actor_from_class(cls("UnderstoryPatch"),
+                                    unreal.Vector(0.0, 0.0, 0.0), rot(0))
+g_rail.set_actor_label("VR_GalleryRail")
+g_rail.set_editor_property("plant_mesh", CYL)
+g_rail.set_editor_property("plant_material", M_TUNSAP)
+g_xf = []
+for i in range(40):
+    p, _ = gallery_point(i / 39.0, r=380.0, up=232.0)
+    g_xf.append(unreal.Transform(p, unreal.Rotator(0.0, 0.0, 0.0),
+                                 unreal.Vector(0.045, 0.045, 0.34)))
+g_rail.set_editor_property("instances", g_xf)
+actor_count += 1
+for i in range(6):
+    p, gyaw = gallery_point(0.06 + i / 6.0 * 0.9, r=815.0, up=290.0)
+    place(CYL, p, f"VR_GallerySapVein_{i}", yaw=gyaw, pitch=-8.0,
+          scale=unreal.Vector(0.08, 0.08, 3.0), material=M_TUNSAP, shadow=False)
+# the gallery is LANTERN-LIT (the Lamplighter's grammar — amber kept-fire
+# marks every safe road): four more lamps between the door and the balcony.
+for gi, gt in enumerate((0.18, 0.38, 0.62, 0.82)):
+    p_gl, _ = gallery_point(gt, r=560.0, up=10.0)
+    gl = eas.spawn_actor_from_class(cls("Lantern"), p_gl, rot(0))
+    gl.set_actor_label(f"VR_GalleryLamp_{gi}")
+    gls = gl.get_component_by_class(unreal.LightStateComponent)
+    if gls:
+        gls.set_editor_property("group_name", "VR_Stair")
+    actor_count += 1
+for wi, wc in enumerate(F["wall_cuts"]["windows"]):
+    wth = math.radians(wc["theta_deg"])
+    wz = (wc["z0"] + wc["z1"]) / 2.0
+    place(kit("water_sheet"), surface_point(wz, wth, out=-260.0),
+          f"VR_GalleryShaft_{wi}", yaw=wc["theta_deg"] + 90.0, pitch=-18.0,
+          scale=unreal.Vector(1.9, 1.0, 1.5), material=mat("M_VR_LightShaft"),
+          shadow=False)
+# ---- the balcony burst: arch + a 3-blossom arrow receding along the ledge ----
+place(kit("knothole_arch"), surface_point(39400.0, math.radians(115.0), out=40.0),
+      "VR_Arch_Balcony", yaw=115.0 + 90.0, scale=1.15)
+for bi, bth_d in enumerate((111.0, 107.0, 103.0)):
+    bth = math.radians(bth_d)
+    place(SPHERE, unreal.Vector(CX + (ST["r0"] + 140.0) * math.cos(bth),
+                                CY + (ST["r0"] + 140.0) * math.sin(bth), 39450.0),
+          f"VR_BalconyBlossom_{bi}", scale=0.9, material=M_BLOSSOM, shadow=False)
+# ---- the rescue net: one catch volume under the gallery's central well ----
+try:
+    net = eas.spawn_actor_from_class(cls("RescueNet"),
+                                     unreal.Vector(CX, CY, 38480.0), rot(0))
+    net.set_actor_label("VR_RescueNet_Well")
+    net.set_actor_scale3d(unreal.Vector(4.2, 4.2, 1.5))
+    porch_p = surface_point(ST["mouth_z"] + 110.0, th_m, out=150.0)
+    net.set_editor_property("rescue_target", porch_p)
+    net.set_editor_property("rescue_yaw", ST["mouth_theta_deg"] + 180.0)
+    actor_count += 1
+    print("REACH_MARKER: the rescue net waits under the well")
+except Exception as e:
+    print(f"REACH_WARN: RescueNet class missing (rebuild C++): {e}")
+
 p_mid, yaw_mid = stair_point(0.485, up=6.0)
-for name, pos, chk in (("Mouth", surface_point(ST["mouth_z"] - 540.0, th_m, out=330.0), False),
+p_gmid, _ = gallery_point(0.5, r=600.0, up=6.0)
+for name, pos, chk in (("Mouth", surface_point(ST["mouth_z"] + 4.0, th_m, out=200.0), False),
+                       ("GalleryMid", p_gmid, True),
                        ("Midway", p_mid, True),
                        ("Arena", unreal.Vector(CX + 1850.0 * math.cos(th_x),
                                                CY + 1850.0 * math.sin(th_x),
@@ -829,9 +944,11 @@ for i in range(5):
     place(SPHERE, unreal.Vector(CX + d * math.cos(th_m), CY + d * math.sin(th_m),
                                 H - 250.0 + 40.0),
           f"VR_BowlCrumb_{i}", scale=0.6, material=M_BLOSSOM, shadow=False)
-for i, mz in enumerate((39650.0, 39400.0, 39150.0, 38950.0)):
-    p = surface_point(mz, th_m, out=-(300.0 * 2.0 - 20.0))
-    place(kit("seep_card"), p, f"VR_MouthMoss_{i}", yaw=ST["mouth_theta_deg"],
+# v4: the ladder flanks the REAL hole instead of hanging inside it
+for i, (mz, mth_d) in enumerate(((39650.0, 140.0), (39450.0, 140.0),
+                                 (38950.0, 166.0), (38950.0, 111.0))):
+    p = surface_point(mz, math.radians(mth_d), out=-(300.0 * 2.0 - 20.0))
+    place(kit("seep_card"), p, f"VR_MouthMoss_{i}", yaw=mth_d,
           scale=2.0, material=M_MOSS, shadow=False)
 # the canopy clears its corridors: POST-PASS v3 — self-verifying in-place
 # SHRINK (zero draws, nothing teleports). v2's lift/push surgery threw giant
@@ -845,7 +962,7 @@ probe_pts = []
 for d in (800.0, 1600.0, 2400.0):
     for da in (-0.7, 0.0, 0.7):        # the approach CONE, not just the axis ray
         ox, oy = math.cos(th_m + da), math.sin(th_m + da)
-        for pz in (38450.0, 39050.0):
+        for pz in (38850.0, 39350.0):  # v4: the door z-band (real cut 38800-39200)
             probe_pts.append(unreal.Vector(mouth_p.x + ox * d,
                                            mouth_p.y + oy * d, pz))
 for k in range(0, 131, 2):
@@ -1135,6 +1252,14 @@ for i in range(6):
 door_p = surface_point(90.0, door_th, out=60.0)
 place(kit("knothole_arch"), door_p, "VR_Arch_ChimneyDoor",
       yaw=CHIM["door_theta_deg"] + 90.0, scale=1.1)
+# v4: the door glows FROM INSIDE too — an interior arch + the morning light
+# blade across the floor, so a hero in the dark room always sees the way out.
+place(kit("knothole_arch"), surface_point(90.0, door_th, out=-160.0),
+      "VR_Arch_ChimneyDoorIn", yaw=CHIM["door_theta_deg"] - 90.0, scale=1.0)
+place(kit("water_sheet"), surface_point(150.0, door_th, out=-450.0),
+      "VR_ChimneyDoorShaft", yaw=CHIM["door_theta_deg"] + 90.0, pitch=-24.0,
+      scale=unreal.Vector(2.0, 1.0, 1.5), material=mat("M_VR_LightShaft"),
+      shadow=False)
 print("REACH_MARKER: the chimney is a discovery now (lit, seeded, and it has a door)")
 
 # ==== THE UNDERSTORY: 500 walk-through plants in ~7 HISM actors (Round 3) ====
@@ -1233,6 +1358,91 @@ if exotic_pool:
     print(f"REACH_MARKER: {exo_n} exotic statement plants at the hero spots")
 else:
     print("REACH_WARN: exotic pack not imported yet — clusters skipped this pass")
+
+# ==== THE UNDERSTORY DOUBLING (v4): a SECOND pass, NEW private stream ====
+# Audit law: raising counts in-place reshuffles species 2-7 (serial stream) —
+# the world Adam already walked must not reshuffle. The append pass reuses the
+# cluster list READ-ONLY (zero draws from SEED+77) and draws from SEED+177.
+u2 = random.Random(SEED + 177)
+under2_total = 0
+for stem, matn, count, s_lo, s_hi in UNDERSTORY:
+    ua = eas.spawn_actor_from_class(cls("UnderstoryPatch"),
+                                    unreal.Vector(0.0, 0.0, 0.0), rot(0))
+    ua.set_actor_label(f"VR_Under2_{stem}")
+    ua.set_editor_property("plant_mesh", kit(stem))
+    ua.set_editor_property("plant_material", mat(matn))
+    xforms = []
+    guard = 0
+    while len(xforms) < count and guard < count * 6:
+        guard += 1
+        cx2, cy2 = clusters[u2.randrange(len(clusters))]
+        px2 = cx2 + u2.uniform(-1100.0, 1100.0)
+        py2 = cy2 + u2.uniform(-1100.0, 1100.0)
+        if math.hypot(px2 - CX, py2 - CY) < 3400.0 or near_river(px2, py2) < 430.0:
+            continue
+        xforms.append(unreal.Transform(
+            unreal.Vector(px2, py2, ground_z(px2, py2)),
+            unreal.Rotator(0.0, 0.0, u2.uniform(0.0, 360.0)),
+            unreal.Vector(u2.uniform(s_lo, s_hi), u2.uniform(s_lo, s_hi),
+                          u2.uniform(s_lo, s_hi))))
+    ua.set_editor_property("instances", xforms)
+    under2_total += len(xforms)
+    actor_count += 1
+print(f"REACH_MARKER: the understory DOUBLES — +{under2_total} plants in "
+      f"{len(UNDERSTORY)} more HISM actors")
+
+# ==== THE FULL-FLOOR MEADOW (v4): grass + flowers blanket the whole floor ====
+# Adam: "medium size grass and flower patches covering the entire forest
+# floor." Own private stream (SEED+91); sway-only materials (no parting) per
+# the 8GB audit; the tall understory keeps the parting brush where he walks.
+mrand = random.Random(SEED + 91)
+SPAN_F = F["floor"]["span"]
+meadow_total = 0
+for m_stem, m_mat, m_count, m_lo, m_hi in (("meadow_grass", "M_VR_GrassBlade", 9000, 0.9, 1.6),
+                                           ("flower_patch", "M_VR_BloomPatch", 2600, 0.9, 1.4)):
+    ma = eas.spawn_actor_from_class(cls("UnderstoryPatch"),
+                                    unreal.Vector(0.0, 0.0, 0.0), rot(0))
+    ma.set_actor_label(f"VR_Meadow_{m_stem}")
+    ma.set_editor_property("plant_mesh", kit(m_stem))
+    ma.set_editor_property("plant_material", mat(m_mat))
+    xforms = []
+    guard = 0
+    while len(xforms) < m_count and guard < m_count * 5:
+        guard += 1
+        px2 = CX + mrand.uniform(-SPAN_F / 2.0 + 400.0, SPAN_F / 2.0 - 400.0)
+        py2 = CY + mrand.uniform(-SPAN_F / 2.0 + 400.0, SPAN_F / 2.0 - 400.0)
+        if math.hypot(px2 - CX, py2 - CY) < 3400.0 or near_river(px2, py2) < 420.0:
+            continue
+        xforms.append(unreal.Transform(
+            unreal.Vector(px2, py2, ground_z(px2, py2)),
+            unreal.Rotator(0.0, 0.0, mrand.uniform(0.0, 360.0)),
+            unreal.Vector(mrand.uniform(m_lo, m_hi), mrand.uniform(m_lo, m_hi),
+                          mrand.uniform(m_lo, m_hi))))
+    ma.set_editor_property("instances", xforms)
+    meadow_total += len(xforms)
+    actor_count += 1
+print(f"REACH_MARKER: the meadow blankets the floor — {meadow_total} clumps in 2 HISM actors")
+
+# ==== THE IVY (v4): leafy spirals wrapping the Heartwood, ~30% coverage ====
+# World-anchored helical ribbons (pure math, zero draws) + gold blossom
+# accents riding each spiral (teal lives in the ribbon material itself).
+IVY = (("ivy_spiral_a", 0.0, 2.6, 300.0, 30500.0),
+       ("ivy_spiral_b", 2.094, 2.1, 6000.0, 36500.0),
+       ("ivy_spiral_c", 4.189, 2.35, 1500.0, 25500.0))
+for ivn, _ith0, _iturns, _iz0, _iz1 in IVY:
+    place(kit(ivn), unreal.Vector(0.0, 0.0, 0.0), f"VR_Ivy_{ivn[-1]}", shadow=False)
+ivy_bloom = 0
+for ivn, _ith0, _iturns, _iz0, _iz1 in IVY:
+    for bt in (0.15, 0.35, 0.55, 0.75, 0.9):
+        bz = _iz0 + (_iz1 - _iz0) * bt
+        bth = _ith0 + 2.0 * math.pi * _iturns * bt
+        br = field_r(bz, bth) + bark_noise(bz, bth) + 45.0
+        place(SPHERE, unreal.Vector(CX + br * math.cos(bth),
+                                    CY + br * math.sin(bth), bz),
+              f"VR_IvyBloom_{ivy_bloom}", scale=0.55, material=M_BLOSSOM,
+              shadow=False)
+        ivy_bloom += 1
+print(f"REACH_MARKER: the ivy wraps the Heartwood — 3 spirals, {ivy_bloom} gold blooms")
 
 # ---------------- save law ----------------
 print(f"REACH_MARKER: {actor_count} actors placed")

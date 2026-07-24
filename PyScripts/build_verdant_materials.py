@@ -196,7 +196,7 @@ finish(m, "M_VR_Cloud forged (soft)")
 m = new_mat("M_VR_WaterSheet")
 set_translucent_unlit(m)
 pan = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -900, -60)
-pan.set_editor_property("speed_y", 0.55)
+pan.set_editor_property("speed_y", 0.9)     # v4 flow law: the curtain keeps pace
 streak = sample(m, tex("water_streak"), -700, -60, linear=True)
 MEL.connect_material_expressions(pan, "", streak, "Coordinates")
 bright = add(m, const(m, 0.7, -700, 260), mul(m, breath_node(m, -700, 340),
@@ -304,7 +304,7 @@ def depth_fade(mat, x, y, dist):
 m = new_mat("M_VR_WaterFlow")
 set_translucent_unlit(m)
 pan = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1050, -60)
-pan.set_editor_property("speed_y", 0.35)
+pan.set_editor_property("speed_y", 0.5)     # v4: 400uu/s downstream
 streak = sample(m, tex("water_streak"), -880, -60, linear=True)
 MEL.connect_material_expressions(pan, "", streak, "Coordinates")
 shallow = depth_fade(m, -880, 200, 400.0)
@@ -323,7 +323,10 @@ foam = mul(m, foam_edge, const3(m, 1.3, 1.35, 1.3, -700, 540), -560, 460)
 # Blender) drives real white water riding a slow foam-texture panner.
 vc = MEL.create_material_expression(m, unreal.MaterialExpressionVertexColor, -880, 620)
 pan_vf = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1050, 700)
-pan_vf.set_editor_property("speed_x", 0.06)
+# v4 flow law: the white water RIDES DOWNSTREAM (V = along the flow). The old
+# 0.06 cross-stream drift was the frozen-foam bug Adam filmed.
+pan_vf.set_editor_property("speed_x", 0.0)
+pan_vf.set_editor_property("speed_y", 0.55)
 ftex = sample(m, tex("foam"), -880, 700, linear=True)
 MEL.connect_material_expressions(pan_vf, "", ftex, "Coordinates")
 white = mul(m, mul(m, ftex, vc, -740, 660, a_out="R", b_out="R"),
@@ -584,12 +587,17 @@ finish(m, "M_VR_Fungus forged (quiet bronze)")
 # proof across stacked segments by construction).
 m = new_mat("M_VR_Torrent")
 set_translucent_unlit(m, two_sided=False)
+# v4 THE FLOW LAW: the DOMINANT layer is fast vertically-stretched rope noise
+# (Adam's video: round cells at slow speed read as a static lace curtain).
+tc_f = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1400, -80)
+tc_f.set_editor_property("u_tiling", 3.0)
 pan_f = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, -80)
-pan_f.set_editor_property("speed_y", 0.9)
-streak = sample(m, tex("water_streak"), -1050, -80, linear=True)
+pan_f.set_editor_property("speed_y", 1.5)
+MEL.connect_material_expressions(tc_f, "", pan_f, "Coordinate")
+streak = sample(m, tex("fall_rope"), -1050, -80, linear=True)
 MEL.connect_material_expressions(pan_f, "", streak, "Coordinates")
 pan_s = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, 140)
-pan_s.set_editor_property("speed_y", 0.3)
+pan_s.set_editor_property("speed_y", 0.9)
 foam = sample(m, tex("foam"), -1050, 140, linear=True)
 MEL.connect_material_expressions(pan_s, "", foam, "Coordinates")
 body = add(m, mul(m, streak, const3(m, 0.85, 1.0, 1.15, -880, -140), -760, -100, a_out="R"),
@@ -682,12 +690,17 @@ m = new_mat("M_VR_TorrentCore")
 m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
 m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
 m.set_editor_property("two_sided", True)
+# v4 flow law: the core's erosion mask rides the FAST rope layer — the falls'
+# dominant feature now moves at fall speed (20% off the shell for parallax).
+tc_cf = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1400, -80)
+tc_cf.set_editor_property("u_tiling", 3.0)
 pan_cf = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, -80)
-pan_cf.set_editor_property("speed_y", 1.1)
-streak_c = sample(m, tex("water_streak"), -1050, -80, linear=True)
+pan_cf.set_editor_property("speed_y", 1.25)
+MEL.connect_material_expressions(tc_cf, "", pan_cf, "Coordinate")
+streak_c = sample(m, tex("fall_rope"), -1050, -80, linear=True)
 MEL.connect_material_expressions(pan_cf, "", streak_c, "Coordinates")
 pan_cs = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, 140)
-pan_cs.set_editor_property("speed_y", 0.35)
+pan_cs.set_editor_property("speed_y", 1.0)
 foam_c = sample(m, tex("foam"), -1050, 140, linear=True)
 MEL.connect_material_expressions(pan_cs, "", foam_c, "Coordinates")
 body_c = add(m, mul(m, streak_c, const3(m, 0.62, 0.74, 0.82, -880, -140), -760, -100, a_out="R"),
@@ -695,9 +708,9 @@ body_c = add(m, mul(m, streak_c, const3(m, 0.62, 0.74, 0.82, -880, -140), -760, 
              -640, 0)
 MEL.connect_material_property(mul(m, body_c, const(m, 0.85, -520, 60), -420, 40), "",
                               unreal.MaterialProperty.MP_EMISSIVE_COLOR)
-mask_c = add(m, mul(m, streak_c, const(m, 0.9, -640, 300), -540, 260, a_out="R"),
-             mul(m, foam_c, const(m, 0.9, -640, 380), -540, 360, a_out="R"), -440, 320)
-MEL.connect_material_property(add(m, mask_c, const(m, 0.18, -440, 420), -340, 360), "",
+mask_c = add(m, mul(m, streak_c, const(m, 1.1, -640, 300), -540, 260, a_out="R"),
+             mul(m, foam_c, const(m, 0.5, -640, 380), -540, 360, a_out="R"), -440, 320)
+MEL.connect_material_property(add(m, mask_c, const(m, 0.15, -440, 420), -340, 360), "",
                               unreal.MaterialProperty.MP_OPACITY_MASK)
 wpTc = MEL.create_material_expression(m, unreal.MaterialExpressionWorldPosition, -1250, 700)
 wpBc = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1130, 700)
@@ -716,6 +729,85 @@ MEL.connect_material_property(mul(m, vnc, mul(m, sin_c, const(m, 10.0, -660, 860
                                   -560, 830), -460, 880), "",
                               unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
 finish(m, "M_VR_TorrentCore forged (the falls grow a body)")
+
+# ------------------------------------------------ M_VR_GrassBlade family (v4)
+# The full-floor meadow: breath sway ONLY — no parting subgraph, no HeroPos
+# read. Per the round-4 audit, per-vertex parting at 15k instances is the 8GB
+# bottleneck; the tall understory keeps full parting where Adam walks.
+def forge_sway(name, tr, tg, tb):
+    m = new_mat(name)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    m.set_editor_property("two_sided", True)
+    MEL.connect_material_property(mul(m, sample(m, tex("canopy_top"), -900, -200),
+                                      const3(m, tr, tg, tb, -900, -20), -720, -120),
+                                  "", unreal.MaterialProperty.MP_BASE_COLOR)
+    MEL.connect_material_property(const(m, 0.85, -900, 120), "",
+                                  unreal.MaterialProperty.MP_ROUGHNESS)
+    gmask = sample(m, tex("moss_mask"), -900, 260, linear=True)
+    MEL.connect_material_property(add(m, gmask, const(m, 0.35, -760, 380), -640, 320,
+                                      a_out="R"), "",
+                                  unreal.MaterialProperty.MP_OPACITY_MASK)
+    t_node = MEL.create_material_expression(m, unreal.MaterialExpressionTime, -1300, 500)
+    wp = MEL.create_material_expression(m, unreal.MaterialExpressionWorldPosition, -1300, 620)
+    wpx = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1160, 620)
+    wpx.set_editor_property("r", True)
+    wpx.set_editor_property("g", False)
+    wpx.set_editor_property("b", False)
+    wpx.set_editor_property("a", False)
+    MEL.connect_material_expressions(wp, "", wpx, "")
+    phase = add(m, mul(m, t_node, const(m, 0.16, -1160, 500), -1040, 520),
+                mul(m, wpx, const(m, 0.00013, -1160, 700), -1040, 640), -920, 560)
+    sine = MEL.create_material_expression(m, unreal.MaterialExpressionSine, -800, 560)
+    MEL.connect_material_expressions(phase, "", sine, "")
+    sway = mul(m, mul(m, sine, breath_node(m, -800, 700), -680, 600),
+               const(m, 14.0, -680, 760), -560, 660)
+    uvroot = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -680, 840)
+    uvG = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -560, 840)
+    uvG.set_editor_property("r", False)
+    uvG.set_editor_property("g", True)
+    uvG.set_editor_property("b", False)
+    uvG.set_editor_property("a", False)
+    MEL.connect_material_expressions(uvroot, "", uvG, "")
+    sway_rooted = mul(m, sway, uvG, -460, 720)
+    ap1 = MEL.create_material_expression(m, unreal.MaterialExpressionAppendVector, -360, 640)
+    MEL.connect_material_expressions(sway_rooted, "", ap1, "A")
+    MEL.connect_material_expressions(mul(m, sway_rooted, const(m, 0.6, -460, 820), -400, 780), "", ap1, "B")
+    ap2 = MEL.create_material_expression(m, unreal.MaterialExpressionAppendVector, -260, 670)
+    MEL.connect_material_expressions(ap1, "", ap2, "A")
+    MEL.connect_material_expressions(const(m, 0.0, -360, 860), "", ap2, "B")
+    MEL.connect_material_property(ap2, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    finish(m, f"{name} forged (sway only — the meadow law)")
+
+
+forge_sway("M_VR_GrassBlade", 0.85, 1.35, 0.55)
+forge_sway("M_VR_BloomPatch", 1.35, 1.28, 0.95)
+
+# --------------------------------------------- M_VR_HeartwoodInner (v4 seal)
+# The liner's face: dark warm heartwood with faint gold sap stripes and a flat
+# 0.008 emissive floor — the interior is NEVER void-black at any exposure.
+m = new_mat("M_VR_HeartwoodInner")
+MEL.connect_material_property(const3(m, 0.045, 0.028, 0.018, -700, -120), "",
+                              unreal.MaterialProperty.MP_BASE_COLOR)
+MEL.connect_material_property(const(m, 0.9, -700, 60), "",
+                              unreal.MaterialProperty.MP_ROUGHNESS)
+wp_l = MEL.create_material_expression(m, unreal.MaterialExpressionWorldPosition, -1100, 240)
+wpz_l = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -980, 240)
+wpz_l.set_editor_property("r", False)
+wpz_l.set_editor_property("g", False)
+wpz_l.set_editor_property("b", True)
+wpz_l.set_editor_property("a", False)
+MEL.connect_material_expressions(wp_l, "", wpz_l, "")
+sin_l = MEL.create_material_expression(m, unreal.MaterialExpressionSine, -760, 260)
+MEL.connect_material_expressions(mul(m, wpz_l, const(m, 0.002, -980, 340), -860, 280),
+                                 "", sin_l, "")
+stripe = mul(m, add(m, sin_l, const(m, 1.0, -680, 340), -620, 300),
+             const(m, 0.5, -680, 400), -540, 330)
+sap = mul(m, mul(m, stripe, stripe, -460, 300), const3(m, 0.9, 0.55, 0.15, -460, 400),
+          -380, 340)
+MEL.connect_material_property(add(m, mul(m, sap, const(m, 0.10, -300, 360), -240, 330),
+                                  const3(m, 0.02, 0.015, 0.01, -300, 440), -160, 380),
+                              "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+finish(m, "M_VR_HeartwoodInner forged (the seal law's face)")
 
 # ------------------------------------------- assign kit-mesh default materials
 ASSIGN = {
@@ -737,9 +829,13 @@ ASSIGN = {
     "falls_torrent": "M_VR_Torrent", "falls_lip": "M_VR_Torrent",
     "falls_churn": "M_VR_Churn", "churn_ring": "M_VR_Churn",
     "foam_patch": "M_VR_Churn",
-    # v3: the Sapline Stair
-    "mouth_ring": "M_VR_TunnelSap", "mouth_bore": "M_VR_Bark",
-    "stair_ramp": "M_VR_Bark",
+    # v3: the Sapline Stair / v4: the Hybrid Climb
+    "mouth_ring": "M_VR_TunnelSap", "stair_ramp": "M_VR_Bark",
+    "verdant_gallery": "M_VR_TunnelSap", "trunk_liner": "M_VR_HeartwoodInner",
+    # v4: the full-floor meadow + the ivy
+    "meadow_grass": "M_VR_GrassBlade", "flower_patch": "M_VR_BloomPatch",
+    "ivy_spiral_a": "M_VR_FrondTeal", "ivy_spiral_b": "M_VR_FrondTeal",
+    "ivy_spiral_c": "M_VR_FrondTeal",
     # v3: the understory ladder (knee -> shoulder)
     "puffgrass_tuft": "M_VR_FrondGold", "star_rosette": "M_VR_FrondTeal",
     "paddle_broadleaf": "M_VR_Frond", "reed_cluster": "M_VR_FrondGold",

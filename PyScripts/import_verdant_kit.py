@@ -106,7 +106,7 @@ for name, m in MANIFEST["meshes"].items():
 TEXTURES = {           # name: srgb (masks stay linear)
     "bark": True, "ground_moss": True, "canopy_top": True,
     "moss_mask": False, "water_streak": False, "cloud_soft": False,
-    "foam": False, "caustic": False,
+    "foam": False, "caustic": False, "fall_rope": False,
 }
 for stem, srgb in TEXTURES.items():
     png = os.path.join(TEX_DIR, f"{stem}.png")
@@ -131,7 +131,8 @@ for wav in ("amb_wind_loop", "amb_gust_a", "amb_gust_b", "amb_gust_c"):
         fail += 1
 
 # v3: the enclosed tunnel_helix retired — the Sapline Stair replaces it.
-for stale in ("tunnel_helix",):
+# v4: mouth_bore retired — the REAL mouth cut + verdant_gallery replace it.
+for stale in ("tunnel_helix", "mouth_bore"):
     path = f"{DEST}/{stale}"
     if stale not in MANIFEST["meshes"] and EAL.does_asset_exist(path):
         EAL.delete_asset(path)
