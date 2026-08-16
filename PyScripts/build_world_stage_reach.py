@@ -1148,6 +1148,40 @@ def near_river(x, y):
     return best
 
 
+# v5 ROUND 5 (A6, the needle spikes): near_river() measures distance to the
+# nearest WAYPOINT — waypoints sit ~2500uu apart, so a plant mid-segment can
+# pass every <430 rejection while standing dead-center in the channel, rooted
+# on the carved bed with its tip poking through the surface (Adam's V1-t36
+# shards). spine_dist() is the true point-to-segment distance. LAW: existing
+# predicates and draw counts stay byte-identical (the seeded world never
+# reshuffles) — this is used ONLY to post-filter placements out of the water.
+def spine_dist(x, y):
+    best = 1e18
+    wps = RIV["waypoints"]
+    for i in range(1, len(wps)):
+        ax, ay = wps[i - 1]
+        bx, by = wps[i]
+        vx, vy = bx - ax, by - ay
+        L2 = vx * vx + vy * vy
+        t = 0.0 if L2 <= 0.0 else max(0.0, min(1.0, ((x - ax) * vx + (y - ay) * vy) / L2))
+        best = min(best, math.hypot(x - (ax + vx * t), y - (ay + vy * t)))
+    return best
+
+
+# Keepout = beyond the v5 widened waterline (mean half 468, +18% sway = 552);
+# at 580uu the carve depth is ~6uu < the 25uu inset, so plants keep dry feet.
+RIVER_KEEPOUT = 580.0
+
+
+def cull_channel(xforms, label):
+    kept = [t for t in xforms
+            if spine_dist(t.translation.x, t.translation.y) >= RIVER_KEEPOUT]
+    if len(kept) != len(xforms):
+        print(f"REACH_MARKER: {label} channel cull {len(xforms) - len(kept)} "
+              f"plants out of the river (A6)")
+    return kept
+
+
 flora_n = 0
 for i in range(12):                                  # the banks get their ferns DIRECTLY
     wpx, wpy = RIV["waypoints"][(i * 2) % len(RIV["waypoints"])]
@@ -1156,8 +1190,11 @@ for i in range(12):                                  # the banks get their ferns
     fx, fy = wpx + math.cos(ang) * d, wpy + math.sin(ang) * d
     if math.hypot(fx - CX, fy - CY) < 3600.0 or near_river(fx, fy) < 430.0:
         continue
-    place(FERN, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_BankFern_{i}",
-          yaw=random.uniform(0, 360), scale=random.uniform(0.9, 1.6))
+    # v5 A6: draws FIRST (stream identical), placement gated by the true spine.
+    fyaw, fsc = random.uniform(0, 360), random.uniform(0.9, 1.6)
+    if spine_dist(fx, fy) >= RIVER_KEEPOUT:
+        place(FERN, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_BankFern_{i}",
+              yaw=fyaw, scale=fsc)
     flora_n += 1
 attempts = 0
 while flora_n < 30 and attempts < 300:               # then the free wilderness scatter
@@ -1166,16 +1203,20 @@ while flora_n < 30 and attempts < 300:               # then the free wilderness 
     fy = CY + random.uniform(-13500.0, 13500.0)
     if math.hypot(fx - CX, fy - CY) < 3600.0 or near_river(fx, fy) < 450.0:
         continue
-    place(FERN, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_Fern_{flora_n}",
-          yaw=random.uniform(0, 360), scale=random.uniform(0.8, 1.6))
+    fyaw, fsc = random.uniform(0, 360), random.uniform(0.8, 1.6)   # v5 A6
+    if spine_dist(fx, fy) >= RIVER_KEEPOUT:
+        place(FERN, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_Fern_{flora_n}",
+              yaw=fyaw, scale=fsc)
     flora_n += 1
 for i in range(18):
     fx = CX + random.uniform(-12000.0, 12000.0)
     fy = CY + random.uniform(-12000.0, 12000.0)
     if math.hypot(fx - CX, fy - CY) < 3600.0 or near_river(fx, fy) < 420.0:
         continue
-    place(FLOWER, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_Flower_{i}",
-          yaw=random.uniform(0, 360), scale=random.uniform(0.9, 1.5))
+    fyaw, fsc = random.uniform(0, 360), random.uniform(0.9, 1.5)   # v5 A6
+    if spine_dist(fx, fy) >= RIVER_KEEPOUT:
+        place(FLOWER, unreal.Vector(fx, fy, ground_z(fx, fy)), f"VR_Flower_{i}",
+              yaw=fyaw, scale=fsc)
     flora_n += 1
 for i in range(8):
     fz = random.uniform(300.0, 3000.0)
@@ -1308,6 +1349,7 @@ for stem, matn, count, s_lo, s_hi in UNDERSTORY:
             unreal.Rotator(0.0, 0.0, urand.uniform(0.0, 360.0)),
             unreal.Vector(urand.uniform(s_lo, s_hi), urand.uniform(s_lo, s_hi),
                           urand.uniform(s_lo, s_hi))))
+    xforms = cull_channel(xforms, f"Under_{stem}")   # v5 A6: post-filter only
     ua.set_editor_property("instances", xforms)
     under_total += len(xforms)
     actor_count += 1
@@ -1348,7 +1390,9 @@ if exotic_pool:
     for i in range(4):                                 # spawn vista frame
         EXO_SPOTS.append((-1600.0 + i * 1050.0, 1100.0 + (i % 2) * 420.0))
     for i, (ex, ey) in enumerate(EXO_SPOTS):
-        if near_river(ex, ey) < 460.0 or math.hypot(ex - CX, ey - CY) < 3400.0:
+        # v5 A6: exotics draw no RNG — the true-spine check is stream-safe here.
+        if (near_river(ex, ey) < 460.0 or spine_dist(ex, ey) < 620.0
+                or math.hypot(ex - CX, ey - CY) < 3400.0):
             continue
         stem, sm, f, minz = exotic_pool[i % len(exotic_pool)]
         fs = f * (0.85 + 0.3 * ((i * 7) % 5) / 4.0)
@@ -1385,6 +1429,7 @@ for stem, matn, count, s_lo, s_hi in UNDERSTORY:
             unreal.Rotator(0.0, 0.0, u2.uniform(0.0, 360.0)),
             unreal.Vector(u2.uniform(s_lo, s_hi), u2.uniform(s_lo, s_hi),
                           u2.uniform(s_lo, s_hi))))
+    xforms = cull_channel(xforms, f"Under2_{stem}")  # v5 A6: post-filter only
     ua.set_editor_property("instances", xforms)
     under2_total += len(xforms)
     actor_count += 1
@@ -1418,6 +1463,7 @@ for m_stem, m_mat, m_count, m_lo, m_hi in (("meadow_grass", "M_VR_GrassBlade", 9
             unreal.Rotator(0.0, 0.0, mrand.uniform(0.0, 360.0)),
             unreal.Vector(mrand.uniform(m_lo, m_hi), mrand.uniform(m_lo, m_hi),
                           mrand.uniform(m_lo, m_hi))))
+    xforms = cull_channel(xforms, f"Meadow_{m_stem}")  # v5 A6: post-filter only
     ma.set_editor_property("instances", xforms)
     meadow_total += len(xforms)
     actor_count += 1

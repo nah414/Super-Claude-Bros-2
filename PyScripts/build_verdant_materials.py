@@ -8,8 +8,14 @@ exists ONLY in the under-dark pair (Gloom/Seep); amber is the safety grammar
 stays won. Rerun-safe: materials are deleted + reforged, the MPC is updated.
 """
 import json
+import os
+import sys
 
 import unreal
+
+# v5 Round 5: the Water Kit — shared subgraph builders (depth/motion/contact).
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import water_forge as WF
 
 EAL = unreal.EditorAssetLibrary
 MEL = unreal.MaterialEditingLibrary
@@ -20,6 +26,7 @@ DEST = "/Game/Art/Verdant"
 with open(r"C:\Users\Atomn\mario2\_prep\verdant_heartwood.json") as _f:
     FIELD = json.load(_f)
 IMPACT = FIELD["pool"].get("impact", FIELD["pool"]["center"])
+RAPIDS = FIELD["river"].get("rapids", [])
 
 assert hasattr(unreal, "MaterialParameterCollectionFactoryNew"), \
     "MPC_FACTORY_MISSING: MaterialParameterCollectionFactoryNew not in this build's python API"
@@ -299,47 +306,50 @@ def depth_fade(mat, x, y, dist):
 
 
 # --------------------------------------------------------- M_VR_WaterFlow
-# The river: streaks pan ALONG the flow (V), DepthFade darkens the deeps and
-# foams the banks — true depth cueing at unlit-translucent cost.
+# v5 ROUND 5 "The Water Reads" (the fourth walk): the river is a COMPOSITION
+# of the Water Kit's states — depth ramp (A1: bed shows near banks, opacity
+# 0.35 shallow -> 0.9 deep), gated shore contact (A2/A3: the pool's grazing-
+# gate pattern promoted to law — nothing ungated, the 100%-lace blanket is
+# retired, foam is an ACCENT), ripple-sheared flow (A4: two unequal-speed
+# warp layers, aniso streaks replace the ruler pinstripes — the ice-bar
+# killer, EL-005), and a ~3uu breathing bob (A5, sway-only per the 8GB audit).
+# v5.1: TWO instrument shots rewrote this graph. (1) DepthFade saturates ~1
+# along typical view rays here (the boulder's contact shadow proved the node
+# alive, the geometry-scale makes it useless as a shore/depth cue). (2) The
+# round-3 vertex-color foam mask NEVER survived the FBX chain — UE read WHITE
+# everywhere; VC * foam was the eternal lace and the pond's milk. Depth,
+# shore, and wakes are now GEOMETRY-DERIVED (cross-UV + field-JSON analytic
+# wakes) — view-independent, and nothing left to lose in transit.
 m = new_mat("M_VR_WaterFlow")
 set_translucent_unlit(m)
-pan = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1050, -60)
-pan.set_editor_property("speed_y", 0.5)     # v4: 400uu/s downstream
-streak = sample(m, tex("water_streak"), -880, -60, linear=True)
-MEL.connect_material_expressions(pan, "", streak, "Coordinates")
-shallow = depth_fade(m, -880, 200, 400.0)
-deep_col = const3(m, 0.02, 0.10, 0.12, -880, 340)
-base_col = mul(m, const3(m, 0.35, 0.75, 0.75, -700, -160), add(
-    m, const(m, 0.7, -700, 40), mul(m, breath_node(m, -700, 120),
-    const(m, 0.4, -700, 200), -580, 140), -460, 80), -520, -100)
-body = MEL.create_material_expression(m, unreal.MaterialExpressionLinearInterpolate, -420, 100)
-MEL.connect_material_expressions(deep_col, "", body, "A")
-MEL.connect_material_expressions(mul(m, streak, base_col, -520, -20, a_out="R"), "", body, "B")
-MEL.connect_material_expressions(shallow, "", body, "Alpha")
-foam_edge = MEL.create_material_expression(m, unreal.MaterialExpressionOneMinus, -700, 420)
-MEL.connect_material_expressions(depth_fade(m, -880, 440, 110.0), "", foam_edge, "")
-foam = mul(m, foam_edge, const3(m, 1.3, 1.35, 1.3, -700, 540), -560, 460)
-# v3: the VERTEX-COLOR foam mask (V-wakes behind rapids + bank foam, baked in
-# Blender) drives real white water riding a slow foam-texture panner.
-vc = MEL.create_material_expression(m, unreal.MaterialExpressionVertexColor, -880, 620)
-pan_vf = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1050, 700)
-# v4 flow law: the white water RIDES DOWNSTREAM (V = along the flow). The old
-# 0.06 cross-stream drift was the frozen-foam bug Adam filmed.
-pan_vf.set_editor_property("speed_x", 0.0)
-pan_vf.set_editor_property("speed_y", 0.55)
-ftex = sample(m, tex("foam"), -880, 700, linear=True)
-MEL.connect_material_expressions(pan_vf, "", ftex, "Coordinates")
-white = mul(m, mul(m, ftex, vc, -740, 660, a_out="R", b_out="R"),
-            const3(m, 0.9, 0.93, 0.9, -740, 780), -620, 700)
-MEL.connect_material_property(add(m, add(m, body, foam, -300, 200), white, -200, 260),
-                              "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
-op_deep = MEL.create_material_expression(m, unreal.MaterialExpressionOneMinus, -560, 640)
-MEL.connect_material_expressions(depth_fade(m, -700, 660, 400.0), "", op_deep, "")
-MEL.connect_material_property(add(m, add(m, const(m, 0.5, -560, 580), mul(
-    m, op_deep, const(m, 0.25, -560, 720), -440, 660), -320, 620),
-    mul(m, vc, const(m, 0.3, -440, 780), -320, 740, a_out="R"), -220, 680), "",
-    unreal.MaterialProperty.MP_OPACITY)
-finish(m, "M_VR_WaterFlow forged (v3: the river carries real white water)")
+distort = WF.ripple_distort(m, tex("water_ripple"), -1950, -300)
+streak = WF.flowed_sample(m, tex("streak_aniso"), distort, -1150, -160, sy=0.5)
+foam_t = WF.flowed_sample(m, tex("foam"), distort, -1150, 120, sy=0.55)
+body, depth = WF.uv_depth_ramp(m, -2100, 500,
+                               (0.13, 0.38, 0.37), (0.02, 0.10, 0.12))
+breath_amt = add(m, const(m, 0.7, -700, -260), mul(m, breath_node(m, -700, -180),
+                 const(m, 0.4, -700, -100), -600, -140), -500, -200)
+streak_term = mul(m, mul(m, streak, const3(m, 0.30, 0.34, 0.33, -640, -60),
+                         -540, -80, a_out="R"), breath_amt, -420, -120)
+b_tight, b_feather = WF.uv_shore_bands(m, -2100, 900)
+shore = add(m, mul(m, mul(m, b_tight, foam_t, -760, 620, b_out="R"),
+                   const3(m, 1.15, 1.20, 1.15, -760, 720), -640, 660),
+            mul(m, mul(m, b_feather, foam_t, -760, 800, b_out="R"),
+                const3(m, 0.28, 0.30, 0.28, -760, 900), -640, 840), -520, 740)
+wake_mask = WF.rapids_wakes(m, RAPIDS, -2400, 1500)
+wake = mul(m, mul(m, foam_t, wake_mask, -640, 980, a_out="R"),
+           const3(m, 0.9, 0.93, 0.9, -640, 1080), -520, 1020)
+MEL.connect_material_property(
+    add(m, add(m, add(m, body, streak_term, -300, 200), shore, -220, 300),
+        wake, -140, 380), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+op = add(m, add(m, const(m, 0.35, -560, 560), mul(m, depth, const(m, 0.55, -560, 640),
+             -460, 600), -360, 580), mul(m, wake_mask, const(m, 0.18, -460, 700),
+             -360, 680), -260, 620)
+MEL.connect_material_property(WF.saturate(m, op, -160, 620), "",
+                              unreal.MaterialProperty.MP_OPACITY)
+MEL.connect_material_property(WF.bob_wpo(m, -1950, 1250), "",
+                              unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+finish(m, "M_VR_WaterFlow forged (v5.1: geometric depth, shear, contact — the water reads)")
 
 # --------------------------------------------------------- M_VR_WaterDeep
 # The pool: no directional flow — two slow counter-panners shimmer; the same
@@ -371,9 +381,25 @@ pan_c.set_editor_property("speed_x", 0.05)
 pan_c.set_editor_property("speed_y", 0.03)
 caus = sample(m, tex("caustic"), -880, 700, linear=True)
 MEL.connect_material_expressions(pan_c, "", caus, "Coordinates")
-vc_p = MEL.create_material_expression(m, unreal.MaterialExpressionVertexColor, -880, 860)
+# v5.1 de-milk: the shore ring used the baked VertexColor — which the FBX
+# chain lost, so UE read WHITE across the whole dome and the 0.55 lift became
+# uniform MILK (Adam: "featureless milk"). The pool's radial UV already knows
+# where the rim is — derive the ring from it instead.
+uv_p = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1050, 860)
+rdist = MEL.create_material_expression(m, unreal.MaterialExpressionDistance, -930, 880)
+MEL.connect_material_expressions(uv_p, "", rdist, "A")
+c2 = MEL.create_material_expression(m, unreal.MaterialExpressionConstant2Vector, -1050, 960)
+c2.set_editor_property("r", 0.5)
+c2.set_editor_property("g", 0.5)
+MEL.connect_material_expressions(c2, "", rdist, "B")
+rim_d = MEL.create_material_expression(m, unreal.MaterialExpressionDivide, -820, 900)
+MEL.connect_material_expressions(add(m, rdist, const(m, -0.40, -930, 990), -870, 950),
+                                 "", rim_d, "A")
+MEL.connect_material_expressions(const(m, 0.07, -930, 1050), "", rim_d, "B")
+rim = MEL.create_material_expression(m, unreal.MaterialExpressionSaturate, -740, 940)
+MEL.connect_material_expressions(rim_d, "", rim, "")
 sparkle = mul(m, caus, const3(m, 0.35, 0.42, 0.42, -740, 720), -640, 740, a_out="R")
-shore = mul(m, vc_p, const3(m, 0.55, 0.57, 0.55, -740, 900), -640, 880, a_out="R")
+shore = mul(m, rim, const3(m, 0.55, 0.57, 0.55, -740, 900), -640, 880)
 # foam + sparkle gated by the SHALLOW mask: OneMinus(DepthFade) floods to 1
 # at grazing angles and used to blanket the whole pool white — gating lets
 # the grazing view fall through to the teal body (the depth Adam must SEE).
@@ -544,8 +570,15 @@ def forge_frond(name, tr, tg, tb):
     subRG.set_editor_property("b", False)
     subRG.set_editor_property("a", False)
     MEL.connect_material_expressions(subv, "", subRG, "")
-    ndir = MEL.create_material_expression(m, unreal.MaterialExpressionNormalize, -800, 1120)
-    MEL.connect_material_expressions(subRG, "", ndir, "")
+    # v5 A6 defense: Normalize(zero-vector) is NaN when the hero's XY lands
+    # exactly on a frond vertex — a one-frame screen-spanning needle triangle.
+    # Divide by Max(dist, 1) instead: same direction, graceful zero at contact.
+    dmax = MEL.create_material_expression(m, unreal.MaterialExpressionMax, -900, 1180)
+    MEL.connect_material_expressions(dist, "", dmax, "A")
+    MEL.connect_material_expressions(const(m, 1.0, -1000, 1250), "", dmax, "B")
+    ndir = MEL.create_material_expression(m, unreal.MaterialExpressionDivide, -800, 1120)
+    MEL.connect_material_expressions(subRG, "", ndir, "A")
+    MEL.connect_material_expressions(dmax, "", ndir, "B")
     pushxy = mul(m, ndir, mul(m, fall2, const(m, 90.0, -600, 1050), -500, 1000), -420, 1080)
     push3 = MEL.create_material_expression(m, unreal.MaterialExpressionAppendVector, -320, 1100)
     MEL.connect_material_expressions(pushxy, "", push3, "A")
@@ -853,4 +886,33 @@ for mesh_name, mat_name in ASSIGN.items():
     else:
         print(f"REACH_WARN: assign {mesh_name} <- {mat_name} skipped (missing)")
 print(f"REACH_MARKER: {assigned}/{len(ASSIGN)} kit meshes wearing Verdant materials")
+
+# --------------------------- v5 THE USAGE-FLAG LAW (the grey-understory cure)
+# A forged material saved WITHOUT bUsedWithNanite / bUsedWithInstancedStatic-
+# Meshes renders fine in the editor (which auto-fixes usage in memory and only
+# WARNS) but falls back to DefaultMaterial grey in every -game run — exactly
+# the grey plants Adam has been walking past since round 3. Persist the flags
+# at forge time so the game and the editor see the same world.
+usage_fixed = 0
+for ap in EAL.list_assets("/Game/Art/Verdant", recursive=False):
+    name = ap.split("/")[-1].split(".")[0]
+    if not name.startswith("M_VR_"):
+        continue
+    mm = EAL.load_asset(f"/Game/Art/Verdant/{name}")
+    if not isinstance(mm, unreal.Material):
+        continue
+    changed = False
+    for flag in ("used_with_nanite", "used_with_instanced_static_meshes"):
+        try:
+            if not mm.get_editor_property(flag):
+                mm.set_editor_property(flag, True)
+                changed = True
+        except Exception as ex:
+            print(f"REACH_WARN: usage flag {flag} on {name}: {ex}")
+    if changed:
+        MEL.recompile_material(mm)
+        EAL.save_loaded_asset(mm)
+        usage_fixed += 1
+print(f"REACH_MARKER: usage-flag law — {usage_fixed} materials re-saved with "
+      f"Nanite+HISM usage persisted")
 print("VERDANT_MATERIALS_DONE")

@@ -107,6 +107,8 @@ TEXTURES = {           # name: srgb (masks stay linear)
     "bark": True, "ground_moss": True, "canopy_top": True,
     "moss_mask": False, "water_streak": False, "cloud_soft": False,
     "foam": False, "caustic": False, "fall_rope": False,
+    # v5 Round 5 (A4): the ripple distortion field + the aniso river streaks
+    "water_ripple": False, "streak_aniso": False,
 }
 for stem, srgb in TEXTURES.items():
     png = os.path.join(TEX_DIR, f"{stem}.png")
