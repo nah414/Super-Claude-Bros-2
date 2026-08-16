@@ -91,28 +91,14 @@ for name, m in MANIFEST["meshes"].items():
                                  unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
         mesh.set_editor_property("body_setup", body)
 
-    # R6 THE LIGHT READS: walkables join the Nanite world WITHOUT touching the
-    # climb collision that took four rounds to win — fallback_relative_error=0
-    # makes the Nanite fallback mesh the FULL geometry, so complex-as-simple
-    # collision stays vertex-exact (the old "Nanite swaps collision to its
-    # coarse fallback" objection dissolves at zero fallback error).
-    want_nanite = m["nanite"] or m["collision"]
+    # R6 lesson (REVERTED same round): flipping walkables to Nanite made the
+    # floor/trunk VERTEX data unreadable to the stage builder's terrain and
+    # radial probes — the TERRAIN_MISALIGNED assert (correctly) refused to
+    # build. Walkable-Nanite is deferred to R7 alongside probe-aware plumbing;
+    # the manifest flag stays the single authority meanwhile.
     ns = mesh.get_editor_property("nanite_settings")
-    ns_changed = False
-    if ns.get_editor_property("enabled") != want_nanite:
-        ns.set_editor_property("enabled", want_nanite)
-        ns_changed = True
-    if m["collision"] and want_nanite:
-        try:
-            if ns.get_editor_property("fallback_relative_error") != 0.0:
-                ns.set_editor_property("fallback_relative_error", 0.0)
-                ns_changed = True
-        except Exception as e:
-            print(f"REACH_WARN: nanite fallback error on {name}: {e} — "
-                  f"keeping Nanite OFF for collision safety")
-            ns.set_editor_property("enabled", False)
-            ns_changed = True
-    if ns_changed:
+    if ns.get_editor_property("enabled") != m["nanite"]:
+        ns.set_editor_property("enabled", m["nanite"])
         mesh.set_editor_property("nanite_settings", ns)
 
     EAL.save_loaded_asset(mesh)
