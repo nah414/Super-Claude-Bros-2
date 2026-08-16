@@ -145,10 +145,17 @@ finish(m, "M_VR_GroundMoss forged")
 # Leaves that BREATHE: WPO = sin(time + worldX) * Breath * sway amplitude.
 m = new_mat("M_VR_Canopy")
 m.set_editor_property("two_sided", True)
+# R6 THE LIGHT READS: the whole aesthetic is a low sun raking through a giant
+# tree, yet every leaf was opaque default-lit — light never TRANSMITTED. Two-
+# sided foliage + a warm green-gold subsurface makes the crown glow from behind.
+m.set_editor_property("shading_model",
+                      unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
 MEL.connect_material_property(sample(m, tex("canopy_top"), -700, -220), "RGB",
                               unreal.MaterialProperty.MP_BASE_COLOR)
 MEL.connect_material_property(const(m, 0.85, -700, 40), "",
                               unreal.MaterialProperty.MP_ROUGHNESS)
+MEL.connect_material_property(const3(m, 0.40, 0.55, 0.15, -700, 180), "",
+                              unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
 t_node = MEL.create_material_expression(m, unreal.MaterialExpressionTime, -1150, 260)
 wp = MEL.create_material_expression(m, unreal.MaterialExpressionWorldPosition, -1150, 380)
 wpx = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1000, 380)
@@ -323,14 +330,26 @@ def depth_fade(mat, x, y, dist):
 m = new_mat("M_VR_WaterFlow")
 set_translucent_unlit(m)
 distort = WF.ripple_distort(m, tex("water_ripple"), -1950, -300)
-streak = WF.flowed_sample(m, tex("streak_aniso"), distort, -1150, -160, sy=0.5)
-foam_t = WF.flowed_sample(m, tex("foam"), distort, -1150, 120, sy=0.55)
+# R6 (walk 5a, "we don't see a flow of current" — EL-007): TWO directional
+# streak layers at unequal speeds now carry the current (0.85x and 1.25x —
+# fast, dense, elongated), and the foam samples with V-stretched cells that
+# elongate downstream. The warp (damped in the kit) deforms these as they
+# travel: translation AND shear together — the eye's full definition of flow.
+streak = WF.flowed_sample(m, tex("streak_aniso"), distort, -1150, -160, sy=0.85)
+streak2 = WF.flowed_sample(m, tex("streak_aniso"), distort, -1150, -20,
+                           sy=1.25, u_tiling=1.6, v_tiling=1.4)
+foam_t = WF.flowed_sample(m, tex("foam"), distort, -1150, 120, sy=0.8,
+                          v_tiling=0.6)
 body, depth = WF.uv_depth_ramp(m, -2100, 500,
                                (0.13, 0.38, 0.37), (0.02, 0.10, 0.12))
 breath_amt = add(m, const(m, 0.7, -700, -260), mul(m, breath_node(m, -700, -180),
                  const(m, 0.4, -700, -100), -600, -140), -500, -200)
-streak_term = mul(m, mul(m, streak, const3(m, 0.30, 0.34, 0.33, -640, -60),
-                         -540, -80, a_out="R"), breath_amt, -420, -120)
+streak_sum = add(m, mul(m, streak, const(m, 0.6, -640, -180), -560, -160,
+                        a_out="R"),
+                 mul(m, streak2, const(m, 0.45, -640, -20), -560, 0, a_out="R"),
+                 -480, -80)
+streak_term = mul(m, mul(m, streak_sum, const3(m, 0.34, 0.38, 0.37, -640, -60),
+                         -540, -80), breath_amt, -420, -120)
 b_tight, b_feather = WF.uv_shore_bands(m, -2100, 900)
 shore = add(m, mul(m, mul(m, b_tight, foam_t, -760, 620, b_out="R"),
                    const3(m, 1.15, 1.20, 1.15, -760, 720), -640, 660),
@@ -508,11 +527,17 @@ def forge_frond(name, tr, tg, tb):
     m = new_mat(name)
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     m.set_editor_property("two_sided", True)
+    # R6: sun through leaves — two-sided foliage transmission, tinted per family.
+    m.set_editor_property("shading_model",
+                          unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
     MEL.connect_material_property(mul(m, sample(m, tex("canopy_top"), -900, -200),
                                       const3(m, tr, tg, tb, -900, -20), -720, -120),
                                   "", unreal.MaterialProperty.MP_BASE_COLOR)
     MEL.connect_material_property(const(m, 0.85, -900, 120), "",
                                   unreal.MaterialProperty.MP_ROUGHNESS)
+    MEL.connect_material_property(const3(m, 0.38 * tr, 0.5 * tg, 0.14 * tb,
+                                         -900, 200), "",
+                                  unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     fmask = sample(m, tex("moss_mask"), -900, 260, linear=True)
     MEL.connect_material_property(add(m, fmask, const(m, 0.35, -760, 380), -640, 320,
                                       a_out="R"), "",
@@ -771,11 +796,18 @@ def forge_sway(name, tr, tg, tb):
     m = new_mat(name)
     m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
     m.set_editor_property("two_sided", True)
+    # R6: the meadow joins the transmission world (15k instances — if Adam's
+    # walk stutters, the fallback is reverting THIS forge to default-lit).
+    m.set_editor_property("shading_model",
+                          unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
     MEL.connect_material_property(mul(m, sample(m, tex("canopy_top"), -900, -200),
                                       const3(m, tr, tg, tb, -900, -20), -720, -120),
                                   "", unreal.MaterialProperty.MP_BASE_COLOR)
     MEL.connect_material_property(const(m, 0.85, -900, 120), "",
                                   unreal.MaterialProperty.MP_ROUGHNESS)
+    MEL.connect_material_property(const3(m, 0.36 * tr, 0.48 * tg, 0.13 * tb,
+                                         -900, 200), "",
+                                  unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     gmask = sample(m, tex("moss_mask"), -900, 260, linear=True)
     MEL.connect_material_property(add(m, gmask, const(m, 0.35, -760, 380), -640, 320,
                                       a_out="R"), "",

@@ -292,14 +292,42 @@ for pk, pv in (("override_auto_exposure_method", True),
                ("override_auto_exposure_speed_up", True),
                ("auto_exposure_speed_up", 5.0),
                ("override_auto_exposure_speed_down", True),
-               ("auto_exposure_speed_down", 3.0)):
+               ("auto_exposure_speed_down", 3.0),
+               # ---- R6 THE LIGHT READS: the cinematic stack W3 never had ----
+               # (Chrome & Ember v2 decision, 2026-08-16.) W2's proven Phase-0.7
+               # stack (build_moonlit_glade.py) ported and re-tuned for raking
+               # DAYLIGHT: FFT convolution bloom with a hot threshold so only
+               # sun glints / amber lanterns / falls sparkle halo; a gentle
+               # split-tone (teal shade, warm sun) instead of W2's night grade;
+               # saturation nudged UP (photoreal richness), fringe kept faint.
+               ("override_bloom_method", True),
+               ("bloom_method", unreal.BloomMethod.BM_FFT),
+               ("override_bloom_intensity", True),
+               ("bloom_intensity", 0.9),
+               ("override_bloom_threshold", True),
+               ("bloom_threshold", 1.6),
+               ("override_film_grain_intensity", True),
+               ("film_grain_intensity", 0.10),
+               ("override_vignette_intensity", True),
+               ("vignette_intensity", 0.3),
+               ("override_scene_fringe_intensity", True),
+               ("scene_fringe_intensity", 0.15),
+               ("override_local_exposure_shadow_contrast_scale", True),
+               ("local_exposure_shadow_contrast_scale", 0.85),
+               ("override_color_saturation", True),
+               ("color_saturation", unreal.Vector4(1.02, 1.02, 1.02, 1.0)),
+               ("override_color_gain_shadows", True),
+               ("color_gain_shadows", unreal.Vector4(0.94, 1.0, 1.08, 1.0)),
+               ("override_color_gain_highlights", True),
+               ("color_gain_highlights", unreal.Vector4(1.08, 1.02, 0.93, 1.0))):
     try:
         pps.set_editor_property(pk, pv)
     except Exception as e:
         print(f"REACH_WARN: exposure {pk}: {e}")
 ppv.set_editor_property("settings", pps)
 actor_count += 1
-print("REACH_MARKER: the exposure law holds (EV100 clamp -4.0..3.5)")
+print("REACH_MARKER: the exposure law holds (EV100 clamp -4.0..3.5) "
+      "+ the cinematic stack (R6: FFT bloom, split-tone, local exposure)")
 
 # ---------------- the warm green-gold air (ONE fog, volumetric for shafts) ----------------
 fog = eas.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0), rot(0))

@@ -73,8 +73,11 @@ def _panner(mat, x, y, sx, sy):
 
 
 # ------------------------------------------------------- MOTION: the shear
-def ripple_distort(mat, ripple_tex, x, y, s1=0.032, s2=0.022,
-                   v1=0.30, v2=0.175, x2=0.045):
+def ripple_distort(mat, ripple_tex, x, y, s1=0.024, s2=0.016,
+                   v1=0.22, v2=0.13, x2=0.045):
+    # R6 (walk 5a: "vibrating, not flowing" — EL-007): the warp amplitudes and
+    # speeds are DAMPED so oscillation stops dominating; the directional streak
+    # layers now carry the current and the warp rides them as texture.
     """Two unequal-speed panners over the RG distortion field -> a 2-channel
     UV warp. ADD the result to any water UV so its pattern shears and wobbles
     as it travels — the ice-bar killer (EL-005: translation is not motion).
