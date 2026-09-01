@@ -82,6 +82,10 @@ def ground_z(x, y):
         d2 = ((x - hx) ** 2 + (y - hy) ** 2) / (a * a)
         if d2 < 1.0:
             g -= c * (1.0 - d2) ** 2
+    for hx, hy, a, c in F["pool"].get("banks", []):     # R7-B: the pool's berm
+        d2 = ((x - hx) ** 2 + (y - hy) ** 2) / (a * a)
+        if d2 < 1.0:
+            g += c * (1.0 - d2) ** 2
     return g
 
 
@@ -192,7 +196,11 @@ print(f"REACH_MARKER: trunk bounds probe: y=[{meas_ymin:.0f},{meas_ymax:.0f}] "
       f"expected=[{want_ymin:.0f},{want_ymax:.0f}] z_span={2 * ext.z:.0f}")
 assert abs(meas_ymin - want_ymin) < 150.0 and abs(meas_ymax - want_ymax) < 150.0, \
     "TRUNK_MIRRORED: bounds asymmetry disagrees with the calibration buttress (FBX mirror?)"
-assert abs(2.0 * ext.z - H) < 300.0, "TRUNK_HEIGHT_WRONG"
+# R7-E1: the slit-seal skirt sinks the base ring to liner.z_base — the trunk's
+# honest span is H + |z_base| now (the probe caught the change working; the
+# Foundation Law's seal is part of the shape it pins).
+_zspan_want = H + abs(F.get("liner", {}).get("z_base", 0.0))
+assert abs(2.0 * ext.z - _zspan_want) < 300.0, "TRUNK_HEIGHT_WRONG"
 
 # Instrument 2 (precise): vertex-level agreement with the field formula.
 tverts = mesh_verts(kit("heartwood_trunk"))
@@ -548,6 +556,8 @@ fall_n = 0
 SEG = 3000.0
 TSEG = F["falls_geom"]["seg"]
 M_TCORE = mat("M_VR_TorrentCore")     # the opaque body inside each crescent
+M_STREAMER = mat("M_VR_Streamer")     # R7-C5: the fast front ribbons
+M_WETROCK = mat("M_VR_WetRock")       # R7-C6: the base event's soaked boulders
 for wf in F["waterfalls"]:
     th = math.radians(wf["theta_deg"])
     r_off = 260.0 if wf["land"] == "floor" else 820.0
@@ -579,6 +589,28 @@ for wf in F["waterfalls"]:
                   yaw=wf["theta_deg"] + 90.0,
                   scale=unreal.Vector(3.4, 1.0, SEG / 1000.0), shadow=False)
             fall_n += 1
+    # R7-C5 (B1): the FRONT layer — narrow streamer ribbons at ~1.5x shell
+    # speed over the base band (the eye lives at the base), plus a crest trio
+    # on the sky_fall. Pure math, zero draws (the burn guard holds).
+    z_base = wf["z_top"] - wf["drop"]
+    for sti, s_off in enumerate((-420.0, -210.0, 0.0, 210.0, 420.0)
+                                if wf["drop"] >= 2.0 * TSEG else ()):
+        s_loc = surface_point(z_base + 0.35 * TSEG, th, out=r_off + 70.0)
+        place(kit("water_sheet"),
+              unreal.Vector(s_loc.x + tx * s_off, s_loc.y + ty * s_off, s_loc.z),
+              f"VR_Streamer_{wf['name']}_{sti}", yaw=wf["theta_deg"] + 90.0,
+              scale=unreal.Vector(0.42, 1.0, (2.0 * TSEG) / 1000.0),
+              material=M_STREAMER, shadow=False)
+        fall_n += 1
+    if wf["name"] == "sky_fall":
+        for sti, s_off in enumerate((-300.0, 0.0, 300.0)):
+            s_loc = surface_point(wf["z_top"] - 0.8 * TSEG, th, out=700.0 + 70.0)
+            place(kit("water_sheet"),
+                  unreal.Vector(s_loc.x + tx * s_off, s_loc.y + ty * s_off, s_loc.z),
+                  f"VR_StreamerCrest_{sti}", yaw=wf["theta_deg"] + 90.0,
+                  scale=unreal.Vector(0.34, 1.0, TSEG / 1000.0),
+                  material=M_STREAMER, shadow=False)
+            fall_n += 1
     # v4: the sky_fall's lip rides the pushed-out torrent (out 580) — at the
     # rebased ramp crossing (z~39433) the old out=140 lip speared the deck.
     lip_out = 580.0 if wf["name"] == "sky_fall" else r_off - 120.0
@@ -598,17 +630,55 @@ for wf in F["waterfalls"]:
         place(kit("pool_disc"), land, f"VR_Pool_{wf['name']}", scale=1.0, shadow=False)
         fall_n += 1
         churn_s = 0.8
-    place(kit("falls_churn"), unreal.Vector(land.x, land.y, land.z + 12.0),
+    # R7-E4: floor-landing churn slides 350uu down-pool with the ring (out of
+    # the chimney room; the impact sits only ~200uu past the wall foot)
+    _ch_dx = _ch_dy = 0.0
+    if wf["land"] == "floor":
+        _chd = math.hypot(land.x - CX, land.y - CY)
+        _ch_dx = (land.x - CX) / _chd * 350.0
+        _ch_dy = (land.y - CY) / _chd * 350.0
+    place(kit("falls_churn"),
+          unreal.Vector(land.x + _ch_dx, land.y + _ch_dy, land.z + 12.0),
           f"VR_Churn_{wf['name']}", yaw=wf["theta_deg"], scale=churn_s, shadow=False)
     fall_n += 1
     for mi, (ms, mz, moff) in enumerate(((1.5, 80.0, 300.0), (1.1, 40.0, -260.0),
                                          (0.9, 18.0, 60.0))):
+        # R7-E4: floor mists ride the churn's down-pool slide (soft blobs bled
+        # over the wall into the chimney room)
         place(kit("mist_puff"),
-              unreal.Vector(land.x + tx * moff, land.y + ty * moff, land.z + mz),
+              unreal.Vector(land.x + _ch_dx + tx * moff,
+                            land.y + _ch_dy + ty * moff, land.z + mz),
               f"VR_Mist_{wf['name']}_{mi}", yaw=float(mi) * 127.0,
               scale=ms, shadow=False)
         fall_n += 1
-print(f"REACH_MARKER: {fall_n} waterfall pieces falling from the sky (v3 TORRENTS)")
+    # R7-C6 (B4): THE BASE EVENT — the eye goes to the base of a waterfall
+    # first. Wet-dark boulders shoulder through the plunge churn, and a slow
+    # heavy mist drift breathes over the impact (EmberDrift retinted — the
+    # proven 0-credit mote actor; Niagara stays an R8 stretch). Zero draws.
+    if wf["land"] == "floor":
+        for bi, (b_th, b_r, b_s) in enumerate(((25.0, 340.0, 0.52),
+                                               (150.0, 430.0, 0.42),
+                                               (335.0, 380.0, 0.61))):  # R7-E4: 262 sat in the room
+            place(kit("knot_boulder"),
+                  unreal.Vector(land.x + b_r * math.cos(math.radians(b_th)),
+                                land.y + b_r * math.sin(math.radians(b_th)),
+                                land.z - 45.0),
+                  f"VR_PlungeRock_{wf['name']}_{bi}", yaw=b_th * 2.3,
+                  scale=b_s, material=M_WETROCK)
+            fall_n += 1
+        pm = eas.spawn_actor_from_class(
+            cls("EmberDrift"),
+            unreal.Vector(land.x, land.y, land.z + 40.0), rot(0))
+        pm.set_actor_label(f"VR_PlungeMist_{wf['name']}")
+        pm.set_editor_property("num_motes", 26)
+        pm.set_editor_property("extent", unreal.Vector(750.0, 750.0, 420.0))
+        pm.set_editor_property("rise_speed", 20.0)
+        pm.set_editor_property("wander_amp", 60.0)
+        pm.set_editor_property("mote_scale", 0.085)
+        pm.set_editor_property("tint", unreal.LinearColor(0.92, 1.05, 1.12, 1.0))
+        actor_count += 1
+        fall_n += 1
+print(f"REACH_MARKER: {fall_n} waterfall pieces falling from the sky (v3 TORRENTS + R7 streamers/base)")
 
 # ---- cloud shelves: the altitude made visible ----
 cloud_n = 0
@@ -741,9 +811,16 @@ place(kit("pool_surface"), unreal.Vector(0.0, 0.0, 0.0), "VR_PoolSurface", shado
 # foam, rising bubbles (EmberDrift retinted white-teal), rapids rocks upstream.
 IMPACT = F["pool"]["impact"]
 PZ_S = F["pool"]["z_surface"]
-place(kit("churn_ring"), unreal.Vector(IMPACT[0], IMPACT[1], PZ_S + 8.0),
+# R7-E4: the pool's dressing stays OUTSIDE the trunk — the impact sits only
+# ~200uu past the wall foot, so the churn slides 350uu down-pool (reads as
+# drift) and the foam angles live on the outer arc.
+_ax_d = math.hypot(IMPACT[0] - CX, IMPACT[1] - CY)
+_ax_dir = ((IMPACT[0] - CX) / _ax_d, (IMPACT[1] - CY) / _ax_d)
+place(kit("churn_ring"),
+      unreal.Vector(IMPACT[0] + _ax_dir[0] * 350.0,
+                    IMPACT[1] + _ax_dir[1] * 350.0, PZ_S + 8.0),
       "VR_PoolChurnRing", shadow=False)
-for fi, fth in enumerate((40.0, 160.0, 280.0)):
+for fi, fth in enumerate((350.0, 60.0, 140.0)):
     place(kit("foam_patch"),
           unreal.Vector(IMPACT[0] + 700.0 * math.cos(math.radians(fth)),
                         IMPACT[1] + 700.0 * math.sin(math.radians(fth)), PZ_S + 16.0),
@@ -762,6 +839,63 @@ for ri, rp in enumerate(F["river"].get("rapids", [])):
     place(kit("knot_boulder"), unreal.Vector(rp["x"], rp["y"], rp["z"] - 60.0),
           f"VR_Rapids_{ri}", yaw=float(ri) * 73.0, scale=0.55 + 0.1 * (ri % 2))
 print("REACH_MARKER: the pool breathes (churn, foam, bubbles) + rapids set")
+
+# ---- R7 workstream A: BEING IN WATER IS ITS OWN PERCEPT (EL-006 / EL-008) ----
+# The 2026-08-31 walk: "it just looks like we went under a sheet." Render-only
+# underwater state, pre-swim: bounded sub-surface PPVs tint/desaturate/dim the
+# frame the moment the camera sinks below surface Z. NO exposure overrides —
+# the EV clamps stay VR_ExposureLaw's (only overridden properties apply).
+# Zero RNG draws in this section (stream-safe by construction).
+def _uw_apply(pps):
+    for pk, pv in (("override_color_gain", True),
+                   ("color_gain", unreal.Vector4(0.55, 0.85, 0.92, 1.0)),
+                   ("override_color_saturation", True),
+                   ("color_saturation", unreal.Vector4(0.72, 0.72, 0.72, 1.0)),
+                   ("override_vignette_intensity", True),
+                   ("vignette_intensity", 0.45),
+                   ("override_bloom_intensity", True),
+                   ("bloom_intensity", 0.25)):
+        pps.set_editor_property(pk, pv)
+
+def _uw_volume(label, center, yaw, half):
+    global actor_count
+    v = eas.spawn_actor_from_class(unreal.PostProcessVolume, center, rot(yaw))
+    v.set_actor_label(label)
+    v.set_editor_property("unbound", False)
+    v.set_editor_property("priority", 2.0)          # over VR_ExposureLaw (1.0)
+    v.set_editor_property("blend_radius", 80.0)
+    v.set_editor_property("blend_weight", 1.0)
+    _uw_apply(v.get_editor_property("settings"))
+    # the default PPV brush is a 200uu cube (half-extent 100) — scale to size
+    v.set_actor_scale3d(unreal.Vector(half[0] / 100.0, half[1] / 100.0,
+                                      half[2] / 100.0))
+    # THE PROBE LAW: a blind instrument is a hard stop. Headless-spawned PPVs
+    # can carry a degenerate brush — read the bounds back and refuse to lie.
+    _o, ext = v.get_actor_bounds(False)
+    assert ext.z > half[2] * 0.5 and ext.x > half[0] * 0.5, \
+        f"UW_VOLUME_DEGENERATE: {label} bounds {ext} vs half {half}"
+    actor_count += 1
+    return v
+
+uw_n = 0
+for _si in range(len(RIV["waypoints"]) - 1):
+    _ax, _ay = RIV["waypoints"][_si]
+    _bx, _by = RIV["waypoints"][_si + 1]
+    _seg = math.hypot(_bx - _ax, _by - _ay)
+    _mz = (RIV["surface_z"][_si] + RIV["surface_z"][_si + 1]) / 2.0
+    _uw_volume(f"VR_Underwater_{uw_n}",
+               unreal.Vector((_ax + _bx) / 2.0, (_ay + _by) / 2.0, _mz - 160.0),
+               math.degrees(math.atan2(_by - _ay, _bx - _ax)),
+               (_seg / 2.0 + 200.0, 620.0, 160.0))
+    uw_n += 1
+_uw_volume(f"VR_Underwater_{uw_n}",
+           unreal.Vector(POOLJ["center"][0], POOLJ["center"][1],
+                         POOLJ["z_surface"] - 150.0),
+           0.0, (POOLJ["r"] + 150.0, POOLJ["r"] + 150.0, 150.0))
+uw_n += 1
+print(f"REACH_MARKER: underwater state placed ({uw_n} sub-surface volumes, "
+      "EL-008 answered render-side)")
+
 wpA, wpB = RIV["waypoints"][-2], RIV["waypoints"][-1]
 seg_l = math.hypot(wpB[0] - wpA[0], wpB[1] - wpA[1])
 ltx, lty = (wpB[0] - wpA[0]) / seg_l, (wpB[1] - wpA[1]) / seg_l
@@ -1202,11 +1336,17 @@ RIVER_KEEPOUT = 580.0
 
 
 def cull_channel(xforms, label):
+    # R7-B SPINE-LAW COROLLARY: the spine covers only the polyline — points in
+    # the POOL DISC off-axis from segment 0 passed the keepout and sat in the
+    # water. Post-filter only; draws untouched, nothing reshuffles.
+    _pcx, _pcy = F["pool"]["center"]
     kept = [t for t in xforms
-            if spine_dist(t.translation.x, t.translation.y) >= RIVER_KEEPOUT]
+            if spine_dist(t.translation.x, t.translation.y) >= RIVER_KEEPOUT
+            and math.hypot(t.translation.x - _pcx,
+                           t.translation.y - _pcy) >= 1550.0]
     if len(kept) != len(xforms):
         print(f"REACH_MARKER: {label} channel cull {len(xforms) - len(kept)} "
-              f"plants out of the river (A6)")
+              f"plants out of the river/pool (A6/R7)")
     return kept
 
 
@@ -1300,18 +1440,14 @@ for i, (lth_deg, lr) in enumerate(((200.0, 900.0), (250.0, 1100.0), (300.0, 850.
         except Exception:
             pass
     actor_count += 1
-for i in range(4):
-    sth = math.radians(160.0 + i * 50.0)
-    p = surface_point(180.0, sth, out=-(300.0 * 1.6 - 30.0))
-    place(kit("seep_card"), p, f"VR_ChimneySeep_{i}", yaw=math.degrees(sth) + 180.0,
-          scale=1.6, shadow=False)
-for i in range(5):
-    sr = random.uniform(500.0, 2000.0)
-    sth = random.uniform(0, 2.0 * math.pi)
-    p = unreal.Vector(CX + sr * math.cos(sth), CY + sr * math.sin(sth), 0.0)
-    p.z = ground_z(p.x, p.y) + 30.0
-    place(SPHERE, p, f"VR_ChimneySeed_{i}", scale=0.5,
-          material=mat("M_VR_VioletSeep"), shadow=False)
+# R7-E: THE PURPLE SHEETS RETIRE (Adam, on camera: "I don't know what these
+# purple sheets are... the whole inside of this whole tree section needs to
+# be completely revised"). The violet-reads-true-in-the-dark doctrine dies
+# here — no seep cards, no seed spheres. The retired seed loop drew 2 randoms
+# x 5 = 10 draws; they are PRE-BURNED (the FIN-card pattern) so every seeded
+# thing downstream stays byte-identical.
+for _ in range(10):
+    random.random()
 for i in range(6):
     d = 600.0 + i * 320.0
     p = unreal.Vector(CX + d * math.cos(door_th), CY + d * math.sin(door_th), 0.0)
@@ -1329,7 +1465,74 @@ place(kit("water_sheet"), surface_point(150.0, door_th, out=-450.0),
       "VR_ChimneyDoorShaft", yaw=CHIM["door_theta_deg"] + 90.0, pitch=-24.0,
       scale=unreal.Vector(2.0, 1.0, 1.5), material=mat("M_VR_LightShaft"),
       shadow=False)
-print("REACH_MARKER: the chimney is a discovery now (lit, seeded, and it has a door)")
+print("REACH_MARKER: the chimney is a discovery now (lit, and it has a door)")
+
+# ---- R7-E2: THE STAIRWELL RISES ("stairs to go up to the top of our tree,
+# not wall-climbing"). The kit mesh is world-anchored; lanterns light every
+# ~2 turns (Lamplighter grammar, group VR_Stairwell) and RescueNets span the
+# central well every net_every_z. Mirrors the generator's closed-form walk
+# exactly (taper-only radius, solved run). Zero RNG draws.
+SWJ = F.get("stairwell")
+if SWJ:
+    place(kit("stair_helix"), unreal.Vector(0.0, 0.0, 0.0), "VR_Stairwell")
+
+    def _sw_walk():
+        z = SWJ["z0"]
+        active = 0
+        th = math.radians(SWJ["theta0_deg"])
+        while z < SWJ["z1"] - 1e-6:
+            z = min(SWJ["z1"], z + SWJ["step_rise"])
+            r_mid = (R_CROWN + (R_ROOT - R_CROWN) * (1.0 - z / H) ** TAPER
+                     - SWJ["wall_gap"] - SWJ["deck_w"] / 2.0)
+            th -= SWJ["run"] / r_mid
+            yield z, th, r_mid
+            active += 1
+            if active % SWJ["landing_every"] == 0:
+                for _ in range(SWJ["landing_steps"]):
+                    th -= SWJ["run"] / r_mid
+                    yield z, th, r_mid
+
+    sw_lamp = 0
+    sw_net = 0
+    _th0r = math.radians(SWJ["theta0_deg"])
+    _next_lamp = math.radians(360.0 * SWJ["lantern_every_turns"])
+    _next_net = SWJ["z0"] + SWJ["net_every_z"]
+    _landings = []
+    _li = 0
+    for _z, _th, _rm in _sw_walk():
+        _li += 1
+        if _li % (SWJ["landing_every"] + SWJ["landing_steps"]) == 0:
+            _landings.append((_z, _th, _rm))
+        if (_th0r - _th) >= _next_lamp:
+            lp = unreal.Vector(CX + _rm * math.cos(_th),
+                               CY + _rm * math.sin(_th), _z + 6.0)
+            lant = eas.spawn_actor_from_class(cls("Lantern"), lp, rot(0))
+            lant.set_actor_label(f"VR_StairwellLamp_{sw_lamp}")
+            ls = lant.get_component_by_class(unreal.LightStateComponent)
+            if ls:
+                ls.set_editor_property("group_name", "VR_Stairwell")
+            actor_count += 1
+            sw_lamp += 1
+            _next_lamp += math.radians(360.0 * SWJ["lantern_every_turns"])
+        if _z >= _next_net:
+            try:
+                net = eas.spawn_actor_from_class(
+                    cls("RescueNet"), unreal.Vector(CX, CY, _z - 400.0), rot(0))
+                net.set_actor_label(f"VR_StairwellNet_{sw_net}")
+                net.set_actor_scale3d(unreal.Vector(4.0, 4.0, 1.2))
+                _tgt = _landings[-1] if _landings else (_z, _th, _rm)
+                net.set_editor_property("rescue_target", unreal.Vector(
+                    CX + _tgt[2] * math.cos(_tgt[1]),
+                    CY + _tgt[2] * math.sin(_tgt[1]), _tgt[0] + 40.0))
+                net.set_editor_property("rescue_yaw",
+                                        math.degrees(_tgt[1]) + 180.0)
+                actor_count += 1
+                sw_net += 1
+            except Exception as e:
+                print(f"REACH_WARN: stairwell RescueNet: {e}")
+            _next_net += SWJ["net_every_z"]
+    print(f"REACH_MARKER: the stairwell rises — {sw_lamp} lamps, {sw_net} nets, "
+          f"{SWJ['turns']:.1f} turns to the gallery")
 
 # ==== THE UNDERSTORY: 500 walk-through plants in ~7 HISM actors (Round 3) ====
 # A PRIVATE random stream (SEED+77): the seeded world never reshuffles, no
@@ -1409,8 +1612,10 @@ if exotic_pool:
     for i in range(4):                                 # Camp Roots approach
         EXO_SPOTS.append((-900.0 + i * 600.0, 3300.0 + (i % 2) * 500.0))
     for i, eth in enumerate((70.0, 150.0, 230.0, 320.0)):   # pool shore
-        EXO_SPOTS.append((IMPACT[0] + 1250.0 * math.cos(math.radians(eth)),
-                          IMPACT[1] + 1250.0 * math.sin(math.radians(eth))))
+        # R7-B: out past the new berm crest (r~1750) onto its outer shoulder —
+        # the old r1250 ring now stands in the water.
+        EXO_SPOTS.append((IMPACT[0] + 2150.0 * math.cos(math.radians(eth)),
+                          IMPACT[1] + 2150.0 * math.sin(math.radians(eth))))
     for i in range(1, 5):                              # river bends, both banks
         wpx, wpy = RIV["waypoints"][i]
         for sgn in (1.0, -1.0):
@@ -1497,26 +1702,26 @@ for m_stem, m_mat, m_count, m_lo, m_hi in (("meadow_grass", "M_VR_GrassBlade", 9
     actor_count += 1
 print(f"REACH_MARKER: the meadow blankets the floor — {meadow_total} clumps in 2 HISM actors")
 
-# ==== THE IVY (v4): leafy spirals wrapping the Heartwood, ~30% coverage ====
-# World-anchored helical ribbons (pure math, zero draws) + gold blossom
-# accents riding each spiral (teal lives in the ribbon material itself).
-IVY = (("ivy_spiral_a", 0.0, 2.6, 300.0, 30500.0),
-       ("ivy_spiral_b", 2.094, 2.1, 6000.0, 36500.0),
-       ("ivy_spiral_c", 4.189, 2.35, 1500.0, 25500.0))
-for ivn, _ith0, _iturns, _iz0, _iz1 in IVY:
-    place(kit(ivn), unreal.Vector(0.0, 0.0, 0.0), f"VR_Ivy_{ivn[-1]}", shadow=False)
+# ==== THE IVY NET (R7-D, replaces the v4 spirals): "spread out throughout ====
+# the entire tree" (the 2026-08-31 walk). The 3 fat ropes retire; 16 thin
+# strands + bough drapes arrive as 3 grouped world-anchored net meshes, with
+# gold blossom accents riding each strand. Pure math, zero draws.
+for _net in ("ivy_net_a", "ivy_net_b", "ivy_net_c"):
+    place(kit(_net), unreal.Vector(0.0, 0.0, 0.0), f"VR_Ivy_{_net[-1]}", shadow=False)
 ivy_bloom = 0
-for ivn, _ith0, _iturns, _iz0, _iz1 in IVY:
-    for bt in (0.15, 0.35, 0.55, 0.75, 0.9):
-        bz = _iz0 + (_iz1 - _iz0) * bt
-        bth = _ith0 + 2.0 * math.pi * _iturns * bt
+for _s in F.get("ivy", {}).get("strands", []):
+    for bt in (0.3, 0.7):
+        bz = _s["z0"] + (_s["z1"] - _s["z0"]) * bt
+        bth = math.radians(_s["theta0_deg"]) + 2.0 * math.pi * _s["turns"] * bt \
+            + 0.16 * math.sin(_s["phase"] + bt * 9.0)
         br = field_r(bz, bth) + bark_noise(bz, bth) + 45.0
         place(SPHERE, unreal.Vector(CX + br * math.cos(bth),
                                     CY + br * math.sin(bth), bz),
               f"VR_IvyBloom_{ivy_bloom}", scale=0.55, material=M_BLOSSOM,
               shadow=False)
         ivy_bloom += 1
-print(f"REACH_MARKER: the ivy wraps the Heartwood — 3 spirals, {ivy_bloom} gold blooms")
+print(f"REACH_MARKER: the ivy nets the Heartwood — 16 strands in 3 nets, "
+      f"{ivy_bloom} gold blooms")
 
 # ---------------- save law ----------------
 print(f"REACH_MARKER: {actor_count} actors placed")

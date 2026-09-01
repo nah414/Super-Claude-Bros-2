@@ -114,6 +114,8 @@ TEXTURES = {           # name: srgb (masks stay linear)
     "foam": False, "caustic": False, "fall_rope": False,
     # v5 Round 5 (A4): the ripple distortion field + the aniso river streaks
     "water_ripple": False, "streak_aniso": False,
+    # R7-C2 (B5): the falls' own pre-elongated foam — slits, not doilies
+    "foam_aniso": False,
 }
 for stem, srgb in TEXTURES.items():
     png = os.path.join(TEX_DIR, f"{stem}.png")
@@ -139,7 +141,9 @@ for wav in ("amb_wind_loop", "amb_gust_a", "amb_gust_b", "amb_gust_c"):
 
 # v3: the enclosed tunnel_helix retired — the Sapline Stair replaces it.
 # v4: mouth_bore retired — the REAL mouth cut + verdant_gallery replace it.
-for stale in ("tunnel_helix", "mouth_bore"):
+# R7-D: the three fat ivy ropes retired — the strand nets replace them.
+for stale in ("tunnel_helix", "mouth_bore",
+              "ivy_spiral_a", "ivy_spiral_b", "ivy_spiral_c"):
     path = f"{DEST}/{stale}"
     if stale not in MANIFEST["meshes"] and EAL.does_asset_exist(path):
         EAL.delete_asset(path)

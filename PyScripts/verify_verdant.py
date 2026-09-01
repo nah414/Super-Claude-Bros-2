@@ -48,6 +48,23 @@ for bone in ("StageSpawn", "StageSun", "StageAtmosphere", "StageSkyLight"):
 if not any(l.startswith("VR_Boss_") for l in labels):
     print("REACH_FAIL: the Shellback Alpha is missing from the crown")
     checks_ok = False
+# R7 families (the 2026-08-31 walk answered): underwater volumes (A),
+# streamer ribbons + plunge rocks/mist (C), the stairwell + its lamps (E).
+for fam, want in (("VR_Underwater_", 7), ("VR_Streamer", 8),
+                  ("VR_PlungeRock_", 3), ("VR_PlungeMist_", 1),
+                  ("VR_Stairwell", 1), ("VR_StairwellLamp_", 10)):
+    n = len([l for l in labels if l.startswith(fam)])
+    status = "REACH_MARKER" if n >= want else "REACH_FAIL"
+    print(f"{status}: R7 family {fam}* = {n} (want >= {want})")
+    checks_ok = checks_ok and n >= want
+# the purple sheets stay retired (workstream E)
+n_seep = len([l for l in labels if l.startswith("VR_ChimneySeep")
+              or l.startswith("VR_ChimneySeed")])
+if n_seep:
+    print(f"REACH_FAIL: {n_seep} violet seep/seed actors survive — E says zero")
+    checks_ok = False
+else:
+    print("REACH_MARKER: the purple sheets stay retired (0 seep/seed actors)")
 checks_ok = checks_ok and len(vr) >= 500
 
 assert checks_ok, "VERDANT_VERIFY_FAILED"

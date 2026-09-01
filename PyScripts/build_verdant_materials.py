@@ -373,8 +373,10 @@ finish(m, "M_VR_WaterFlow forged (v5.1: geometric depth, shear, contact — the 
 # --------------------------------------------------------- M_VR_WaterDeep
 # The pool: no directional flow — two slow counter-panners shimmer; the same
 # DepthFade depth cue + foam rim. Retires the round-1 pancake (M_VR_Pool).
+# R7-A: two_sided — a submerged camera must still SEE the surface overhead
+# (EL-008: "underneath a sheet is not inside water"; the sheet half of the fix).
 m = new_mat("M_VR_WaterDeep")
-set_translucent_unlit(m, two_sided=False)
+set_translucent_unlit(m, two_sided=True)
 p1 = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1050, -80)
 p1.set_editor_property("speed_x", 0.05)
 s1 = sample(m, tex("water_streak"), -880, -80, linear=True)
@@ -649,14 +651,38 @@ set_translucent_unlit(m, two_sided=False)
 # (Adam's video: round cells at slow speed read as a static lace curtain).
 tc_f = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1400, -80)
 tc_f.set_editor_property("u_tiling", 3.0)
+# R7-C3 (B2): ACCELERATION — V is power-warped (v^0.7) BEFORE the panner, so
+# the panner's uniform scroll in warped space reads as stretch + speed-up
+# toward the fall's base (apparent speed ~ 1/f'(v)). The crest holds tight
+# texture, the base runs long and fast — falling water's signature.
+mskU_f = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1330, -140)
+mskU_f.set_editor_property("r", True)
+mskU_f.set_editor_property("g", False)
+mskU_f.set_editor_property("b", False)
+mskU_f.set_editor_property("a", False)
+MEL.connect_material_expressions(tc_f, "", mskU_f, "")
+mskV_f = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1330, -40)
+mskV_f.set_editor_property("r", False)
+mskV_f.set_editor_property("g", True)
+mskV_f.set_editor_property("b", False)
+mskV_f.set_editor_property("a", False)
+MEL.connect_material_expressions(tc_f, "", mskV_f, "")
+powV_f = MEL.create_material_expression(m, unreal.MaterialExpressionPower, -1280, -40)
+powV_f.set_editor_property("const_exponent", 0.7)
+MEL.connect_material_expressions(mskV_f, "", powV_f, "Base")
+apUV_f = MEL.create_material_expression(m, unreal.MaterialExpressionAppendVector, -1290, -90)
+MEL.connect_material_expressions(mskU_f, "", apUV_f, "A")
+MEL.connect_material_expressions(powV_f, "", apUV_f, "B")
 pan_f = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, -80)
 pan_f.set_editor_property("speed_y", 1.5)
-MEL.connect_material_expressions(tc_f, "", pan_f, "Coordinate")
+MEL.connect_material_expressions(apUV_f, "", pan_f, "Coordinate")
 streak = sample(m, tex("fall_rope"), -1050, -80, linear=True)
 MEL.connect_material_expressions(pan_f, "", streak, "Coordinates")
 pan_s = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, 140)
 pan_s.set_editor_property("speed_y", 0.9)
-foam = sample(m, tex("foam"), -1050, 140, linear=True)
+# R7-C2 (B5): the falls foam is the pre-elongated slit foam — under the 8:1
+# stretch the round cells survived as doily rings (the jellyfish's lace).
+foam = sample(m, tex("foam_aniso"), -1050, 140, linear=True)
 MEL.connect_material_expressions(pan_s, "", foam, "Coordinates")
 body = add(m, mul(m, streak, const3(m, 0.85, 1.0, 1.15, -880, -140), -760, -100, a_out="R"),
            mul(m, foam, const3(m, 0.5, 0.52, 0.5, -880, 100), -760, 120, a_out="R"),
@@ -685,11 +711,16 @@ phase_t = add(m, mul(m, wpB, const(m, 0.004, -1130, 780), -1010, 740),
               mul(m, t_t, const(m, 3.5, -1130, 900), -1010, 860), -890, 800)
 sin_t = MEL.create_material_expression(m, unreal.MaterialExpressionSine, -780, 800)
 MEL.connect_material_expressions(phase_t, "", sin_t, "")
-vn = MEL.create_material_expression(m, unreal.MaterialExpressionVertexNormalWS, -780, 920)
-MEL.connect_material_property(mul(m, vn, mul(m, sin_t, const(m, 14.0, -660, 860),
+# R7-C1 KILL THE JELLYFISH (2026-08-31 walk: "a jellyfish glob vibrating
+# around"): the VertexNormalWS throb pulsed the crescent radially — a beating
+# membrane, not water. The bulge now rides straight DOWN the fall (Z only,
+# phase already travels downward) at less than half the old amplitude, a
+# traveling surface wave UNDER the dominant rope panner (the Flow Law holds).
+dnz = const3(m, 0.0, 0.0, 1.0, -780, 920)
+MEL.connect_material_property(mul(m, dnz, mul(m, sin_t, const(m, 6.0, -660, 860),
                                   -560, 830), -460, 880), "",
                               unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
-finish(m, "M_VR_Torrent forged (the falls become water)")
+finish(m, "M_VR_Torrent forged (the falls become water; R7 wave, no throb)")
 
 # -------------------------------------------------------------- M_VR_Churn
 m = new_mat("M_VR_Churn")
@@ -752,14 +783,35 @@ m.set_editor_property("two_sided", True)
 # dominant feature now moves at fall speed (20% off the shell for parallax).
 tc_cf = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1400, -80)
 tc_cf.set_editor_property("u_tiling", 3.0)
+# R7-C3 (B2): same V-power acceleration warp as the shell (parallax intact —
+# the core still pans 20% slower than the shell in warped space).
+mskU_c = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1330, -140)
+mskU_c.set_editor_property("r", True)
+mskU_c.set_editor_property("g", False)
+mskU_c.set_editor_property("b", False)
+mskU_c.set_editor_property("a", False)
+MEL.connect_material_expressions(tc_cf, "", mskU_c, "")
+mskV_c = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1330, -40)
+mskV_c.set_editor_property("r", False)
+mskV_c.set_editor_property("g", True)
+mskV_c.set_editor_property("b", False)
+mskV_c.set_editor_property("a", False)
+MEL.connect_material_expressions(tc_cf, "", mskV_c, "")
+powV_c = MEL.create_material_expression(m, unreal.MaterialExpressionPower, -1280, -40)
+powV_c.set_editor_property("const_exponent", 0.7)
+MEL.connect_material_expressions(mskV_c, "", powV_c, "Base")
+apUV_c = MEL.create_material_expression(m, unreal.MaterialExpressionAppendVector, -1290, -90)
+MEL.connect_material_expressions(mskU_c, "", apUV_c, "A")
+MEL.connect_material_expressions(powV_c, "", apUV_c, "B")
 pan_cf = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, -80)
 pan_cf.set_editor_property("speed_y", 1.25)
-MEL.connect_material_expressions(tc_cf, "", pan_cf, "Coordinate")
+MEL.connect_material_expressions(apUV_c, "", pan_cf, "Coordinate")
 streak_c = sample(m, tex("fall_rope"), -1050, -80, linear=True)
 MEL.connect_material_expressions(pan_cf, "", streak_c, "Coordinates")
 pan_cs = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1250, 140)
 pan_cs.set_editor_property("speed_y", 1.0)
-foam_c = sample(m, tex("foam"), -1050, 140, linear=True)
+# R7-C2 (B5): slit foam here too — the core's mask rings were half the doily
+foam_c = sample(m, tex("foam_aniso"), -1050, 140, linear=True)
 MEL.connect_material_expressions(pan_cs, "", foam_c, "Coordinates")
 body_c = add(m, mul(m, streak_c, const3(m, 0.62, 0.74, 0.82, -880, -140), -760, -100, a_out="R"),
              mul(m, foam_c, const3(m, 0.42, 0.44, 0.42, -880, 100), -760, 120, a_out="R"),
@@ -782,11 +834,99 @@ phase_c = add(m, mul(m, wpBc, const(m, 0.0037, -1130, 780), -1010, 740),
               mul(m, t_tc, const(m, 3.1, -1130, 900), -1010, 860), -890, 800)
 sin_c = MEL.create_material_expression(m, unreal.MaterialExpressionSine, -780, 800)
 MEL.connect_material_expressions(phase_c, "", sin_c, "")
-vnc = MEL.create_material_expression(m, unreal.MaterialExpressionVertexNormalWS, -780, 920)
-MEL.connect_material_property(mul(m, vnc, mul(m, sin_c, const(m, 10.0, -660, 860),
+# R7-C1: same jellyfish kill as the shell — Z-only traveling wave, small amp
+# (the masked core stays subtle so the mask never gaps against the shell).
+dnzc = const3(m, 0.0, 0.0, 1.0, -780, 920)
+MEL.connect_material_property(mul(m, dnzc, mul(m, sin_c, const(m, 4.0, -660, 860),
                                   -560, 830), -460, 880), "",
                               unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
-finish(m, "M_VR_TorrentCore forged (the falls grow a body)")
+finish(m, "M_VR_TorrentCore forged (the falls grow a body; R7 wave, no throb)")
+
+# ------------------------------------------------------- M_VR_CrestTongue
+# R7-C4 (B3): the crest — a smooth bright "glass tongue" rolling over the lip
+# before breakup, the single most recognizable waterfall feature. The lip mesh
+# retires its borrowed torrent lace and wears calm accelerating glass.
+m = new_mat("M_VR_CrestTongue")
+set_translucent_unlit(m, two_sided=True)
+tc_g = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1250, -80)
+pan_g = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1100, -80)
+pan_g.set_editor_property("speed_y", 0.55)
+MEL.connect_material_expressions(tc_g, "", pan_g, "Coordinate")
+glass = sample(m, tex("water_streak"), -950, -80, linear=True)
+MEL.connect_material_expressions(pan_g, "", glass, "Coordinates")
+mskV_g = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1100, 120)
+mskV_g.set_editor_property("r", False)
+mskV_g.set_editor_property("g", True)
+mskV_g.set_editor_property("b", False)
+mskV_g.set_editor_property("a", False)
+MEL.connect_material_expressions(tc_g, "", mskV_g, "")
+inv_g = MEL.create_material_expression(m, unreal.MaterialExpressionOneMinus, -980, 120)
+MEL.connect_material_expressions(mskV_g, "", inv_g, "")
+tongue = add(m, const(m, 0.85, -860, 60),
+             mul(m, inv_g, const(m, 0.65, -860, 160), -780, 120), -700, 90)
+fres_g = MEL.create_material_expression(m, unreal.MaterialExpressionFresnel, -860, 280)
+fres_g.set_editor_property("exponent", 2.6)
+fres_g.set_editor_property("base_reflect_fraction", 0.05)
+body_g = mul(m, const3(m, 0.72, 0.92, 1.05, -700, -40),
+             add(m, tongue, mul(m, glass, const(m, 0.35, -700, 200),
+                                -620, 160, a_out="R"), -540, 60), -460, 20)
+MEL.connect_material_property(add(m, body_g, mul(m, fres_g,
+                                  const3(m, 0.35, 0.45, 0.5, -700, 340), -560, 300),
+                                  -380, 100), "",
+                              unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+MEL.connect_material_property(add(m, const(m, 0.58, -540, 420),
+                                  mul(m, glass, const(m, 0.22, -620, 480),
+                                      -540, 470, a_out="R"), -440, 440), "",
+                              unreal.MaterialProperty.MP_OPACITY)
+finish(m, "M_VR_CrestTongue forged (the glass tongue at the lip)")
+
+# --------------------------------------------------------- M_VR_Streamer
+# R7-C5 (B1): the falls' FRONT layer — narrow ribbon cards at ~1.5x the shell
+# speed with eroded soft edges (no cutout border). Three layers at unequal
+# speeds is what makes water read as falling, not sliding.
+m = new_mat("M_VR_Streamer")
+set_translucent_unlit(m, two_sided=True)
+tc_r = MEL.create_material_expression(m, unreal.MaterialExpressionTextureCoordinate, -1250, -80)
+pan_r = MEL.create_material_expression(m, unreal.MaterialExpressionPanner, -1100, -80)
+pan_r.set_editor_property("speed_y", 2.2)
+MEL.connect_material_expressions(tc_r, "", pan_r, "Coordinate")
+rope_r = sample(m, tex("fall_rope"), -950, -80, linear=True)
+MEL.connect_material_expressions(pan_r, "", rope_r, "Coordinates")
+# eroded edges: U-distance from card center -> soft falloff, never a border
+mskU_r = MEL.create_material_expression(m, unreal.MaterialExpressionComponentMask, -1100, 140)
+mskU_r.set_editor_property("r", True)
+mskU_r.set_editor_property("g", False)
+mskU_r.set_editor_property("b", False)
+mskU_r.set_editor_property("a", False)
+MEL.connect_material_expressions(tc_r, "", mskU_r, "")
+cenU = add(m, mskU_r, const(m, -0.5, -1000, 200), -930, 170)
+absU = MEL.create_material_expression(m, unreal.MaterialExpressionAbs, -860, 170)
+MEL.connect_material_expressions(cenU, "", absU, "")
+edge_r = MEL.create_material_expression(m, unreal.MaterialExpressionOneMinus, -740, 170)
+MEL.connect_material_expressions(mul(m, absU, const(m, 2.0, -800, 240), -770, 200),
+                                 "", edge_r, "")
+soft_edge = MEL.create_material_expression(m, unreal.MaterialExpressionPower, -660, 170)
+soft_edge.set_editor_property("const_exponent", 1.6)
+MEL.connect_material_expressions(edge_r, "", soft_edge, "Base")
+MEL.connect_material_property(mul(m, mul(m, rope_r, const3(m, 0.9, 1.05, 1.2, -700, -40),
+                                  -600, -20, a_out="R"), const(m, 1.05, -600, 60),
+                                  -500, 20), "",
+                              unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+MEL.connect_material_property(mul(m, add(m, mul(m, rope_r, const(m, 0.62, -700, 300),
+                                  -620, 280, a_out="R"), const(m, 0.06, -620, 360),
+                                  -540, 320), soft_edge, -420, 300), "",
+                              unreal.MaterialProperty.MP_OPACITY)
+finish(m, "M_VR_Streamer forged (the fast front ribbons)")
+
+# ---------------------------------------------------------- M_VR_WetRock
+# R7-C6 (B4): the base event's boulders — wet-dark, tight roughness, LIT (the
+# water goes lit in R8; the rocks it soaks lead the way).
+m = new_mat("M_VR_WetRock")
+MEL.connect_material_property(const3(m, 0.045, 0.05, 0.055, -500, -120), "",
+                              unreal.MaterialProperty.MP_BASE_COLOR)
+MEL.connect_material_property(const(m, 0.22, -500, 60), "",
+                              unreal.MaterialProperty.MP_ROUGHNESS)
+finish(m, "M_VR_WetRock forged (soaked boulders)")
 
 # ------------------------------------------------ M_VR_GrassBlade family (v4)
 # The full-floor meadow: breath sway ONLY — no parting subgraph, no HeroPos
@@ -891,7 +1031,7 @@ ASSIGN = {
     "vine_curtain": "M_VR_Frond", "flower_stalk": "M_VR_Frond",
     "fungus_shelf": "M_VR_Fungus",
     # v3: the 3D water family
-    "falls_torrent": "M_VR_Torrent", "falls_lip": "M_VR_Torrent",
+    "falls_torrent": "M_VR_Torrent", "falls_lip": "M_VR_CrestTongue",  # R7-C4
     "falls_churn": "M_VR_Churn", "churn_ring": "M_VR_Churn",
     "foam_patch": "M_VR_Churn",
     # v3: the Sapline Stair / v4: the Hybrid Climb
@@ -899,8 +1039,9 @@ ASSIGN = {
     "verdant_gallery": "M_VR_TunnelSap", "trunk_liner": "M_VR_HeartwoodInner",
     # v4: the full-floor meadow + the ivy
     "meadow_grass": "M_VR_GrassBlade", "flower_patch": "M_VR_BloomPatch",
-    "ivy_spiral_a": "M_VR_FrondTeal", "ivy_spiral_b": "M_VR_FrondTeal",
-    "ivy_spiral_c": "M_VR_FrondTeal",
+    "ivy_net_a": "M_VR_FrondTeal", "ivy_net_b": "M_VR_FrondTeal",  # R7-D
+    "ivy_net_c": "M_VR_FrondTeal",
+    "stair_helix": "M_VR_Bark",                                    # R7-E2
     # v3: the understory ladder (knee -> shoulder)
     "puffgrass_tuft": "M_VR_FrondGold", "star_rosette": "M_VR_FrondTeal",
     "paddle_broadleaf": "M_VR_Frond", "reed_cluster": "M_VR_FrondGold",
