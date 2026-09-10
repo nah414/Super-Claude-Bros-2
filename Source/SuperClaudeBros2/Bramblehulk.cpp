@@ -58,6 +58,7 @@ ABramblehulk::ABramblehulk()
 	HulkBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 	HulkBody->bEnableUpdateRateOptimizations = true;   // PERF (distance pose-LOD only throttles him when FAR + dormant)
 	HulkBody->SetBoundsScale(2.0f);   // colossus reach (slam/sweep/quake) — the widest bounds in the game
+	HulkBody->bPerBoneMotionBlur = true;   // MOTION-VECTOR LAW (July 23): skinned velocity for TSR
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
@@ -255,6 +256,14 @@ void ABramblehulk::BecomeSoothed()
 	bSoothePending = false;
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
+
+	// The storm settles — the tier ladder's second rung (Adam, July 23): mercy
+	// completed raises every power tier by one.
+	if (ASparkHeroCharacter* SoothingHero = ResolveHero())
+	{
+		SoothingHero->RaiseAllPowerTiers(1);
+	}
+
 	if (SoothedAnim)
 	{
 		// The settle... and then he BREATHES â€” at a rate that READS (0.45 was

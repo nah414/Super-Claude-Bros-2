@@ -42,11 +42,12 @@ def mat(name):
     return m
 
 M_ASPHALT = mat("M_WetAsphalt")
-M_SIDEWALK = mat("M_Sidewalk")
+M_SIDEWALK = mat("M_Concrete") or mat("M_Sidewalk")   # M1: gritty concrete walkways/fallbacks
 M_HOLO = mat("M_HoloBillboard")
 M_SIGNS = {s: mat(f"M_Sign_{s}") for s in
            ("kraken", "spark", "lumen", "moth", "warden", "glimmer", "district")}
 M_WINDOWS = [mat(f"M_Windows_{v}") for v in ("a", "b", "c")]
+M_COLORED = mat("M_IndustrialWindow") or M_WINDOWS[1]   # colored skin so no building reads grey
 M_EMISSIVE = EAL.load_asset("/Game/Art/M_VertexLitEmissive")
 
 placed = Counter()
@@ -67,13 +68,19 @@ def block(x, y, z, sx, sy, sz, label, material=None, hidden=False, rt=True):
     return a
 
 
-def prop(kit, x, y, z, label, yaw=0.0, scale=1.0):
-    """CityKit piece if imported; None (logged) if not — the level still builds."""
-    sm = EAL.load_asset(f"/Game/Art/CityKit/{kit}/SM_{kit}")
+def prop(kit, x, y, z, label, yaw=0.0, scale=1.0, kit_root="CityKit", ground=False):
+    """Kit piece if imported; None (logged) if not — the level still builds.
+    kit_root selects the asset folder (CityKit | CityTowerKit | ...). ground=True bbox-grounds
+    the mesh (base at z) — needed for the centre-pivot Meshy towers in CityTowerKit."""
+    sm = EAL.load_asset(f"/Game/Art/{kit_root}/{kit}/SM_{kit}")
     if not sm:
-        unreal.log_warning(f"CITYKIT_MISSING: {kit} (skipped {label})")
+        unreal.log_warning(f"KIT_MISSING: {kit_root}/{kit} (skipped {label})")
         return None
-    a = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(x, y, z))
+    zz = z
+    if ground:
+        bb = sm.get_bounding_box()
+        zz = z - bb.min.z * scale
+    a = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(x, y, zz))
     a.static_mesh_component.set_static_mesh(sm)
     a.set_actor_rotation(unreal.Rotator(0.0, 0.0, yaw), False)
     a.set_actor_scale3d(unreal.Vector(scale, scale, scale))
@@ -86,7 +93,7 @@ def glow(x, y, z, color, intensity=2200.0, radius=900.0, label="Neon"):
     li = eas.spawn_actor_from_class(unreal.PointLight, unreal.Vector(x, y, z))
     lc = li.light_component
     lc.set_light_color(color)
-    lc.set_intensity(intensity * 0.45)  # NIGHT: glow wins by contrast, not wattage
+    lc.set_intensity(intensity * 0.22)  # NIGHT: glow wins by contrast, not wattage (toned down ~half)
     lc.set_editor_property("attenuation_radius", radius)
     lc.set_editor_property("cast_shadows", True)  # MegaLights eats this for breakfast
     try:  # keep the fog from drinking every light and glowing white
@@ -147,7 +154,7 @@ while shop_x < X1 - 600:
     used = prop(SHOP_KITS[si % 3], shop_x, y, 0, f"Shop_{si:02d}", yaw=(-90 if side_flip else 90))
     if not used:
         block(shop_x, y, 500, 750, 420, 1000 + (si % 3) * 160,
-              f"ShopBox_{si:02d}", material=M_WINDOWS[si % 3])
+              f"ShopBox_{si:02d}", material=M_COLORED)
     # Every shop wears a sign over the sidewalk.
     sign(brands[si % len(brands)], shop_x, 1180 if side_flip else -1180,
          420 + (si % 3) * 110, facing_south=side_flip,
@@ -156,14 +163,49 @@ while shop_x < X1 - 600:
     side_flip = not side_flip
     si += 1
 
-# Towers rising behind the shops.
+# Towers rising behind the shops. Prefer the NEW colored Meshy towers (CityTowerKit); fall
+# back to the older CityKit towers (recolored so they don't read grey); else a colored cube.
+NEON_TOWERS = ["tower_neon_blue", "tower_neon_amber", "tower_neon_teal", "tower_megablock",
+               "tower_pagoda_neon", "tower_billboard", "tower_spire_glass", "tower_block_lit"]
 for i in range(14):
     tx = X0 + 400 + i * (STREET_LEN / 13.0)
-    ty = 2500 if i % 2 == 0 else -2500
-    if not prop(["tower_a", "tower_b", "tower_c", "tower_d"][i % 4], tx, ty, 0,
-                f"Tower_{i:02d}", yaw=(-90 if ty > 0 else 90)):
+    ty = 2700 if i % 2 == 0 else -2700                          # behind the shops, clear of signs
+    yw = (-90 if ty > 0 else 90)
+    tscale = 12.0 + (i % 4) * 2.5                               # ~2300..3700uu tall, height variety
+    t = prop(NEON_TOWERS[i % len(NEON_TOWERS)], tx, ty, 0, f"Tower_{i:02d}", yaw=yw,
+             kit_root="CityTowerKit", scale=tscale, ground=True)
+    if t:
+        t.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)  # backdrop
+    else:
+        t = prop(["tower_a", "tower_b", "tower_c", "tower_d"][i % 4], tx, ty, 0,
+                 f"Tower_{i:02d}", yaw=yw)
+        if t:
+            t.static_mesh_component.set_material(0, M_COLORED)   # recolor a grey CityKit tower
+    if not t:
         block(tx, ty, 1500, 900, 800, 3000 + (i % 4) * 500,
-              f"TowerBox_{i:02d}", material=M_WINDOWS[i % 3])
+              f"TowerBox_{i:02d}", material=M_COLORED)
+
+# CLOSE the drop-off void — BACKDROP enclosure (Adam, June 18 fix). The previous wall sat at y1350
+# IN FRONT of the festival side-room doorways (y1150) and BURIED the 6 side rooms. Now the enclosure
+# wall sits BEHIND the building line (front y2150, behind the building backs at y2050): it still
+# blocks the sky/void from behind + above the (shorter ~1800uu) street buildings and through their
+# gaps, but no longer covers any doorway. The street side rooms (dress_festival_streets) stay visible
+# + enterable, and end-of-street side rooms are added there. No street-facing facades (they blocked doors).
+WALL_FRONT_Y = 2150.0                       # BEHIND the building backs (y2050) — never buries a doorway
+WALL_DEPTH = 700.0
+WALL_X0, WALL_X1, WALL_CELL = -7000.0, 9000.0, 1300.0
+_wall_n = int((WALL_X1 - WALL_X0) // WALL_CELL)
+for i in range(_wall_n):
+    bx = WALL_X0 + WALL_CELL * (i + 0.5)
+    h = 3500 + (i % 4) * 360 + (i % 3) * 220                 # height variety ~3500-4900
+    for sgn in (1.0, -1.0):
+        cy = sgn * (WALL_FRONT_Y + WALL_DEPTH / 2.0)
+        block(bx, cy, h / 2.0 - 50, WALL_CELL - 60, WALL_DEPTH, h,
+              f"CityWall_{'N' if sgn > 0 else 'S'}_{i:02d}", material=M_COLORED, rt=False)
+# West end-cap behind the spawn (x >= -6900 keeps it on the Ground plane = no floor gap).
+for j in range(5):
+    block(-6900, -1600 + j * 800, 1950, 760, 760, 3900,
+          f"CityWall_WCap_{j}", material=M_COLORED, rt=False)
 
 # Street props + platforming chain down the boulevard.
 chain = [
@@ -216,7 +258,7 @@ for i in range(44):
     by = _m.sin(_m.radians(ang)) * random.uniform(5200, 9000)
     h = random.uniform(2400, 7200)
     block(bx, by, h / 2.0, random.uniform(700, 1500), random.uniform(700, 1500), h,
-          f"Skyline_{i:02d}", material=M_WINDOWS[i % 3], rt=False)
+          f"Skyline_{i:02d}", material=M_COLORED, rt=False)
 
 # Boundary walls (invisible) around the playable street.
 for x, y, sx, sy in ((CX, -3200, STREET_LEN + 4000, 150), (CX, 3200, STREET_LEN + 4000, 150),
@@ -224,19 +266,48 @@ for x, y, sx, sy in ((CX, -3200, STREET_LEN + 4000, 150), (CX, 3200, STREET_LEN 
     block(x, y, 1800, sx, sy, 3600, "Boundary", material=None, hidden=True, rt=False)
 
 # ================================================================ atmosphere
+# F4 (Adam): kill the blue. The drop-offs used to show UE's default blue SkyAtmosphere + a
+# blue-tinted fog. We remove the SkyAtmosphere entirely, drop the fog to near-nothing and make
+# it near-black, and wrap the whole world in a huge inverted STAR-DOME sphere (M_StarNebula) so
+# looking out — or DOWN into a drop-off — reads as deep starry space: "the city floating in space."
 fog = eas.spawn_actor_from_class(unreal.ExponentialHeightFog, unreal.Vector(0, 0, 0))
 fc = fog.component
 fc.set_editor_property("enable_volumetric_fog", True)
-fc.set_editor_property("fog_density", 0.022)
-fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.005, 0.004, 0.014, 1.0))
-fog.set_actor_label("RainFog")
+fc.set_editor_property("fog_density", 0.004)                 # was 0.022 — let the stars read
+# Warm-neutral inscatter (was (.004,.004,.010) — the blue channel tinted the distance/ground blue).
+fc.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.005, 0.0045, 0.004, 1.0))
+fog.set_actor_label("SpaceFog")
 
-sky_atm = eas.spawn_actor_from_class(unreal.SkyAtmosphere, unreal.Vector(0, 0, 0))
-sky_atm.set_actor_label("SkyAtmosphere")
-skylight = eas.spawn_actor_from_class(unreal.SkyLight, unreal.Vector(0, 0, 800))
-skylight.light_component.set_editor_property("real_time_capture", True)
-skylight.light_component.set_intensity(0.05)  # true night — neon carries the scene
-skylight.set_actor_label("SkyLight")
+# NO SkyAtmosphere (the blue) and NO SkyLight. A captured-scene SkyLight without a SkyAtmosphere
+# shows the on-screen "needs a SkyAtmosphere / VolumetricCloud / IsSky mesh ... or the problem will
+# return" warning and keeps re-validating (the first-seconds 'loop'); the IsSky-mesh path only
+# satisfies REAL-TIME capture, not the static path. It was intensity 0.015 (negligible): the moon
+# directional + ~55 lights + neon + software-Lumen GI carry the scene; the IsSky StarDome is the sky.
+
+# The star-dome: a COLLISION-FREE project copy of the engine Sphere (fix_skydome_asset.py strips its
+# collision). The raw /Engine/BasicShapes/Sphere ships a SOLID collision sphere that at this scale
+# enclosed the spawn and trapped the hero in a respawn loop (and component NoCollision did NOT persist
+# through the save — only the asset-level strip does). Huge + two-sided M_StarNebula = sky from inside.
+star_sphere = EAL.load_asset("/Game/Art/SM_SkyDome") or EAL.load_asset("/Engine/BasicShapes/Sphere")
+M_STARS = mat("M_StarNebula")
+if star_sphere and M_STARS:
+    dome = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(6000, 0, 2000))
+    dome.static_mesh_component.set_static_mesh(star_sphere)
+    dome.set_actor_scale3d(unreal.Vector(520.0, 520.0, 520.0))  # ~26000uu radius — pulled CLOSER (Adam); still clears the ~16000uu skyline ring; real stars sit at r22000 just inside
+    dome.static_mesh_component.set_material(0, M_STARS)
+    dome.static_mesh_component.set_editor_property("cast_shadow", False)
+    # NoCollision via the PROFILE (set_collision_enabled alone gets re-applied from the mesh's
+    # collision profile on load -> the dome kept a SOLID ~60000uu collision sphere enclosing the
+    # spawn -> the hero penetrated it and got shoved below RespawnBelowZ = respawn loop).
+    dome.static_mesh_component.set_collision_profile_name("NoCollision")
+    dome.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    try:
+        dome.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
+    except Exception:
+        pass
+    dome.set_actor_label("StarDome")
+else:
+    unreal.log_warning("STARDOME_SKIP: missing /Engine/BasicShapes/Sphere or M_StarNebula")
 
 ppv = eas.spawn_actor_from_class(unreal.PostProcessVolume, unreal.Vector(0, 0, 0))
 ppv.set_editor_property("unbound", True)
@@ -248,8 +319,8 @@ def pp(prop_name, value):
     except Exception as e:
         unreal.log_warning(f"pp skip {prop_name}: {e}")
 pp("bloom_method", unreal.BloomMethod.BM_FFT)
-pp("bloom_intensity", 1.15)
-pp("bloom_threshold", 1.35)
+pp("bloom_intensity", 0.5)      # was 1.15 — the over-bright lights were blooming into glare
+pp("bloom_threshold", 1.6)
 pp("auto_exposure_min_brightness", -1.6)
 pp("auto_exposure_max_brightness", -1.6)
 pp("film_grain_intensity", 0.12)
@@ -262,17 +333,13 @@ pp("color_gain_highlights", unreal.Vector4(0.94, 1.04, 1.16, 1.0)) # cyan highli
 ppv.set_editor_property("settings", pps)
 ppv.set_actor_label("CityPost")
 
-# Rain.
-rain_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.RainCurtain")
-rain = eas.spawn_actor_from_class(rain_cls, unreal.Vector(-6600, -1700, 400))
-rain.set_actor_label("Rain")
+# Rain: REMOVED (Adam, June 19 — "eliminate the rain all together"). The ARainCurtain class +
+# M_RainStreak material stay in the project (dormant) so rain can return later; we just don't
+# spawn it. The rain AMBIENCE is likewise swapped off in SparkHeroGameMode (amb_night_loop).
 
-# Glimmers on the sidewalks.
-glimmer_cls = unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy")
-for i, (gx, gy) in enumerate(((-3600, -820), (-1200, 830), (1700, -830), (3900, 820), (6100, -820))):
-    g = eas.spawn_actor_from_class(glimmer_cls, unreal.Vector(gx, gy, 60))
-    g.set_actor_label(f"Glimmer_{i+1}")
-    placed["Glimmer"] += 1
+# Enemies (incl. the old 5 sidewalk Glimmers) are now placed by the WORLD-1 ENEMY POPULATION block
+# in dress_festival_streets.py (street + side rooms) + merge_world1.py (canyon) — 25 total, with the
+# anti-lag config baked in. Removed from here to avoid duplication.
 
 # The visitor.
 if SPAWN_MODE == "boulevard":

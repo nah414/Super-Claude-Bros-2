@@ -14,6 +14,7 @@ AShellbackAlpha::AShellbackAlpha()
 
 	HitsToDefeat = 3;       // flip it, stomp it, flip it, stomp it... then it's done
 	FlipRecoverSeconds = 2.6f;
+	bWallCrashFlips = true; // W3 canon: bait the charge into the hard knots -> crash-flip
 
 	AggroRadius = 1100.f;
 	WindSeconds = 0.7f;

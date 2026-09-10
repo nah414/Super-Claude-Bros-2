@@ -55,6 +55,7 @@ void ARolyShellback::BeginPlay()
 	ShellMesh->SetRelativeLocation(FVector(0.f, 0.f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
 	ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
 	ShellMesh->SetRelativeScale3D(FVector(BodyScale));
+	bBossShell = HitsToDefeat > 1;   // the Alpha fights by the boss rules below
 }
 
 ASparkHeroCharacter* ARolyShellback::ResolveHero() const
@@ -106,6 +107,7 @@ void ARolyShellback::Tick(float DeltaSeconds)
 			// COMMIT: the direction LOCKS here and never changes (the cannonball law).
 			RollDir = Hero ? (Hero->GetActorLocation() - GetActorLocation()).GetSafeNormal2D()
 			               : GetActorForwardVector();
+			RollStartTime = Now();
 			ShellMesh->SetRelativeScale3D(FVector(BodyScale));
 			ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 20.f),
 			                         FLinearColor(2.f, 1.4f, 0.7f), 0.7f, 1600.f, 0.2f);
@@ -149,9 +151,28 @@ void ARolyShellback::Tick(float DeltaSeconds)
 }
 
 void ARolyShellback::OnCapsuleHit(UPrimitiveComponent*, AActor* OtherActor,
-                                  UPrimitiveComponent*, FVector, const FHitResult&)
+                                  UPrimitiveComponent*, FVector, const FHitResult& Hit)
 {
 	if (State == EShellState::Dead) { return; }
+
+	// THE CRASH-FLIP (W3 Alpha, locked canon): a committed charge that slams
+	// head-on into static architecture (the bowl's hard knots) flips the shell
+	// belly-up — the bait IS the opening. Grace window keeps launch-adjacent
+	// scrapes from self-flipping; glancing hits (shallow normal) roll on.
+	if (bWallCrashFlips && State == EShellState::Roll && OtherActor
+		&& !Cast<ASparkHeroCharacter>(OtherActor)
+		&& OtherActor->IsRootComponentStatic()
+		&& (Now() - RollStartTime) > 0.25f
+		&& FVector::DotProduct(Hit.ImpactNormal, RollDir) < -0.6f)
+	{
+		GetCharacterMovement()->StopMovementImmediately();
+		bFlipped = true;
+		ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 40.f),
+		                         FLinearColor(2.2f, 1.5f, 0.6f), 1.1f, 2200.f, 0.3f);
+		EnterState(EShellState::Recover, FlipRecoverSeconds);
+		return;
+	}
+
 	ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(OtherActor);
 	if (!Hero) { return; }
 
@@ -190,17 +211,52 @@ void ARolyShellback::TakeStrike()
 void ARolyShellback::ReceiveDefeatHit(bool bByStomp)
 {
 	if (State == EShellState::Dead) { return; }
+
+	// BOSS ARMOR (Adam 2026-07-21: "the Boss should always be more difficult"). An
+	// UPRIGHT boss-shell takes NO damage at all: punches CLANG off the armor, and only
+	// a STOMP flips it belly-up. The soft belly is the only thing that can be hurt —
+	// flip it, punish it, survive the next charge, repeat. (The old code let one
+	// punch-combo string land all 3 defeat-hits in a second: the "one blow" kill.)
+	if (bBossShell && !bFlipped)
+	{
+		if (bByStomp)
+		{
+			GetCharacterMovement()->StopMovementImmediately();
+			bFlipped = true;
+			ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
+			                         FLinearColor(2.4f, 1.6f, 0.6f), 1.2f, 3200.f, 0.22f);
+			EnterState(EShellState::Recover, FlipRecoverSeconds);
+		}
+		else
+		{
+			// armor clang — loud, visible, harmless: teaches "stomp it first"
+			ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 45.f),
+			                         FLinearColor(1.1f, 1.15f, 1.4f), 0.5f, 1500.f);
+		}
+		return;
+	}
+
+	// Paced damage: one combo string can no longer shred the whole health bar.
+	if ((Now() - LastDefeatHitTime) < DamageCooldown) { return; }
+	LastDefeatHitTime = Now();
+
 	if (--HitsToDefeat <= 0)
 	{
 		Die(bByStomp);
 		return;
 	}
-	// A boss-shell SURVIVES — it flips belly-up, soft and open: stomp it again.
-	GetCharacterMovement()->StopMovementImmediately();
-	bFlipped = true;
+
+	// Damaged but alive: a cracked-shell flash — and the boss ANGRILY rights itself
+	// on the spot, winding up a revenge charge. One wound per flip: the full fight is
+	// three complete stomp->flip->punish cycles with live cannonballs between them.
 	ASparkImpactBurst::Burst(this, GetActorLocation() + FVector(0.f, 0.f, 30.f),
 	                         FLinearColor(2.4f, 1.6f, 0.6f), 1.2f, 3200.f, 0.22f);
-	EnterState(EShellState::Recover, FlipRecoverSeconds);
+	if (bBossShell)
+	{
+		bFlipped = false;
+		ShellMesh->SetRelativeRotation(FRotator(0.f, MeshYaw, 0.f));
+		EnterState(EShellState::Wind, WindSeconds + 0.2f);   // readable revenge tell
+	}
 }
 
 void ARolyShellback::TakeStagger(float Seconds)

@@ -56,7 +56,179 @@ lc.OX = lc.OY = lc.OZ = 0.0
 gx = OX - 2300                                            # world X of the west cliff / doorway ~9800
 lc.lantern(gx - 120, -380, "seam_L", z=40, intensity=1500.0, radius=720.0)
 lc.lantern(gx - 120, 380, "seam_R", z=40, intensity=1500.0, radius=720.0)
-lc.fprop("festival_arch", gx - 60, 0, 4.0, yaw=90.0, z=0, kit="/Game/Art/FestivalKit")
+
+# F3 (Adam, updated): the street->canyon seam pile is now SOLID and CLIMBABLE — the hero climbs
+# OVER it into the staircase. Mesh collision is restored asset-level by restore_rubble_collision.py
+# (a BOX, so it has clean vertical faces the climb trace grabs + a flat top the hero walks across to
+# drop down the canyon side). Here we place it SOLID + tag it "Climbable". Both piles are taller than
+# the ~242uu max jump, so the hero MUST climb. (Component flags don't persist; the asset box is the
+# real collision — the tag + profile here are belt-and-suspenders.)
+RUBBLE_ROOT = "/Game/Art/CityTowerKit"
+def seam_rubble(kit, x, y, scale, yaw, label):
+    sm = EAL.load_asset(f"{RUBBLE_ROOT}/{kit}/SM_{kit}")
+    if not sm:
+        unreal.log_warning(f"RUBBLE_MISSING: {kit} (seam stays open)")
+        return
+    bb = sm.get_bounding_box()
+    rb = eas.spawn_actor_from_class(unreal.StaticMeshActor,
+                                    unreal.Vector(x, y, -bb.min.z * scale))
+    rb.static_mesh_component.set_static_mesh(sm)
+    rb.set_actor_scale3d(unreal.Vector(scale, scale, scale))
+    rb.set_actor_rotation(unreal.Rotator(0.0, 0.0, yaw), False)
+    rb.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.QUERY_AND_PHYSICS)
+    rb.static_mesh_component.set_collision_profile_name("BlockAll")
+    rb.static_mesh_component.set_editor_property("visible_in_ray_tracing", False)
+    rb.set_editor_property("tags", [unreal.Name("Climbable")])
+    rb.set_actor_label(label)
+
+seam_rubble("rubble_pile", gx - 60, -240, 3.2, 15.0, "Seam_Rubble_A")    # ~272uu: must-climb, walk-over top
+seam_rubble("debris_chunks", gx - 30, 300, 3.0, -40.0, "Seam_Rubble_B")  # ~255uu
+
+# ===================== CANYON (4) + SPIRAL-STAIRCASE (15) ENEMIES = 19 (anti-lag + colored) =====
+# The 21 street/room enemies (idx 1-21) are placed by dress_festival_streets.py; here we add the 4
+# canyon switchback + 15 spiral-staircase ones (idx 22-40), now that the canyon exists -> 40 total.
+# "Enemy_" is intentionally NOT in this script's CLEAR list (so we don't wipe dress's 21); instead we
+# pre-clear only idx >= 22 below so a standalone merge re-run can't duplicate the canyon/spiral set.
+import re as _re
+ENEMY_CLASSES = {
+    "Glimmer":  unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy"),
+    "Roly":     unreal.load_class(None, "/Script/SuperClaudeBros2.RolyShellback"),
+    "FlitMoth": unreal.load_class(None, "/Script/SuperClaudeBros2.FlitMoth"),   # spiral lights
+}
+_SKIN_MATS = {}
+_SKIN_BY_KIND = {"Glimmer": "M_EnemyGlimmer", "Roly": "M_EnemyRoly", "FlitMoth": "M_EnemyMoth"}
+
+
+def _enemy_antilag(actor, kind):
+    for comp in actor.get_components_by_class(unreal.PrimitiveComponent):
+        try:
+            comp.set_editor_property("ld_max_draw_distance", 9000.0)
+        except Exception:
+            pass
+        try:
+            comp.set_editor_property("visible_in_ray_tracing", False)
+        except Exception:
+            pass
+    for sk in actor.get_components_by_class(unreal.SkeletalMeshComponent):
+        try:
+            sk.set_editor_property("visibility_based_anim_tick_option",
+                                   unreal.VisibilityBasedAnimTickOption.ONLY_TICK_POSE_WHEN_RENDERED)
+        except Exception:
+            pass
+    if kind == "FlitMoth":
+        for lt in actor.get_components_by_class(unreal.PointLightComponent):
+            for _p, _v in (("cast_shadows", False), ("cast_dynamic_shadows", False),
+                           ("max_draw_distance", 4000.0), ("max_distance_fade_range", 800.0)):
+                try:
+                    lt.set_editor_property(_p, _v)
+                except Exception:
+                    pass
+
+
+def _tint_enemy(actor, kind):
+    name = _SKIN_BY_KIND.get(kind)
+    if not name:
+        return
+    if name not in _SKIN_MATS:
+        _SKIN_MATS[name] = EAL.load_asset(f"/Game/Art/CityMat/{name}")
+    mat = _SKIN_MATS[name]
+    if not mat:
+        return
+    for sm in actor.get_components_by_class(unreal.StaticMeshComponent):
+        if "Eye" in sm.get_name():
+            continue
+        try:
+            sm.set_material(0, mat)
+        except Exception:
+            pass
+
+
+def _spawn_enemy(kind, x, y, z, idx):
+    cls = ENEMY_CLASSES.get(kind)
+    if not cls:
+        return False
+    a = eas.spawn_actor_from_class(cls, unreal.Vector(x, y, z))
+    a.set_actor_label(f"Enemy_{kind}_{idx:02d}")
+    _enemy_antilag(a, kind)
+    _tint_enemy(a, kind)
+    return True
+
+
+# Re-run safe: drop only idx >= 22 (canyon + spiral) + any prior W1 boss; dress's idx 1-21 stay.
+for _ex in list(eas.get_all_level_actors()):
+    _lbl = _ex.get_actor_label()
+    if _lbl.startswith("Boss_ShellbackAlpha_W1"):
+        eas.destroy_actor(_ex)
+        continue
+    _mm = _re.match(r"Enemy_\w+_(\d+)$", _lbl)
+    if _mm and int(_mm.group(1)) >= 22:
+        eas.destroy_actor(_ex)
+
+CANYON_ENEMIES = [
+    ("Glimmer", 10735, 2200, 1970), ("Roly", 11485, -2200, 3840),
+    ("Glimmer", 11360, 2200, 5195),
+    # 4th was ("Roly", 12860, 0, 6260) — but x12860 has NO floor at z6260 (it sat 230uu below the
+    # loop-2 spiral landing, world z6490, and would fall into the canyon). Re-grounded onto that
+    # landing (z6530, +40 like its neighbours at x12700/12820) and nudged to y-180 to avoid them.
+    ("Roly", 12860, -180, 6530),
+]
+# 15 up the spire spiral staircase (landings 1-7). World Z = canyon Z - 350 (merge OZ). Inward of
+# each 500x500 landing centre so patrol/roll AI never walks off the edge. 8 Glimmer + 5 Roly + 2 Moth.
+SPIRAL_ENEMIES = [
+    ("Glimmer", 11380, 170, 5690), ("Roly", 11420, -190, 5690),
+    ("Glimmer", 12230, -600, 6110), ("Glimmer", 11970, -600, 6110), ("FlitMoth", 12100, -560, 6220),
+    ("Roly", 12700, 0, 6530), ("Glimmer", 12820, 180, 6530),
+    ("Glimmer", 12230, 600, 6950), ("Roly", 11970, 600, 6950),
+    ("Glimmer", 11440, -160, 7370), ("FlitMoth", 11500, 140, 7480),
+    ("Roly", 12180, -620, 7790), ("Glimmer", 12020, -620, 7790),
+    ("Roly", 12620, 150, 8210), ("Glimmer", 12640, -170, 8210),
+]
+_cn = 0
+for _j, (_k, _x, _y, _z) in enumerate(CANYON_ENEMIES + SPIRAL_ENEMIES, start=22):
+    if _spawn_enemy(_k, _x, _y, _z, _j):
+        _cn += 1
+print(f"W1_ENEMIES_CANYON_SPIRAL: {_cn}/19")
+print(f"W1_ENEMIES_CANYON: {_cn}/4")
+
+# ===================== WORLD-1 FIRST BOSS: Shellback Alpha, at the FOOT of the zig-zag climb =====
+# The lowest-level boss (Story Bible §11 cheap-boss): the Roly grown ~2.7x — Cannonball roll, three
+# flip-stomps to drive it off, no HP bar. Staged at the BOTTOM of the switchback ("zig-zag") staircase,
+# on the canyon floor, BEFORE the spiral begins (Adam: "fight the boss as they're chased up to the
+# top"). It Idles (dormant) until the hero crosses into AggroRadius, then winds up + charges across
+# the floor.
+# PLACEMENT (build_world1_lantern_climb): the canyon floor TOP is world z0 (FLOOR_TOP 350 canyon-local
+# + OZ -350). The hero enters the canyon via the west doorway (~world 9800,0,0) and heads to the
+# flight-0 base (~world 10150,-2200,0) to start climbing; the boss sits squarely in that path on the
+# floor at world (10300,-1600). Alpha capsule half-height is 90 -> actor z 95 = feet flush on the
+# floor. A WIDE AggroRadius engages the whole canyon-bottom so it charges the moment the hero arrives.
+BOSS_CLS = unreal.load_class(None, "/Script/SuperClaudeBros2.ShellbackAlpha")
+if BOSS_CLS:
+    boss = eas.spawn_actor_from_class(BOSS_CLS, unreal.Vector(10300.0, -1600.0, 95.0))
+    boss.set_actor_label("Boss_ShellbackAlpha_W1")
+    # Wide wake radius: engages as the hero reaches the foot of the zig-zag, then charges them across
+    # the canyon floor (the boss rolls on flat ground; it fights at the bottom). Class default 1100 -> 1400.
+    try:
+        boss.set_editor_property("AggroRadius", 1400.0)
+    except Exception:
+        pass
+    # --- anti-lag for one big boss body (large-character law): cull from far, no RT, don't self-cull
+    # the wide roll reach, and only tick the (unused inherited) skeletal pose when on-screen.
+    for _comp in boss.get_components_by_class(unreal.PrimitiveComponent):
+        for _p, _v in (("ld_max_draw_distance", 14000.0), ("visible_in_ray_tracing", False),
+                       ("bounds_scale", 2.0)):
+            try:
+                _comp.set_editor_property(_p, _v)
+            except Exception:
+                pass
+    for _sk in boss.get_components_by_class(unreal.SkeletalMeshComponent):
+        try:
+            _sk.set_editor_property("visibility_based_anim_tick_option",
+                                    unreal.VisibilityBasedAnimTickOption.ONLY_TICK_POSE_WHEN_RENDERED)
+        except Exception:
+            pass
+    print("W1_BOSS: Boss_ShellbackAlpha_W1 placed dormant at spiral base (AggroRadius=850)")
+else:
+    print("W1_BOSS_FAIL: ShellbackAlpha class not loaded")
 
 saved = les.save_current_level()
 print(f"WORLD1_MERGED: cleared={removed} canyon_origin={(OX, OY, OZ)} saved={saved}")

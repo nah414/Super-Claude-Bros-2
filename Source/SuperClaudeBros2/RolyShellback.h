@@ -77,6 +77,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shellback")
 	float FlipRecoverSeconds = 2.4f;
 
+	/** W3 Alpha law (locked canon): "bait the charge into the bowl's hard knots ->
+	    the crash flips him." A committed roll slamming head-on into STATIC
+	    architecture flips the shell belly-up (the punish window) — no defeat-hit,
+	    just the opening. The Alpha ships with this true; base Rolys keep false. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shellback")
+	bool bWallCrashFlips = false;
+
+	/** Seconds between defeat-hits — one punch-combo string can no longer shred the whole
+	    health bar in a second (the "boss died in one blow" bug, Adam 2026-07-21). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shellback")
+	float DamageCooldown = 0.8f;
+
 	/** Motes die to any beat (mass-class ladder), applied by fist. */
 	UFUNCTION(BlueprintCallable, Category = "Shellback")
 	void TakeStrike();
@@ -104,10 +116,13 @@ protected:
 private:
 	ASparkHeroCharacter* ResolveHero() const;
 	void EnterState(EShellState NewState, float Duration);
-	void ReceiveDefeatHit(bool bByStomp);   // flip if a boss-shell survives, else Die
+	void ReceiveDefeatHit(bool bByStomp);   // boss armor + flip cycle, else Die
 	void Die(bool bByStomp);
 	float Now() const;
 	bool bFlipped = false;
+	bool bBossShell = false;        // true when HitsToDefeat > 1 at BeginPlay (the Alpha)
+	float LastDefeatHitTime = -1000.f;
+	float RollStartTime = -1000.f;  // crash-flip grace: no self-flip in the first instants
 
 	EShellState State = EShellState::Idle;
 	float StateUntil = 0.f;

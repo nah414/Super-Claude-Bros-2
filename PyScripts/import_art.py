@@ -210,8 +210,10 @@ def import_wav(src_file, dest_path):
             fail(stem, "imported asset is not a SoundWave ({})".format(type(sound).__name__))
             return
         # Music/ambience loops must actually loop. The C++ property is
-        # bLooping; the Python editor-property name is 'looping'.
-        if stem.lower().endswith("_loop"):
+        # bLooping; the Python editor-property name is 'looping'. Match "loop"
+        # ANYWHERE in the stem (not just a trailing _loop) so versioned tracks
+        # like music_city_loop_v2 also loop on a full-pipeline re-import.
+        if "loop" in stem.lower():
             sound.set_editor_property("looping", True)
             eal.save_loaded_asset(sound)
             log("imported sound (LOOPING): {}".format(result))

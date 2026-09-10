@@ -62,16 +62,16 @@ ARustWarlord::ARustWarlord()
 	if (TelegraphLight) { TelegraphLight->SetLightColor(WarlordRust); }
 
 	// --- assets (resolve once the stage-29 clips import; clipless until then) ---
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Model(TEXT("/Game/Art/WarlordSkelV1/SCB2Warlord.SCB2Warlord"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FIdle(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Idle_Anim.A_Warlord_Idle_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FWalk(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Walk_Anim.A_Warlord_Walk_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSwing(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Swing_Anim.A_Warlord_Swing_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FChop(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Chop_Anim.A_Warlord_Chop_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSweep(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Sweep_Anim.A_Warlord_Sweep_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FVent(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Vent_Anim.A_Warlord_Vent_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_HitReact_Anim.A_Warlord_HitReact_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FStagger(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Stagger_Anim.A_Warlord_Stagger_Anim"));
-	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDefeat(TEXT("/Game/Art/WarlordSkelV1/A_Warlord_Defeat_Anim.A_Warlord_Defeat_Anim"));
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> Model(TEXT("/Game/Art/WarlordSkelV2/SCB2Warlord.SCB2Warlord"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FIdle(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Idle_Anim.A_Warlord_Idle_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FWalk(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Walk_Anim.A_Warlord_Walk_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSwing(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Swing_Anim.A_Warlord_Swing_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FChop(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Chop_Anim.A_Warlord_Chop_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FSweep(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Sweep_Anim.A_Warlord_Sweep_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FVent(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Vent_Anim.A_Warlord_Vent_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FHit(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_HitReact_Anim.A_Warlord_HitReact_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FStagger(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Stagger_Anim.A_Warlord_Stagger_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FDefeat(TEXT("/Game/Art/WarlordSkelV2/A_Warlord_Defeat_Anim.A_Warlord_Defeat_Anim"));
 
 	if (Model.Succeeded())
 	{

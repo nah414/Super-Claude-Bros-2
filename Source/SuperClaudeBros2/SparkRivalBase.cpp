@@ -45,7 +45,10 @@ ASparkRivalBase::ASparkRivalBase()
 	RivalBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	RivalBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW (distance pose-LOD throttles this for FAR rivals at runtime)
 	RivalBody->bEnableUpdateRateOptimizations = true;   // PERF: distant/off-centre rivals evaluate their pose less often (interpolated — never freezes)
-	RivalBody->SetBoundsScale(1.8f);   // the cull-freeze insurance: the widest animated pose can never leave its bounds (1.8 covers the big-capsule + 1.4x-scaled giants: Dragonlord/Unlight/FoundryKing)
+	RivalBody->SetBoundsScale(1.8f);
+	// MOTION-VECTOR LAW (July 23): TSR needs per-bone skinned velocity or limbs
+	// ghost while the body glides. Explicit, so no config drift can unset it.
+	RivalBody->bPerBoneMotionBlur = true;   // the cull-freeze insurance: the widest animated pose can never leave its bounds (1.8 covers the big-capsule + 1.4x-scaled giants: Dragonlord/Unlight/FoundryKing)
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
@@ -72,6 +75,13 @@ ASparkRivalBase::ASparkRivalBase()
 void ASparkRivalBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// URO VERDICT (July 23 audit, verified against the 5.7 engine source): writing
+	// AnimUpdateRateParams->bInterpolateSkippedFrames here is a NO-OP — the engine
+	// recomputes it every frame. The only honest lever is
+	// bEnableUpdateRateOptimizations=false on bodies meant to be watched from afar
+	// (the Glade Prowler carries it); close-range duelists keep the throttle.
+
 	if (bHasSkeletalModel)
 	{
 		RivalBody->SetRelativeLocation(FVector(0.f, 0.f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()));
@@ -100,6 +110,18 @@ ASparkHeroCharacter* ASparkRivalBase::ResolveHero() const
 float ASparkRivalBase::Now() const
 {
 	return GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
+}
+
+void ASparkRivalBase::TickWaiting(float DeltaTime, ASparkHeroCharacter* Hero, float Dist)
+{
+	// The default duelist's wait: idle, drift toward the hero, engage in range.
+	PlayLoop(IdleAnim);
+	if (Hero) { FaceHero(Hero, DeltaTime * 0.5f); }
+	if (Dist <= DuelStartRadius)
+	{
+		PlayOneShot(TauntAnim ? TauntAnim : IdleAnim, IntroSeconds);
+		EnterState(ERivalState::Intro, IntroSeconds);
+	}
 }
 
 void ASparkRivalBase::PlayLoop(UAnimSequence* Clip, float Rate)
@@ -242,6 +264,9 @@ void ASparkRivalBase::TakeStrike(int32 InComboBeat, bool bCharged)
 	{
 		PlayOneShot(HitReactAnim, FlinchSeconds);   // light hits flinch only off-attack
 		if (State != ERivalState::Recover) { EnterState(ERivalState::Recover, FlinchSeconds); }
+		// Mid-Recover flinches must play out: refresh the settle hold so the very
+		// next tick's breathe-to-idle doesn't erase the reaction (July 23 audit).
+		else { SettleAt = Now() + FlinchSeconds; }
 	}
 }
 
@@ -288,7 +313,9 @@ void ASparkRivalBase::Tick(float DeltaTime)
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
 
 	// PERF: full always-tick pose only when the hero is near; far rivals cull off-screen.
-	SCB2_TickPoseLOD(RivalBody, Dist, PoseLODRadius);
+	// No-hero frames keep the last hero-informed state (the 1e9 sentinel must
+	// never flip a rival to render-culled ticking — July 23 audit).
+	if (Hero) { SCB2_TickPoseLOD(RivalBody, Dist, PoseLODRadius); }
 
 	// SOLID-BODY LAW: bodies never share the same ground tile — a hero inside the
 	// rival's personal space is shouldered out, except where a power legally owns
@@ -316,6 +343,8 @@ void ASparkRivalBase::Tick(float DeltaTime)
 		Phase = 1;
 		SetActorHiddenInGame(false);
 		GetCharacterMovement()->StopMovementImmediately();
+		// Fleeing mid-Telegraph must not leave the tell-pulse frozen on (July 23 audit).
+		if (TelegraphLight) { TelegraphLight->SetIntensity(0.f); }
 		// Walk-away is the FIFTH exit path — it must purge per-move state like the
 		// other four (FinishAttack/phase-roar/stagger/flame-out), or a move
 		// interrupted mid-flight leaks its latches into the next engagement (the
@@ -330,13 +359,7 @@ void ASparkRivalBase::Tick(float DeltaTime)
 	switch (State)
 	{
 	case ERivalState::Waiting:
-		PlayLoop(IdleAnim);
-		if (Hero) { FaceHero(Hero, DeltaTime * 0.5f); }
-		if (Dist <= DuelStartRadius)
-		{
-			PlayOneShot(TauntAnim ? TauntAnim : IdleAnim, IntroSeconds);
-			EnterState(ERivalState::Intro, IntroSeconds);
-		}
+		TickWaiting(DeltaTime, Hero, Dist);
 		break;
 
 	case ERivalState::Intro:

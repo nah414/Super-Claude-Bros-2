@@ -36,14 +36,17 @@ def mat(name):
     return EAL.load_asset(f"/Game/Art/CityMat/{name}")
 
 
+# M1 gritty-industrial skins: concrete walkways/cliffs, rusted metal accents.
 M_ASPHALT = mat("M_WetAsphalt")
-M_SIDEWALK = mat("M_Sidewalk")
-M_BUILD = mat("M_Windows_b") or M_SIDEWALK
-M_BUILD2 = mat("M_Windows_a") or M_SIDEWALK
+M_SIDEWALK = mat("M_Concrete") or mat("M_Sidewalk")
+M_BUILD = mat("M_Concrete") or M_SIDEWALK
+M_BUILD2 = mat("M_RustMetal") or M_SIDEWALK
+M_WINDOW = mat("M_IndustrialWindow") or M_BUILD
 M_WATER = mat("M_HoloBillboard") or M_ASPHALT
 
 LANTERN_CLASS = unreal.load_class(None, "/Script/SuperClaudeBros2.Lantern")
 NETMGR_CLASS = unreal.load_class(None, "/Script/SuperClaudeBros2.LightNetworkManager")
+FLAGPOLE_CLASS = unreal.load_class(None, "/Script/SuperClaudeBros2.FlagpoleGoal")
 
 # World offset applied by build_canyon() to every placed actor (0,0,0 = standalone).
 OX = OY = OZ = 0.0
@@ -104,7 +107,7 @@ def landing(cx, cy, ztop, w, d, label, material=M_SIDEWALK):
     return block(cx, cy, ztop - 20.0, w, d, 40.0, label, material=material, rt=False)
 
 
-def lantern(x, y, label, *, z, checkpoint=False, goal=False, dark=False,
+def lantern(x, y, label, *, z, checkpoint=False, goal=False, dark=False, guttering=False,
             relight_radius=320.0, auto=9.0, scale=1.0, intensity=1100.0, radius=620.0):
     a = eas.spawn_actor_from_class(LANTERN_CLASS, unreal.Vector(x + OX, y + OY, z + OZ))
     setp(a, ["lit_intensity", "LitIntensity"], intensity)
@@ -114,9 +117,23 @@ def lantern(x, y, label, *, z, checkpoint=False, goal=False, dark=False,
     setp(a, ["is_checkpoint", "b_is_checkpoint", "bIsCheckpoint"], checkpoint)
     setp(a, ["is_world_goal", "b_is_world_goal", "bIsWorldGoal"], goal)
     setp(a, ["start_dark", "b_start_dark", "bStartDark"], dark)
+    setp(a, ["start_guttering", "b_start_guttering", "bStartGuttering"], guttering)
     a.set_actor_scale3d(unreal.Vector(scale, scale, scale))
     a.set_actor_label(f"LC_Lantern_{label}")
     P["lantern"] += 1
+    return a
+
+
+def flagpole(x, y, label, *, z, pole_height=14.0, raise_seconds=1.5, scale=1.0):
+    """The crown VICTORY POLE — the Mario flag finish. Touching it (or pressing E) raises the
+    banner up the mast and wins the world via the same idempotent hook as the lantern relight.
+    Rides the OX/OY/OZ merge offset like lantern(), so co-locates with the goal lantern."""
+    a = eas.spawn_actor_from_class(FLAGPOLE_CLASS, unreal.Vector(x + OX, y + OY, z + OZ))
+    setp(a, ["pole_height", "PoleHeight"], pole_height)
+    setp(a, ["raise_seconds", "RaiseSeconds"], raise_seconds)
+    a.set_actor_scale3d(unreal.Vector(scale, scale, scale))
+    a.set_actor_label(f"LC_Flagpole_{label}")
+    P["flagpole"] += 1
     return a
 
 
@@ -169,7 +186,7 @@ def shell(cx, cy, ztop, w, d, h, label, door_yaw=0.0):
                 block(wx, wy + (dw / 2 + seg / 2), ztop + h / 2, sx, seg, h, f"{label}_dR")
                 block(wx, wy, ztop + dh + (h - dh) / 2, sx, dw, h - dh, f"{label}_dT")
         else:
-            block(wx, wy, ztop + h / 2, sx, sy, h, f"{label}_{tag}")
+            block(wx, wy, ztop + h / 2, sx, sy, h, f"{label}_{tag}", material=M_WINDOW)
     lantern(cx, cy, f"in_{label}", z=ztop + 120, relight_radius=360.0, scale=0.9)
     fprop("cargo_crate_set", cx - w * 0.25, cy + d * 0.2, 1.0)
     P["shell"] += 1
@@ -240,10 +257,10 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
     for i, (px, py, pz) in enumerate(wp):
         landing(px, py, pz, PATH_W + 160, PATH_W + 160, f"Land_{i:02d}")
         if 1 < i < len(wp) - 1 and i % 3 == 1:                 # a checkpoint lantern every few turns
-            dark = (i % 6 == 1)
+            gutter = (i % 6 == 1)                              # half guttering (relight to claim), half lit
             lantern(px + (120 if px < 0 else -120), py, f"cp_{i:02d}", z=pz + 60,
-                    checkpoint=True, dark=dark, relight_radius=0.0 if dark else 320.0,
-                    auto=0.0 if dark else 9.0, intensity=1400.0, radius=640.0)
+                    checkpoint=True, guttering=gutter, relight_radius=0.0 if gutter else 320.0,
+                    auto=0.0 if gutter else 9.0, intensity=1400.0, radius=640.0)
 
     # ---- gondola crossing -> spire ----
     ramp((SWITCH_TOP_X, 0.0, ZTOP_SWITCH), (-650.0, 0.0, SPIRE_BASE_Z), PATH_W, "GondApproach")
@@ -252,7 +269,7 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
 
     # ---- the spire + crown goal ----
     block(0, 0, (SPIRE_BASE_Z + CROWN_Z) / 2, 460, 460, CROWN_Z - SPIRE_BASE_Z, "SpireCore",
-          material=M_BUILD)
+          material=M_BUILD2)   # the hero tower in rusted industrial metal
     SR = 760.0
     SEGS = 6
     spire_wp = [(-650.0, 0.0, SPIRE_BASE_Z)]
@@ -265,11 +282,29 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
         ramp(spire_wp[i], spire_wp[i + 1], 440, f"Spiral_{i:02d}")
     for i, (px, py, pz) in enumerate(spire_wp):
         landing(px, py, pz, 500, 500, f"SpiralLand_{i:02d}")
+    # warm lanterns ALL the way up the spiral staircase: one at every landing AND one between
+    # each pair, brighter (Adam: "we still need more lights along our spiral staircase").
+    for i in range(1, len(spire_wp)):
+        px, py, pz = spire_wp[i]
+        for off in (270.0, -270.0):                    # a torch on BOTH sides of every intersection
+            lantern(px + off, py, f"spire_{i:02d}_{int(off)}", z=pz + 50, relight_radius=300.0,
+                    auto=9.0, scale=0.85, intensity=1500.0, radius=760.0)
+    for i in range(len(spire_wp) - 1):
+        ax, ay, az = spire_wp[i]
+        bx, by, bz = spire_wp[i + 1]
+        lantern((ax + bx) / 2, (ay + by) / 2, f"spiremid_{i:02d}", z=(az + bz) / 2 + 50,
+                relight_radius=300.0, auto=9.0, scale=0.7, intensity=1200.0, radius=660.0)
 
     fprop("first_lantern_spire", 0.0, 0.0, 14.0, z=SPIRE_BASE_Z, solid=False)
     fprop("waygate_arch", 0.0, 560.0, 4.0, yaw=0.0, z=CROWN_Z - 120, solid=False)
-    lantern(0.0, 0.0, "FIRST", z=CROWN_Z, goal=True, dark=True, relight_radius=0.0, auto=0.0,
+    # The crown goal is a GUTTERING beacon (dim, dying flame) — visible from the climb so the
+    # player can aim for it, but not Lit, so the hold-E rite to fully kindle it is the win.
+    lantern(0.0, 0.0, "FIRST", z=CROWN_Z, goal=True, guttering=True, relight_radius=0.0, auto=0.0,
             scale=3.0, intensity=7000.0, radius=3000.0)
+    # Mario-style FLAG CAPTURE, standing on the crown landing beside the beacon. Base is flush
+    # with the final landing (CROWN_Z-90) so the hero overlaps the capture trigger on arrival;
+    # walk into it (or press E) to raise the banner and win.
+    flagpole(0.0, 0.0, "CROWN", z=CROWN_Z - 90.0, pole_height=14.0, raise_seconds=1.5)
 
     # ---- 8 enterable shells ----
     shell(-1850, -1400, 900, 900, 760, 560, "S1_basement", door_yaw=0)
@@ -346,7 +381,7 @@ def build_canyon(origin=(0.0, 0.0, 0.0), into_existing=False, spawn=True,
                 unreal.log_warning(f"pp skip {name}: {e}")
 
         pp("bloom_method", unreal.BloomMethod.BM_FFT)
-        pp("bloom_intensity", 1.2)
+        pp("bloom_intensity", 0.5)      # toned down — over-bright lights were glaring
         pp("auto_exposure_min_brightness", -1.5)
         pp("auto_exposure_max_brightness", -1.5)
         pp("film_grain_intensity", 0.12)

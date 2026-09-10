@@ -44,6 +44,39 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float PatrolSpeed = 260.f;
 
+	// ---------------- Aggro (hunt on sight) ----------------
+	/** A hero inside this range drops the Glimmer out of patrol and into the hunt —
+	    it turns and walks straight at him. This is "attacks at first sight". */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float AggroRadius = 650.f;
+
+	/** Speed the Glimmer commits to while hunting (a notch above the patrol amble). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float ChaseSpeed = 360.f;
+
+	// ---------------- Strike (the active attack) ----------------
+	/** Within this range the Glimmer stops walking and POUNCES at the hero. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float StrikeRange = 280.f;
+
+	/** Horizontal speed of the pounce. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float LungeSpeed = 1150.f;
+
+	/** Upward pop on the pounce so it reads as a leap, not a slide. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float LungeLift = 300.f;
+
+	/** Seconds between pounces (the telegraph/recovery rhythm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float StrikeCooldown = 1.3f;
+
+	/** If true, the hero's Spark Aura pacifies this Glimmer (the "mercy" mechanic). DEFAULT OFF so
+	    Glimmers stay a COMBAT THREAT — the hero's always-on aura was calming every one he approached
+	    ("Calm" over their heads) instead of letting them fight. Adam wants challenge. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	bool bCalmableByAura = false;
+
 	/** How far past the capsule's leading edge we probe for walls and ledges. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float TurnCheckDistance = 50.f;
@@ -75,17 +108,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float HitCooldown = 0.8f;
 
-	/** How long the Glimmer stands still after bonking the hero. */
+	/** How long the Glimmer stands still after bonking the hero. Kept BELOW HitCooldown
+	    so a hero pressed flush against us can no longer chain-stun the Glimmer into a
+	    permanent freeze — it always gets a beat to re-engage and push back. (This was
+	    the "Glimmer stops moving when you get close" bug: 1.0s stun > 0.8s cooldown.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
-	float StunDuration = 1.0f;
+	float StunDuration = 0.5f;
 
 	/** How long the flattened body lingers before the actor is destroyed. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
 	float SquashLingerTime = 0.6f;
 
+	// ---------------- Toughness (Adam 2026-07-21: "hit 3 times to defeat") ----------------
+	/** Hits (stomp / dash / combo strike) needed to defeat this Glimmer. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	int32 MaxHitPoints = 3;
+
+	/** Post-hit invulnerability window so one dash can't land 3 hits in 3 frames. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Glimmer")
+	float DamageCooldown = 0.5f;
+
 	// ---------------- Event hooks (Niagara/SFX wire in later, in Blueprint) ----------------
 	UFUNCTION(BlueprintImplementableEvent, Category = "Glimmer|Events")
 	void OnGlimmerSquashed(bool bByStomp);
+
+	/** A non-lethal hit landed — crystal cracked, HitsRemaining left. VFX/SFX seam. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Glimmer|Events")
+	void OnGlimmerDamaged(int32 HitsRemaining);
 
 	/** A hero strike landed (the Spark Combo). Motes die to any beat — the
 	    mass-class ladder, applied by fist. */
@@ -121,8 +170,31 @@ private:
 	void SenseAndTurn();
 	float LastTurnTime = -1000.f;
 
+	// Aggro state: face + walk straight at the hero (ledge-safe, reuses SenseAndTurn).
+	void ChaseHero(ASparkHeroCharacter* Hero);
+
+	// The active attack: pounce at the hero (ledge-guarded), spark telegraph, then the bonk lands.
+	void Lunge(ASparkHeroCharacter* Hero);
+	float NextStrikeTime = -1000.f;
+
+	// Debug (off now that combat is confirmed): float each Glimmer's state over its head. Flip true
+	// to diagnose again. The state strings below are cheap to keep set.
+	UPROPERTY(EditAnywhere, Category = "Glimmer|Debug")
+	bool bShowCombatState = false;
+	FString CombatState = TEXT("PATROL");
+
+	// Is there ground along the whole pounce path? Small spiral landings can't host the lunge — it
+	// overshoots the edge and the Glimmer falls + clips through the floor below. Gates the pounce.
+	bool HasLungeRoom(const FVector& Dir) const;
+
 	// Hero contact state
 	void HandleHeroContact(ASparkHeroCharacter* Hero);
+	// One landed hit (stomp/dash/strike): decrement HitPoints, show the crack, die at 0.
+	void ApplyHit(bool bByStomp, ASparkHeroCharacter* Hero);
+	int32 HitPoints = 3;
+	float LastDamageTime = -1000.f;
+	// Once a hero is SEEN (or strikes us), the hunt never ends until defeat (Adam 2026-07-21).
+	bool bAggroLocked = false;
 	void Die(bool bByStomp);
 	void FinishDeath();
 	float LastHitTime = -1000.f;

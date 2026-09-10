@@ -33,3 +33,10 @@ Saved/Screenshots/   # I'll copy out the ones I need to review; not version-cont
 # secrets (API keys) - never committed
 /_secrets/
 
+
+# Python bytecode from editor PyScripts
+__pycache__/
+*.pyc
+
+# Generated verifier output (probes write these each run)
+PyScripts/_world1_probe_result.txt

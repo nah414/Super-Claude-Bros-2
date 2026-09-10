@@ -22,8 +22,9 @@ assert unreal.EditorLoadingAndSavingUtils.load_map("/Game/Maps/NeonCity"), "LOAD
 
 CUBE = unreal.load_asset("/Engine/BasicShapes/Cube")
 M_ASPHALT = EAL.load_asset("/Game/Art/CityMat/M_WetAsphalt")
-M_BUILD = EAL.load_asset("/Game/Art/CityMat/M_Windows_b") or EAL.load_asset("/Game/Art/CityMat/M_Sidewalk")
-M_FLOOR = EAL.load_asset("/Game/Art/CityMat/M_Sidewalk") or M_ASPHALT
+M_BUILD = EAL.load_asset("/Game/Art/CityMat/M_IndustrialWindow") or EAL.load_asset("/Game/Art/CityMat/M_Windows_b")
+M_FLOOR = EAL.load_asset("/Game/Art/CityMat/M_Concrete") or EAL.load_asset("/Game/Art/CityMat/M_Sidewalk")
+M_INTERIOR = EAL.load_asset("/Game/Art/CityMat/M_Interior") or M_FLOOR   # side-room interior walls
 ROOF_Z = 2500.0
 
 # ---- clear prior dressing + the clashing cold-city clutter ----
@@ -31,7 +32,7 @@ ROOF_Z = 2500.0
 # (the underscore differs), so the white fallback boxes for un-imported hover-car /
 # dumpster / crate meshes (build_neon_city.py:180) otherwise survive as street clutter.
 CLEAR_PREFIXES = ("Fest_", "Chain_", "ChainBox", "Shop_", "ShopBox_", "Vend_",
-                  "NoodleStand", "Kiosk", "Monorail", "Holo_Mid")
+                  "NoodleStand", "Kiosk", "Monorail", "Holo_Mid", "Enemy_", "Glimmer_")
 removed = 0
 for a in eas.get_all_level_actors():
     try:
@@ -70,10 +71,10 @@ def wall(x, y, z, sx, sy, sz, label, material=M_BUILD, solid=True):
     return a
 
 
-def fprop(name, x, y, scale, yaw=0.0, z=None, solid=False):
+def fprop(name, x, y, scale, yaw=0.0, z=None, solid=False, kit="FestivalKit"):
     """Grounded by bbox (base on z=0) unless z given. Decorative = NO collision by default
     so it never blocks the path; the player walks through/under it."""
-    sm = EAL.load_asset(f"/Game/Art/FestivalKit/{name}/SM_{name}")
+    sm = EAL.load_asset(f"/Game/Art/{kit}/{name}/SM_{name}")
     if not sm:
         unreal.log_warning(f"MISSING {name}"); return None
     bb = sm.get_bounding_box()
@@ -106,41 +107,100 @@ def lantern(x, y, label, *, z=0.0, checkpoint=False, goal=False, dark=False,
     return a
 
 
-def building(cx, front_y, w, depth, h, label, door=True, dress=True):
-    """An enterable building: floor + roof + back/side walls + a front wall with a DOOR
-    gap. Interior gets a warm lantern + crates so entering is rewarding."""
+def building(cx, front_y, w, depth, h, label, door=True, dress=True, wall_mat=None):
+    """An enterable building: floor + roof + back/side walls + a front wall with a DOOR gap.
+    wall_mat overrides the wall/roof skin (side rooms pass M_Interior so the inside reads as a
+    building interior, not its window-covered exterior)."""
+    wmat = wall_mat or M_BUILD
     sgn = 1.0 if front_y > 0 else -1.0
     back_y = front_y + sgn * depth
     cy = (front_y + back_y) / 2.0
     T = 40.0
     wall(cx, cy, 4, w, depth, 8, f"{label}_floor", material=M_FLOOR)
-    wall(cx, cy, h, w, depth, 30, f"{label}_roof")
-    wall(cx, back_y, h / 2, w, T, h, f"{label}_back")
-    wall(cx - w / 2, cy, h / 2, T, depth, h, f"{label}_sL")
-    wall(cx + w / 2, cy, h / 2, T, depth, h, f"{label}_sR")
+    wall(cx, cy, h, w, depth, 30, f"{label}_roof", material=wmat)
+    wall(cx, back_y, h / 2, w, T, h, f"{label}_back", material=wmat)
+    wall(cx - w / 2, cy, h / 2, T, depth, h, f"{label}_sL", material=wmat)
+    wall(cx + w / 2, cy, h / 2, T, depth, h, f"{label}_sR", material=wmat)
     if door:
         dw, dh = 380.0, 520.0
         seg = (w - dw) / 2.0
-        wall(cx - (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fL")
-        wall(cx + (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fR")
-        wall(cx, front_y, (dh + h) / 2, dw, T, h - dh, f"{label}_lintel")  # wall over the door
+        wall(cx - (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fL", material=wmat)
+        wall(cx + (dw / 2 + seg / 2), front_y, h / 2, seg, T, h, f"{label}_fR", material=wmat)
+        wall(cx, front_y, (dh + h) / 2, dw, T, h - dh, f"{label}_lintel", material=wmat)
         if dress:
             lantern(cx, cy + sgn * 60, f"in_{label}", relight_radius=350.0, scale=0.9)
             fprop("market_crates", cx - w * 0.28, cy, 1.1)
             fprop("market_crates", cx + w * 0.26, cy + sgn * 120, 0.9, yaw=40)
     else:
-        wall(cx, front_y, h / 2, w, T, h, f"{label}_front")
+        wall(cx, front_y, h / 2, w, T, h, f"{label}_front", material=wmat)
     P["bldg"] += 1
 
 
-# ============================ ENTERABLE BUILDINGS line both sides ============================
-# Continuous row, front face at y=+-1150, depth 900 (toward the towers). Alternating
-# enterable (door) / solid, so the street is a believable canyon of shops you can enter.
+# ============================ BUILDINGS + 6 ENTERABLE SIDE ROOMS ============================
+# The street is a row of buildings; exactly 6 are ENTERABLE side rooms (door + INTERIOR walls +
+# furnishing), the rest are solid backdrop fully clad in facades. Facades FLANK doorways (never
+# cover them). Side rooms read as a real building interior (M_Interior, not exterior windows) and
+# hold a content pedestal for future artifacts / power-ups / enemies.
 BX0, BSTEP, BW = -4600.0, 1560.0, 1500.0
+SIDE_N, SIDE_S = {0, 2, 4, 6, 7}, {1, 3, 5, 6, 7}   # +4 rooms (Adam): pairs 6 & 7 now enterable both sides
+PANELS = ["brutalist_concrete_facade", "rusted_industrial_facade", "pipe_clad_wall", "girder_frame"]
+DETAILS = ["ac_unit_array", "ducting_run", "steam_vent_cluster", "transformer_box"]
+IK = "IndustrialKit"
+
+
+def dress_facade(cx, front_y, h, has_door, idx):
+    sgn = 1.0 if front_y > 0 else -1.0
+    fy = front_y - sgn * 30
+    yaw = 270 if front_y > 0 else 90
+    if has_door:                                  # flank the ~380-wide door, leaving it clear
+        fprop(PANELS[idx % 4], cx - 480, fy, 3.0, yaw=yaw, kit=IK)
+        fprop(PANELS[(idx + 1) % 4], cx + 480, fy, 3.0, yaw=yaw, kit=IK)
+    else:
+        fprop(PANELS[idx % 4], cx, fy, 8.5, yaw=yaw, kit=IK)
+    fprop(DETAILS[idx % 4], cx - sgn * 620, fy, 3.0, yaw=yaw, z=560, kit=IK)
+    fprop("rooftop_machinery", cx + sgn * 200, front_y + sgn * 220, 4.6, yaw=yaw, z=h - 120, kit=IK)
+
+
+def sideroom(cx, front_y, depth, label, sgn):
+    """Furnish a side room as a real industrial INTERIOR: a content pedestal, warm hanging light,
+    and interior dressing (crates, a corner unit, overhead ducting)."""
+    cy = front_y + sgn * depth / 2.0
+    back = front_y + sgn * (depth - 130)
+    wall(cx, cy, 70, 240, 240, 140, f"SideRoom_{label}_pedestal", material=M_FLOOR)
+    # Brighter room torch (Adam: rooms too dark to see) — ~3x intensity + wider reach so the flame
+    # lights ~65% of the ~1500x900 room; raised a bit so it spreads across the floor, not a tiny pool.
+    lantern(cx, cy, f"room_{label}", z=520, relight_radius=420.0, scale=1.0, intensity=3000.0, radius=1150.0)
+    fprop("market_crates", cx - 430, cy + sgn * 60, 1.2)
+    fprop("market_crates", cx + 400, cy - sgn * 80, 0.9, yaw=35)
+    fprop("transformer_box", cx - 480, back, 1.9, yaw=(0 if sgn > 0 else 180), kit=IK)
+    fprop("ducting_run", cx + 250, back, 2.4, yaw=90, z=820, kit=IK)
+
+
 for i in range(8):
     bx = BX0 + i * BSTEP
-    building(bx, 1150, BW, 900, 1700 + (i % 3) * 120, f"BldgN_{i}", door=(i % 2 == 0))
-    building(bx + BSTEP / 2, -1150, BW, 900, 1700 + (i % 2) * 160, f"BldgS_{i}", door=(i % 2 == 1))
+    sx = bx + BSTEP / 2
+    hN = 1700 + (i % 3) * 120
+    hS = 1700 + (i % 2) * 160
+    nr, sr = i in SIDE_N, i in SIDE_S
+    building(bx, 1150, BW, 900, hN, f"BldgN_{i}", door=nr, dress=False, wall_mat=(M_INTERIOR if nr else None))
+    building(sx, -1150, BW, 900, hS, f"BldgS_{i}", door=sr, dress=False, wall_mat=(M_INTERIOR if sr else None))
+    dress_facade(bx, 1150, hN, nr, i)
+    dress_facade(sx, -1150, hS, sr, i + 2)
+    if nr:
+        sideroom(bx, 1150, 900, f"N{i}", 1.0)
+    if sr:
+        sideroom(sx, -1150, 900, f"S{i}", -1.0)
+
+# END side rooms (Adam, June 18): the drop-off "ends" of the street are now enterable side rooms too
+# — the west end behind spawn (N side; the S west pocket is the alley) + the east end toward the
+# canyon seam (both sides). Same door + INTERIOR walls + furnishing as the 6 mid-street rooms; the
+# CityWall backdrop behind them closes the end-of-street void.
+END_ROOMS = ((-6100.0, 1150.0, 1.0, "Wn"), (8300.0, 1150.0, 1.0, "En"), (8300.0, -1150.0, -1.0, "Es"))
+for ex, efy, esgn, elabel in END_ROOMS:
+    eside = "N" if esgn > 0 else "S"
+    building(ex, efy, BW, 900, 1980, f"Bldg{eside}_end{elabel}", door=True, dress=False, wall_mat=M_INTERIOR)
+    dress_facade(ex, efy, 1980, True, 1)
+    sideroom(ex, efy, 900, f"end{elabel}", esgn)
 
 # A continuous low ground plane under it all (no void / no cliffs anywhere on the path).
 wall(1000, 0, -100, 16000, 5200, 200, "Ground", material=M_ASPHALT)
@@ -185,18 +245,117 @@ fprop("mega_sign_tower", 5600, -1850, 5.0)
 # ============================ THE INTERACTIVE LANTERNS ============================
 # Warm ambient lanterns along the kerbs (lit).
 for x in range(-3600, 6400, 1700):
-    lantern(x, 640, f"amb_{x}_L")
-    lantern(x + 850, -640, f"amb_{x}_R")
+    lantern(x, 640, f"amb_{x}_L", intensity=520.0, radius=460.0)
+    lantern(x + 850, -640, f"amb_{x}_R", intensity=520.0, radius=460.0)
 
 # Dark CHECKPOINT lamps at the road edges near each gateway — relight them (hold E).
 for i, cx in enumerate((-2600, 700, 3500, 6000)):
     lantern(cx, 560 if i % 2 else -560, f"cp_{i}", checkpoint=True, dark=True,
-            relight_radius=0.0, auto=0.0, scale=1.1, intensity=1500.0, radius=680.0)
+            relight_radius=0.0, auto=0.0, scale=1.1, intensity=850.0, radius=560.0)
 
 # NOTE: the rooftop First-Lantern GOAL + the festival LightNetworkManager were REMOVED here.
 # World 1's single goal is now the First Lantern at the canyon crown (built by the canyon merge,
 # merge_world1.py), and the canyon's LC_LightNetworkManager is the one light hub. The street
 # keeps its ambient + dark checkpoint lanterns above.
+
+# ===================== 25 LOW-LEVEL ENEMIES (anti-lag baked in) =====================
+# Adam: distribute 25 low-level enemies through World 1. 14 Glimmer + 7 Roly + 4 Flit Moth.
+# Here: the 21 street + side-room ones (one guard per room). The 4 canyon ones are placed by
+# merge_world1.py after the canyon exists. Cleared via the "Enemy_"/"Glimmer_" prefixes above.
+# These are ACharacter/static-mesh actors (no skeletal anim to throttle in practice) — the real
+# costs are per-actor Tick + the Flit Moth point light, so anti-lag = draw-distance cull + shadowless
+# moth lights + (insurance) only-tick-pose-when-rendered on the inherited skeletal component.
+ENEMY_CLASSES = {
+    "Glimmer":  unreal.load_class(None, "/Script/SuperClaudeBros2.GlimmerEnemy"),
+    "Roly":     unreal.load_class(None, "/Script/SuperClaudeBros2.RolyShellback"),
+    "FlitMoth": unreal.load_class(None, "/Script/SuperClaudeBros2.FlitMoth"),
+}
+
+
+def _enemy_antilag(actor, kind):
+    for comp in actor.get_components_by_class(unreal.PrimitiveComponent):
+        try:
+            comp.set_editor_property("ld_max_draw_distance", 9000.0)   # cull the mesh past ~90m
+        except Exception:
+            pass
+        try:
+            comp.set_editor_property("visible_in_ray_tracing", False)  # off the 8 GB RT/Lumen budget
+        except Exception:
+            pass
+    for sk in actor.get_components_by_class(unreal.SkeletalMeshComponent):
+        try:
+            sk.set_editor_property("visibility_based_anim_tick_option",
+                                   unreal.VisibilityBasedAnimTickOption.ONLY_TICK_POSE_WHEN_RENDERED)
+        except Exception:
+            pass
+        try:
+            sk.set_editor_property("enable_update_rate_optimizations", True)
+        except Exception:
+            pass
+    if kind == "FlitMoth":
+        for lt in actor.get_components_by_class(unreal.PointLightComponent):
+            for p, v in (("cast_shadows", False), ("cast_dynamic_shadows", False),
+                         ("max_draw_distance", 4000.0), ("max_distance_fade_range", 800.0)):
+                try:
+                    lt.set_editor_property(p, v)
+                except Exception:
+                    pass
+
+
+_SKIN_MATS = {}   # name -> loaded material (cached per run)
+_SKIN_BY_KIND = {"Glimmer": "M_EnemyGlimmer", "Roly": "M_EnemyRoly", "FlitMoth": "M_EnemyMoth"}
+
+
+def _tint_enemy(actor, kind):
+    """Adam: the dark low-level enemies need colored skins. Assign the forged neon tint to body
+    slot 0 (sticks: only Glimmer's FALLBACK sphere sets a runtime material). Skip the cream eyes."""
+    name = _SKIN_BY_KIND.get(kind)
+    if not name:
+        return
+    if name not in _SKIN_MATS:
+        _SKIN_MATS[name] = EAL.load_asset(f"/Game/Art/CityMat/{name}")
+    mat = _SKIN_MATS[name]
+    if not mat:
+        return
+    for sm in actor.get_components_by_class(unreal.StaticMeshComponent):
+        if "Eye" in sm.get_name():
+            continue
+        try:
+            sm.set_material(0, mat)
+        except Exception:
+            pass
+
+
+def spawn_enemy(kind, x, y, z, idx):
+    cls = ENEMY_CLASSES.get(kind)
+    if not cls:
+        unreal.log_warning(f"ENEMY_CLASS_MISSING: {kind}")
+        return None
+    a = eas.spawn_actor_from_class(cls, unreal.Vector(x, y, z))
+    a.set_actor_label(f"Enemy_{kind}_{idx:02d}")
+    _enemy_antilag(a, kind)
+    _tint_enemy(a, kind)
+    return a
+
+
+# 8 street patrol + 13 side-room guards (one per room, on/near each pedestal). z60/70 chars, z150/170 moths.
+STREET_ROOM_ENEMIES = [
+    # (removed the Glimmer at -5200,0 — it sat ~700uu DIRECTLY BEHIND the -4500,0 spawn and aggro'd
+    #  the hero on spawn before they could even turn; the -3600,-820 one ahead is the intended first fight)
+    ("Glimmer", -3600, -820, 60), ("Roly", -2400, 200, 60),
+    ("Glimmer", -1200, 830, 60), ("FlitMoth", 700, 0, 150), ("Glimmer", 1700, -830, 60),
+    ("Roly", 3500, 150, 60), ("Glimmer", 3900, 820, 60),
+    ("Glimmer", -6100, 1600, 70), ("Glimmer", -4600, 1600, 70), ("FlitMoth", -2260, -1600, 170),
+    ("Glimmer", -1480, 1600, 70), ("Roly", 860, -1600, 70), ("Glimmer", 1640, 1600, 70),
+    ("FlitMoth", 3980, -1600, 170), ("Glimmer", 4760, 1600, 70), ("Roly", 5540, -1600, 70),
+    ("Glimmer", 6320, 1600, 70), ("Glimmer", 7100, -1600, 70), ("FlitMoth", 8300, 1600, 170),
+    ("Roly", 8300, -1600, 70),
+]
+_enemy_n = 0
+for _i, (_k, _x, _y, _z) in enumerate(STREET_ROOM_ENEMIES, start=1):
+    if spawn_enemy(_k, _x, _y, _z, _i):
+        _enemy_n += 1
+print(f"W1_ENEMIES_STREET_ROOM: {_enemy_n}/{len(STREET_ROOM_ENEMIES)}")
 
 saved = ELSS.save_current_level()
 print(f"FEST_DRESS_DONE: {P['prop']} props, {P['bldg']} buildings, {P['wall']} walls, "

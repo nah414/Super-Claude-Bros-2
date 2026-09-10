@@ -137,6 +137,14 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> Kick1Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Kick1_Anim.A_Hero_Kick1_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> Kick2Clip(TEXT("/Game/Art/HeroSkelV4/A_Hero_Kick2_Anim.A_Hero_Kick2_Anim"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> KickHeavyClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_KickHeavy_Anim.A_Hero_KickHeavy_Anim"));
+	// The flag-capture finish clips (Meshy stage 36): grip the pole, then a fist-pump victory.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FlagGrabClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_FlagGrab_Anim.A_Hero_FlagGrab_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> FlagVictoryClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_FlagVictory_Anim.A_Hero_FlagVictory_Anim"));
+	// The climb rig (Meshy stage 37): latch / ascend / descend / hang.
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbGrabClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbGrab_Anim.A_Hero_ClimbGrab_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbUpClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbUp_Anim.A_Hero_ClimbUp_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbDownClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbDown_Anim.A_Hero_ClimbDown_Anim"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> ClimbHangClip(TEXT("/Game/Art/HeroSkelV4/A_Hero_ClimbHang_Anim.A_Hero_ClimbHang_Anim"));
 
 	SkelBody = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkelBody"));
 	SkelBody->SetupAttachment(VisualRoot);
@@ -180,11 +188,20 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	Kick1Anim = Kick1Clip.Succeeded() ? Kick1Clip.Object : nullptr;
 	Kick2Anim = Kick2Clip.Succeeded() ? Kick2Clip.Object : nullptr;
 	KickHeavyAnim = KickHeavyClip.Succeeded() ? KickHeavyClip.Object : nullptr;
+	FlagGrabAnim = FlagGrabClip.Succeeded() ? FlagGrabClip.Object : nullptr;
+	FlagVictoryAnim = FlagVictoryClip.Succeeded() ? FlagVictoryClip.Object : nullptr;
+	ClimbGrabAnim = ClimbGrabClip.Succeeded() ? ClimbGrabClip.Object : nullptr;
+	ClimbUpAnim = ClimbUpClip.Succeeded() ? ClimbUpClip.Object : nullptr;
+	ClimbDownAnim = ClimbDownClip.Succeeded() ? ClimbDownClip.Object : nullptr;
+	ClimbHangAnim = ClimbHangClip.Succeeded() ? ClimbHangClip.Object : nullptr;
 	// Scan-set windows (June 12): straight-kick impact frac 0.50, knee drive
 	// 0.21, roundhouse foot at head height 0.73 — each lands mid-beat.
 	Kick1ClipStartFraction = 0.30f;  Kick1ClipRate = 2.3f;
 	Kick2ClipStartFraction = 0.08f;  Kick2ClipRate = 2.7f;
 	KickHeavyClipStartFraction = 0.58f;  KickHeavyClipRate = 2.25f;
+	// Climb-grab window (stage-37 scan: grip peak at frac 0.50 of 1.27s; the
+	// heroine's scan matched exactly, so she inherits these).
+	ClimbGrabClipStartFraction = 0.15f;  ClimbGrabClipRate = 2.4f;
 
 	// --- Camera rig: spring arm with collision probe + lag, free orbit ---
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
@@ -254,6 +271,15 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	PulseLight->SetLightColor(FColor(255, 170, 70));
 	PulseLight->SetCastShadows(false);
 
+	// --- Beacon Nova's sky-stab pillar (hidden until a cast detonates it) ---
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> PillarCyl(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	PillarMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PillarMesh"));
+	PillarMesh->SetupAttachment(RootComponent);
+	PillarMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (PillarCyl.Succeeded()) { PillarMesh->SetStaticMesh(PillarCyl.Object); }
+	PillarMesh->SetCastShadow(false);
+	PillarMesh->SetVisibility(false);
+
 	// --- Ember Guard's ring of fire: CONE flame-licks (flames are cones, not
 	// balls — Adam round 9), hidden until the guard burns ---
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> ConeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
@@ -313,6 +339,13 @@ void ASparkHeroCharacter::PlayShake(TSubclassOf<UCameraShakeBase> ShakeClass) co
 void ASparkHeroCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// The climb rig restores to THIS, not to a hard-coded rest — robust to the
+	// heroine (or any future body) changing the base offset (absolute-offset law).
+	if (SkelBody)
+	{
+		SkelBodyRestLocation = SkelBody->GetRelativeLocation();
+	}
 
 	// L9 amplification: the spark learns a second air dash.
 	if (HasPowerLevel(9))
@@ -1167,6 +1200,13 @@ void ASparkHeroCharacter::TryStartClimb()
 	{
 		return;
 	}
+	// Boundary law (Adam 2026-07-21): a NoClimb-tagged actor refuses the grip outright —
+	// perimeter walls and the sky shell are the world's edges, not climb-architecture.
+	// Stops the "crawling beyond the wall limits" oddities without dulling city climbs.
+	if (WallHit.GetActor() && WallHit.GetActor()->ActorHasTag(NoClimbTag))
+	{
+		return;
+	}
 
 	bClimbing = true;
 	ClimbWallNormal = WallHit.ImpactNormal;
@@ -1181,6 +1221,31 @@ void ASparkHeroCharacter::TryStartClimb()
 	const FVector IntoWall = ClimbWallNormal * FVector::DotProduct(Move->Velocity, ClimbWallNormal);
 	Move->Velocity = (Move->Velocity - IntoWall) * ClimbGrabMomentumRetain;
 	SetActorRotation(FRotationMatrix::MakeFromX(-ClimbWallNormal).Rotator());
+
+	// THE SINK FIX (Adam's photos: limbs buried in bark). After the rotation above,
+	// actor-local +X points INTO the wall — push the visual body OUT along -X, an
+	// ABSOLUTE set from rest (the crouch law, cpp OnStartCrouch: never a delta).
+	// Screenshot truth owns the sign; both knobs are EditAnywhere.
+	if (SkelBody)
+	{
+		SkelBody->SetRelativeLocation(SkelBodyRestLocation + FVector(-ClimbBodyOutset, 0.f, 0.f));
+	}
+	if (VisualRoot && ClimbLeanDegrees != 0.f)
+	{
+		VisualRoot->SetRelativeRotation(FRotator(-ClimbLeanDegrees, 0.f, 0.f));
+	}
+
+	// The latch beat: a windowed one-shot before the loop takes over (7.5-2/-5:
+	// windowed, guarded, and never stomped — StopClimb leaves it to finish).
+	if (ClimbGrabAnim && !bActionAnimActive)
+	{
+		PlayActionClip(ClimbGrabAnim, 0.35f, ClimbGrabClipStartFraction, ClimbGrabClipRate);
+		GetWorldTimerManager().SetTimer(ClimbGrabTimer, this,
+			&ASparkHeroCharacter::EndActionClip, 0.45f, false);
+	}
+	UE_LOG(LogTemp, Display, TEXT("REACH_MARKER: VR_CLIMB grab at %s offset=%s"),
+		*GetActorLocation().ToCompactString(),
+		SkelBody ? *SkelBody->GetRelativeLocation().ToCompactString() : TEXT("none"));
 }
 
 void ASparkHeroCharacter::StopClimb()
@@ -1190,7 +1255,75 @@ void ASparkHeroCharacter::StopClimb()
 	UCharacterMovementComponent* Move = GetCharacterMovement();
 	Move->SetMovementMode(MOVE_Falling);
 	Move->GravityScale = bFastFalling ? FastFallGravityScale : BaseGravityScale;
+	// Absolute restore of the climb-time visual offsets (never accumulate).
+	if (SkelBody)
+	{
+		SkelBody->SetRelativeLocation(SkelBodyRestLocation);
+	}
+	if (VisualRoot)
+	{
+		VisualRoot->SetRelativeRotation(FRotator::ZeroRotator);
+	}
 	AnimState = EHeroAnimState::None;   // re-pick locomotion
+}
+
+// -SCB2ShotClimb harness seam: nudge into the REAL grab laws (no state forcing),
+// then drive the loop with vertical velocity so captures photograph each state.
+void ASparkHeroCharacter::Debug_ForceClimb(float UpSign)
+{
+	// The actor's yaw is untrustworthy under -unattended (controller yaw owns it
+	// — Sonnet photographed facing +X at a +Y wall). Scout 8 compass directions
+	// and aim the grab laws at the NEAREST wall instead.
+	FVector BestDir = GetActorForwardVector();
+	float BestDist = 1e9f;
+	FHitResult Scout;
+	FCollisionQueryParams ScoutParams(TEXT("ForceClimbScout"), false, this);
+	// Scout from 300uu up: at ground level the trunk base is all skirt-slope and
+	// noise-bumps (floor-like normals) — honest vertical bark lives higher.
+	const FVector ScoutEye = GetActorLocation() + FVector(0.f, 0.f, 300.f);
+	for (int32 i = 0; i < 8; ++i)
+	{
+		const float A = i * PI / 4.f;
+		const FVector Dir(FMath::Cos(A), FMath::Sin(A), 0.f);
+		if (GetWorld()->LineTraceSingleByChannel(Scout, ScoutEye,
+				ScoutEye + Dir * 900.f, ECC_Visibility, ScoutParams)
+			&& FMath::Abs(Scout.ImpactNormal.Z) < 0.55f
+			&& Scout.Distance < BestDist)
+		{
+			BestDist = static_cast<float>(Scout.Distance);
+			BestDir = Dir;
+		}
+	}
+	UE_LOG(LogTemp, Display, TEXT("REACH_MARKER: VR_CLIMB scout dist=%.0f dir=%s"),
+		BestDist < 1e8f ? BestDist : -1.f, *BestDir.ToCompactString());
+	LastWorldMoveInput = BestDir;
+	SetActorRotation(BestDir.Rotation());
+	// Lift before the sail: the hero has usually settled to the trunk BASE by now,
+	// where skirt-slope normals refuse the grab — mid-bark is honest wall.
+	SetActorLocation(GetActorLocation() + FVector(0.f, 0.f, 450.f));
+	if (UCharacterMovementComponent* Move = GetCharacterMovement())
+	{
+		if (Move->IsMovingOnGround())
+		{
+			Move->SetMovementMode(MOVE_Falling);
+		}
+	}
+	TryStartClimb();
+	if (bClimbing && GetCharacterMovement())
+	{
+		GetCharacterMovement()->Velocity = FVector(0.f, 0.f, UpSign * ClimbSpeed * 0.8f);
+	}
+	else if (GetCharacterMovement())
+	{
+		// First probe missed — sail at the wall; the per-tick probe (the real
+		// grab law) catches on arrival, then vertical velocity picks the state.
+		GetCharacterMovement()->Velocity = BestDir * 460.f
+			+ FVector(0.f, 0.f, 140.f + UpSign * 120.f);
+	}
+	UE_LOG(LogTemp, Display,
+		TEXT("REACH_MARKER: VR_CLIMB force sign=%.0f climbing=%d skel_offset=%s"),
+		UpSign, bClimbing ? 1 : 0,
+		SkelBody ? *SkelBody->GetRelativeLocation().ToCompactString() : TEXT("none"));
 }
 
 // ---------------------------------------------------------------------------
@@ -1368,7 +1501,7 @@ float ASparkHeroCharacter::GetPowerReadyIn(ESparkPower Power) const
 }
 
 // Spawn one spark blast from the hero's hand, flying flat along Direction.
-void ASparkHeroCharacter::FireBlast(const FVector& Direction)
+void ASparkHeroCharacter::FireBlast(const FVector& Direction, int32 Tier)
 {
 	FVector SpawnLoc = GetActorLocation() + GetActorForwardVector() * 50.f + FVector(0.f, 0.f, 20.f);
 	if (bHasSkeletalModel && SkelBody && HandBoneName != NAME_None)
@@ -1379,8 +1512,49 @@ void ASparkHeroCharacter::FireBlast(const FVector& Direction)
 	SpawnParams.Owner = this;
 	SpawnParams.Instigator = this;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	GetWorld()->SpawnActor<ASparkBlastProjectile>(ASparkBlastProjectile::StaticClass(),
-		SpawnLoc, Direction.Rotation(), SpawnParams);
+	if (ASparkBlastProjectile* Blast = GetWorld()->SpawnActor<ASparkBlastProjectile>(
+			ASparkBlastProjectile::StaticClass(), SpawnLoc, Direction.Rotation(), SpawnParams))
+	{
+		Blast->ApplyTier(Tier);   // tier = size, heat, speed, and bite
+	}
+}
+
+void ASparkHeroCharacter::Debug_CastPower(ESparkPower Power, int32 Tier)
+{
+	// Harness-only: force the tier, clear the cooldowns, fire — so screenshots
+	// can catch the spectacle mid-bloom.
+	BoltTier = NovaTier = RingTier = FMath::Clamp(Tier, 1, 3);
+	BurstReadyTime = WaveReadyTime = GuardReadyTime = 0.f;
+	UE_LOG(LogTemp, Display, TEXT("MOONWORKS_MARKER: harness cast power=%d tier=%d"),
+	       static_cast<int32>(Power), Tier);
+	switch (Power)
+	{
+	case ESparkPower::Nova:     DoBeaconWave(); break;
+	case ESparkPower::FireRing: HandleGuardPressed(); break;
+	default:                    DoPrismBurst(); break;
+	}
+}
+
+int32 ASparkHeroCharacter::GetPowerTier(ESparkPower Power) const
+{
+	switch (Power)
+	{
+	case ESparkPower::Nova:     return NovaTier;
+	case ESparkPower::FireRing: return RingTier;
+	default:                    return BoltTier;
+	}
+}
+
+void ASparkHeroCharacter::RaiseAllPowerTiers(int32 By)
+{
+	BoltTier = FMath::Clamp(BoltTier + By, 1, 3);
+	NovaTier = FMath::Clamp(NovaTier + By, 1, 3);
+	RingTier = FMath::Clamp(RingTier + By, 1, 3);
+	// The climb is felt, not read: a gold ground-flash marks the moment.
+	FirePulse(520.f, 0.6f, 9000.f);
+	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 10.f); }
+	UE_LOG(LogTemp, Display, TEXT("MOONWORKS_MARKER: power tiers now B%d/N%d/R%d"),
+	       BoltTier, NovaTier, RingTier);
 }
 
 void ASparkHeroCharacter::DoPrismBurst()
@@ -1388,15 +1562,22 @@ void ASparkHeroCharacter::DoPrismBurst()
 	// L4 — THE SPARK BLAST (Adam's round-6 redesign): power shoots FROM THE HAND —
 	// a glowing amber orb that flies where you face and bursts Motes on contact.
 	if (Now() < BurstReadyTime) { return; }
-	BurstReadyTime = Now() + BurstCooldown;
+	// Tier 3 shoots faster as well as harder.
+	BurstReadyTime = Now() + BurstCooldown * (BoltTier >= 3 ? 0.78f : 1.f);
 
 	// Aim where the player looks (camera yaw), flat — platformer-honest.
 	const float Yaw = Controller ? static_cast<float>(Controller->GetControlRotation().Yaw)
 	                             : static_cast<float>(GetActorRotation().Yaw);
 	const FVector Aim = FRotationMatrix(FRotator(0.f, Yaw, 0.f)).GetUnitAxis(EAxis::X);
 
-	FireBlast(Aim);
-	if (EmberMeter) { EmberMeter->FlashGlow(0.25f, 5.f); }
+	// TIER FAN: T1 one bolt · T2 a three-bolt spread · T3 a five-bolt volley.
+	const int32 NumOrbs = (BoltTier >= 3) ? 5 : (BoltTier == 2 ? 3 : 1);
+	for (int32 i = 0; i < NumOrbs; ++i)
+	{
+		const float Offset = (i - (NumOrbs - 1) * 0.5f) * 12.f;
+		FireBlast(Aim.RotateAngleAxis(Offset, FVector::UpVector), BoltTier);
+	}
+	if (EmberMeter) { EmberMeter->FlashGlow(0.25f, 5.f + 2.f * BoltTier); }
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_doublejump.sfx_doublejump"));
 	OnHeroPrismBurst(BurstRadius);
 }
@@ -1409,13 +1590,36 @@ void ASparkHeroCharacter::DoBeaconWave()
 	if (Now() < WaveReadyTime) { return; }
 	WaveReadyTime = Now() + WaveCooldown;
 
-	for (int32 i = 0; i < 12; ++i)
+	// TIER RING: 12 / 18 / 24 bolts; the shockwave and flash grow with the tier.
+	const float TierScale = 1.f + 0.35f * (NovaTier - 1);
+	const int32 NumRays = 12 + 6 * (NovaTier - 1);
+	for (int32 i = 0; i < NumRays; ++i)
 	{
-		const float Rad = FMath::DegreesToRadians(i * 30.f);
-		FireBlast(FVector(FMath::Cos(Rad), FMath::Sin(Rad), 0.f));
+		const float Rad = FMath::DegreesToRadians(i * (360.f / NumRays));
+		FireBlast(FVector(FMath::Cos(Rad), FMath::Sin(Rad), 0.f), NovaTier);
 	}
-	FirePulse(WaveRadius, 0.7f, 12000.f);
-	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 16.f); }
+	FirePulse(WaveRadius * TierScale, 0.7f, 12000.f * (1.f + 0.5f * (NovaTier - 1)));
+	if (EmberMeter) { EmberMeter->FlashGlow(0.8f, 16.f + 6.f * (NovaTier - 1)); }
+
+	// THE SKY-STAB (July 23 redesign): a pillar of light punches upward at the
+	// cast and collapses; a ring of ember-bursts detonates around the hero; at
+	// T2+ the nova echoes — a SECOND, wider detonation a third of a second later.
+	PillarStartTime = Now();
+	if (PillarMesh) { PillarMesh->SetVisibility(true); }
+	for (int32 i = 0; i < 10; ++i)
+	{
+		const float A = FMath::DegreesToRadians(i * 36.f + 18.f);
+		const FVector At = GetActorLocation()
+			+ FVector(FMath::Cos(A), FMath::Sin(A), 0.f) * (WaveRadius * TierScale * 0.45f)
+			+ FVector(0.f, 0.f, 30.f);
+		// Cosmetic scale (<0.8): the burst budget skips these under load, never the hits.
+		ASparkImpactBurst::Burst(this, At, FLinearColor(3.6f, 2.2f, 0.8f), 0.75f, 2600.f);
+	}
+	if (NovaTier >= 2)
+	{
+		WaveEchoTime = Now() + 0.35f;
+		WaveEchoScale = TierScale;
+	}
 	PlayShake(USparkBigLandShake::StaticClass());
 	PlaySfx(TEXT("/Game/Art/Audio/sfx_land.sfx_land"));
 	OnHeroBeaconWave(WaveRadius);
@@ -1423,16 +1627,16 @@ void ASparkHeroCharacter::DoBeaconWave()
 	TArray<FOverlapResult> Hits;
 	FCollisionQueryParams Params(TEXT("BeaconWave"), false, this);
 	GetWorld()->OverlapMultiByChannel(Hits, GetActorLocation(), FQuat::Identity, ECC_Pawn,
-	                                  FCollisionShape::MakeSphere(WaveRadius), Params);
+	                                  FCollisionShape::MakeSphere(WaveRadius * TierScale), Params);
 	for (const FOverlapResult& Hit : Hits)
 	{
 		if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(Hit.GetActor()))
 		{
-			Glimmer->TakeStagger(BurstStagger * 1.5f);
+			Glimmer->TakeStagger(BurstStagger * (1.f + 0.5f * NovaTier));
 		}
 		else if (ABramblehulk* Hulk = Cast<ABramblehulk>(Hit.GetActor()))
 		{
-			Hulk->AddCalm(Hulk->WaveCalmBonus);   // light reaches the storm's heart
+			Hulk->AddCalm(Hulk->WaveCalmBonus * NovaTier);   // light reaches the storm's heart
 		}
 	}
 	// TODO(M0.2): ILightResponsive sweep — relight every lantern in WaveRadius.
@@ -1475,9 +1679,11 @@ void ASparkHeroCharacter::HandleGuardPressed()
 	if (Now() < GuardReadyTime) { return; }
 	GuardReadyTime = Now() + GuardCooldown;
 
-	const float Duration = HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration;
+	// The tier holds the ring longer and burns it brighter.
+	const float Duration = (HasPowerLevel(9) ? GuardDuration + 1.f : GuardDuration)
+		+ 0.75f * (RingTier - 1);
 	EmberMeter->ActivateGuard(Duration);
-	EmberMeter->FlashGlow(0.5f, 6.f);
+	EmberMeter->FlashGlow(0.5f + 0.15f * RingTier, 6.f + 3.f * RingTier);
 	GuardVisualUntil = Now() + Duration;   // the RING OF FIRE burns this long
 	OnHeroEmberGuard();
 }
@@ -1510,6 +1716,36 @@ void ASparkHeroCharacter::EndActionClip()
 	bActionAnimActive = false;
 	if (SkelBody) { SkelBody->SetPlayRate(1.f); }
 	AnimState = EHeroAnimState::None;                 // force a fresh locomotion pick
+}
+
+// ---------------------------------------------------------------------------
+// The flag-capture finish (Meshy stage 36): grip the pole, then a fist-pump victory.
+// Two single-node clips chained on one timer (grab ~2.6s -> victory ~1.5s -> resume
+// locomotion), at natural rate; movement is stilled so the hero plants for the moment.
+// All clips null-safe — the game runs before they import.
+// ---------------------------------------------------------------------------
+void ASparkHeroCharacter::PlayFlagCapture()
+{
+	if (GetCharacterMovement()) { GetCharacterMovement()->StopMovementImmediately(); }
+
+	if (FlagGrabAnim)
+	{
+		PlayActionClip(FlagGrabAnim, 0.1f, 0.f, 1.0f);   // natural-rate grip of the pole
+		GetWorldTimerManager().SetTimer(FlagCaptureTimer, this,
+			&ASparkHeroCharacter::PlayFlagVictory, FMath::Max(FlagGrabAnim->GetPlayLength(), 0.1f), false);
+	}
+	else
+	{
+		PlayFlagVictory();
+	}
+}
+
+void ASparkHeroCharacter::PlayFlagVictory()
+{
+	if (!FlagVictoryAnim) { EndActionClip(); return; }
+	PlayActionClip(FlagVictoryAnim, 0.1f, 0.f, 1.0f);    // natural-rate celebration
+	GetWorldTimerManager().SetTimer(FlagCaptureTimer, this,
+		&ASparkHeroCharacter::EndActionClip, FMath::Max(FlagVictoryAnim->GetPlayLength(), 0.1f), false);
 }
 
 // ---------------------------------------------------------------------------
@@ -1688,7 +1924,13 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 		const float Reach = GetCapsuleComponent()->GetScaledCapsuleRadius() + ClimbCheckDistance + 10.f;
 		const bool bWallStillThere = GetWorld()->LineTraceSingleByChannel(
 			WallHit, Start, Start - ClimbWallNormal * Reach, ECC_Visibility, ClimbParams);
-		if (!bWallStillThere || Move->IsMovingOnGround())
+		// The HOLD must obey the same laws as the GRAB (Adam 2026-07-21: "still climbing
+		// into a void") — without these, a hero who gripped a legal wall could strafe onto
+		// a NoClimb boundary wall or crest onto a sky-facing slab and keep crawling.
+		const bool bHoldValid = bWallStillThere
+			&& FMath::Abs(WallHit.ImpactNormal.Z) <= 0.6f
+			&& !(WallHit.GetActor() && WallHit.GetActor()->ActorHasTag(NoClimbTag));
+		if (!bHoldValid || Move->IsMovingOnGround())
 		{
 			StopClimb();
 		}
@@ -1760,14 +2002,22 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 			if (!Orb) { continue; }
 			Orb->SetVisibility(bGuardBurning);
 			if (!bGuardBurning) { continue; }
-			const float Angle = FMath::DegreesToRadians(i * 36.f) + T * 2.8f;   // the ring spins
-			const float Bob = 12.f * FMath::Sin(T * 5.f + i * 1.7f);
-			const float Flick = 0.11f + 0.05f * FMath::Sin(T * 11.f + i * 2.3f);
-			const float Lick = 2.0f + 0.9f * FMath::Sin(T * 13.f + i * 3.1f);   // flames LICK upward
-			Orb->SetRelativeLocation(FVector(FMath::Cos(Angle) * 105.f,
-			                                 FMath::Sin(Angle) * 105.f,
-			                                 -34.f + Bob));
-			Orb->SetRelativeScale3D(FVector(Flick, Flick, Flick * Lick));
+			// THE BLADE ORBIT (July 23 redesign — the bobbing "tears" are gone):
+			// two counter-rotating rings of flame SHARDS, blades laid along their
+			// tangents like a spinning sawblade of kept-fire. Low ring spins with
+			// the clock, high ring against it — edge, not droplets.
+			const bool bLowRing = i < 5;
+			const int32 Idx = bLowRing ? i : i - 5;
+			const float Angle = FMath::DegreesToRadians(Idx * 72.f)
+				+ T * (bLowRing ? 3.8f : -4.6f);
+			const float R = bLowRing ? 92.f : 116.f;
+			const float Z = bLowRing ? -26.f : 24.f;
+			Orb->SetRelativeLocation(FVector(FMath::Cos(Angle) * R,
+			                                 FMath::Sin(Angle) * R, Z));
+			Orb->SetRelativeRotation(FRotator(bLowRing ? 74.f : -74.f,
+				FMath::RadiansToDegrees(Angle) + (bLowRing ? 90.f : -90.f), 0.f));
+			const float Pulse = 0.85f + 0.25f * FMath::Sin(T * 9.f + i * 2.1f);
+			Orb->SetRelativeScale3D(FVector(0.09f, 0.05f, 0.62f) * Pulse);
 			if (GuardFlameMIDs.IsValidIndex(i) && GuardFlameMIDs[i])
 			{
 				const float Heat = 0.7f + 0.5f * FMath::Sin(T * 17.f + i * 2.9f);
@@ -1808,6 +2058,38 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 					Glimmer->TakeStrike();
 				}
 			}
+		}
+	}
+
+	// Beacon Nova's sky-stab pillar: punches up at the cast, collapses in 0.45s.
+	if (PillarMesh)
+	{
+		const float PillarAge = Now() - PillarStartTime;
+		if (PillarAge >= 0.f && PillarAge < 0.45f)
+		{
+			const float F = 1.f - PillarAge / 0.45f;             // 1 -> 0
+			const float FootZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			PillarMesh->SetRelativeLocation(FVector(0.f, 0.f, FootZ + 1300.f));
+			PillarMesh->SetRelativeScale3D(FVector(0.25f + 1.15f * F, 0.25f + 1.15f * F, 26.f));
+			PillarMesh->SetVisibility(true);
+		}
+		else if (PillarMesh->IsVisible())
+		{
+			PillarMesh->SetVisibility(false);
+		}
+	}
+	// T2+ nova echo: the second, wider detonation.
+	if (WaveEchoTime > 0.f && Now() >= WaveEchoTime)
+	{
+		WaveEchoTime = -1000.f;
+		FirePulse(WaveRadius * WaveEchoScale * 1.25f, 0.5f, 9000.f);
+		for (int32 i = 0; i < 6; ++i)
+		{
+			const float A = FMath::DegreesToRadians(i * 60.f);
+			const FVector At = GetActorLocation()
+				+ FVector(FMath::Cos(A), FMath::Sin(A), 0.f) * (WaveRadius * WaveEchoScale * 0.9f)
+				+ FVector(0.f, 0.f, 30.f);
+			ASparkImpactBurst::Burst(this, At, FLinearColor(4.2f, 2.6f, 1.f), 0.78f, 3000.f);
 		}
 	}
 
@@ -1858,7 +2140,12 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 	EHeroAnimState Desired;
 	if (bClimbing)
 	{
-		Desired = EHeroAnimState::Climb;
+		// The climb rig: state by vertical velocity with a +-60 deadband so the
+		// loop doesn't flicker at the top of a reach.
+		const float Vz = static_cast<float>(Move->Velocity.Z);
+		Desired = (Vz > 60.f) ? EHeroAnimState::ClimbUp
+		        : (Vz < -60.f) ? EHeroAnimState::ClimbDown
+		        : EHeroAnimState::ClimbHang;
 	}
 	else if (!Move->IsMovingOnGround())
 	{
@@ -1902,11 +2189,24 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 				SkelBody->PlayAnimation(CrouchAnim, true);   // cautious sway, looped
 			}
 			break;
-		case EHeroAnimState::Climb:
-			if (CrouchAnim)
+		case EHeroAnimState::ClimbUp:
+			if (UAnimSequence* Up = ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get())
 			{
-				SkelBody->PlayAnimation(CrouchAnim, true);   // crawl reads as climb
-				SkelBody->SetPlayRate(0.8f);                 // (proper climb clip queued)
+				SkelBody->PlayAnimation(Up, true);           // the real reach cycle
+			}
+			break;
+		case EHeroAnimState::ClimbDown:
+			if (UAnimSequence* Down = ClimbDownAnim ? ClimbDownAnim.Get()
+			                        : ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get())
+			{
+				SkelBody->PlayAnimation(Down, true);
+			}
+			break;
+		case EHeroAnimState::ClimbHang:
+			if (UAnimSequence* Hang = ClimbHangAnim ? ClimbHangAnim.Get() : CrouchAnim.Get())
+			{
+				SkelBody->PlayAnimation(Hang, true);
+				SkelBody->SetPlayRate(ClimbHangAnim ? 1.f : 0.5f);
 			}
 			break;
 		case EHeroAnimState::Run:
@@ -1936,6 +2236,20 @@ void ASparkHeroCharacter::UpdateHeroAnimation()
 	if (AnimState == EHeroAnimState::Crouch)
 	{
 		SkelBody->SetPlayRate(FMath::Clamp(GroundSpeed / 220.f, 0.35f, 1.4f));
+	}
+	else if (AnimState == EHeroAnimState::ClimbUp || AnimState == EHeroAnimState::ClimbDown)
+	{
+		// Rate the reach-cycle to the wall (7.5-3): one cycle per ClimbCycleReach uu.
+		UAnimSequence* Loop = (AnimState == EHeroAnimState::ClimbUp)
+			? (ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get())
+			: (ClimbDownAnim ? ClimbDownAnim.Get()
+			   : ClimbUpAnim ? ClimbUpAnim.Get() : CrouchAnim.Get());
+		if (Loop)
+		{
+			const float Vz = FMath::Abs(static_cast<float>(GetCharacterMovement()->Velocity.Z));
+			SkelBody->SetPlayRate(FMath::Clamp(
+				Vz * Loop->GetPlayLength() / FMath::Max(ClimbCycleReach, 1.f), 0.5f, 2.5f));
+		}
 	}
 	else if (AnimState == EHeroAnimState::Walk)
 	{

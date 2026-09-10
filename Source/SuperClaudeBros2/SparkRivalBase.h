@@ -283,6 +283,12 @@ protected:
 	virtual void OnVanishedExpired() {}
 	/** Per-rival BeginPlay tail (Kraken creates its tether MID here, NOT the ctor). */
 	virtual void PostRivalBeginPlay() {}
+	/** The whole Waiting-state tick. Default: idle loop, drift to face the hero,
+	    engage at DuelStartRadius. The Glade Prowler REPLACES it with his patrol —
+	    the July 23 lesson lives here: base idle and subclass walk alternating
+	    through PlayLoop restarted the pose at frame 0 every frame (dead legs,
+	    ghost trails). One state, ONE owner — never two drivers again. */
+	virtual void TickWaiting(float DeltaTime, ASparkHeroCharacter* Hero, float Dist);
 	/** Subclasses forward these to their own BlueprintImplementableEvents. */
 	virtual void NotifyRivalDefeated() {}
 	virtual void NotifyRivalPhaseChanged(int32 NewPhase) {}

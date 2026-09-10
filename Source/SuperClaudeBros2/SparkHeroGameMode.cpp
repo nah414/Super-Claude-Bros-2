@@ -3,6 +3,7 @@
 #include "Bramblehulk.h"
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
+#include "GladeProwler.h"
 #include "RustWarlord.h"
 #include "HollowWarden.h"
 #include "LumenDragonlord.h"
@@ -13,6 +14,7 @@
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
 
+#include "Camera/CameraActor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/GameViewportClient.h"
@@ -23,6 +25,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Sound/SoundBase.h"
+#include "Components/AudioComponent.h"
 #include "TimerManager.h"
 #include "UnrealClient.h"
 
@@ -48,6 +51,18 @@ void ASparkHeroGameMode::OnWorldGoalLit()
 	if (bWorldWon) { return; }
 	bWorldWon = true;
 
+	// Duck the world music under the fanfare, then sound the victory sting — the audio half of
+	// the celebration (both guarded, so a missing audio pack just stays silent).
+	if (MusicComp)
+	{
+		MusicComp->AdjustVolume(0.6f, 0.12f);   // (fade seconds, target volume multiplier)
+	}
+	if (USoundBase* Sting = LoadObject<USoundBase>(nullptr,
+			TEXT("/Game/Art/Audio/music_victory_sting.music_victory_sting")))
+	{
+		UGameplayStatics::PlaySound2D(this, Sting, 1.0f);
+	}
+
 	// The First Lantern roars: kindle the whole city back to amber — the celebration.
 	if (AActor* Found = UGameplayStatics::GetActorOfClass(this, ALightNetworkManager::StaticClass()))
 	{
@@ -55,8 +70,11 @@ void ASparkHeroGameMode::OnWorldGoalLit()
 	}
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 9.f, FColor::Orange,
-			TEXT("THE FIRST LANTERN ROARS  —  ANTHROPICA is lit.  THE ROAD OPENS."));
+		const FString WonMap = GetWorld() ? GetWorld()->GetMapName() : TEXT("");
+		const TCHAR* WinLine = (WonMap.Contains(TEXT("MoonlitGlade")) || WonMap.Contains(TEXT("WorldStageTesting")))
+			? TEXT("THE MOONWELL SHINES  —  THE GLADE IS BRIGHT.  THE ROAD GOES ON.")
+			: TEXT("THE FIRST LANTERN ROARS  —  ANTHROPICA is lit.  THE ROAD OPENS.");
+		GEngine->AddOnScreenDebugMessage(-1, 9.f, FColor::Orange, WinLine);
 	}
 	// Travel to the next world after the celebration, if one is wired (else W1 stands alone).
 	if (!NextWorldMap.IsNone())
@@ -72,6 +90,30 @@ void ASparkHeroGameMode::OnWorldGoalLit()
 void ASparkHeroGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// THE WORLD ROAD (Adam, July 23: "just like any game — the worlds run in
+	// succession"): per-map defaults for the win-travel chain. An explicit
+	// EditAnywhere NextWorldMap still wins over the road.
+	//   World 1 (the Lantern Climb) -> World 2 (the Moonlit Glade, promoted
+	//   off the stage 2026-07-23) -> the Roster Hall curtain call. The stage
+	//   (WorldStageTesting) keeps a road to the Hall so win-travel stays
+	//   testable while World 3 rises there.
+	if (NextWorldMap.IsNone() && GetWorld())
+	{
+		const FString ThisMap = GetWorld()->GetMapName();
+		if (ThisMap.Contains(TEXT("LanternClimb")))
+		{
+			NextWorldMap = TEXT("MoonlitGlade");
+		}
+		else if (ThisMap.Contains(TEXT("MoonlitGlade")))
+		{
+			NextWorldMap = TEXT("RosterHall");
+		}
+		else if (ThisMap.Contains(TEXT("WorldStageTesting")))
+		{
+			NextWorldMap = TEXT("RosterHall");
+		}
+	}
 
 	// -game windowed launches can come up WITHOUT keyboard focus (the Live
 	// Coding console spawns right after the game window and steals it) — the
@@ -101,19 +143,36 @@ void ASparkHeroGameMode::BeginPlay()
 	// Per-map ambience + music (loop flags set on the SoundWave assets at import;
 	// all optional — the game runs silently before the audio pack is imported).
 	const bool bNeonCity = GetWorld() && GetWorld()->GetMapName().Contains(TEXT("NeonCity"));
+	// The Verdant Reach (W3, on the World Stage): NO night crickets, NO glade music —
+	// AVerdantBreath owns this world's air (wind bed + gust swells). A future
+	// music_reach_loop slots into this same branch.
+	const bool bVerdant = GetWorld() && GetWorld()->GetMapName().Contains(TEXT("WorldStageTesting"));
+	// NeonCity ambience swapped from amb_rain_loop -> amb_night_loop: the rain was eliminated
+	// (Adam, June 19), so World 1 plays a dry night ambience, no rain patter.
 	const TCHAR* AmbPath = bNeonCity
-		? TEXT("/Game/Art/Audio/amb_rain_loop.amb_rain_loop")
+		? TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop")
 		: TEXT("/Game/Art/Audio/amb_night_loop.amb_night_loop");
-	const TCHAR* MusicPath = bNeonCity
-		? TEXT("/Game/Art/Audio/music_city_loop.music_city_loop")
-		: TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop");
-	if (USoundBase* Amb = LoadObject<USoundBase>(nullptr, AmbPath))
+	if (USoundBase* Amb = bVerdant ? nullptr : LoadObject<USoundBase>(nullptr, AmbPath))
 	{
 		UGameplayStatics::PlaySound2D(this, Amb, 0.7f);
 	}
-	if (USoundBase* Music = LoadObject<USoundBase>(nullptr, MusicPath))
+
+	// NeonCity now plays the UPGRADED v2 track; fall back to the original (or none) if the v2
+	// asset isn't imported yet. Retain the component (SpawnSound2D returns it) so the win can
+	// DUCK the music under the victory fanfare.
+	USoundBase* Music = nullptr;
+	if (bNeonCity)
 	{
-		UGameplayStatics::PlaySound2D(this, Music, 0.5f);
+		Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_city_loop_v2.music_city_loop_v2"));
+		if (!Music) { Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_city_loop.music_city_loop")); }
+	}
+	else if (!bVerdant)
+	{
+		Music = LoadObject<USoundBase>(nullptr, TEXT("/Game/Art/Audio/music_glade_loop.music_glade_loop"));
+	}
+	if (Music)
+	{
+		MusicComp = UGameplayStatics::SpawnSound2D(this, Music, 0.5f);
 	}
 
 	// ----- Claude's eyes: automated capture mode -----
@@ -126,16 +185,54 @@ void ASparkHeroGameMode::BeginPlay()
 		float Delay = 3.f;
 		FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotDelay="), Delay);
 
+		// A parsed delay of <= 0 (e.g. -SCB2ShotDelay=0, or a malformed value that
+		// resolves non-positive) fires the capture timer before the offscreen render
+		// thread has produced a frame, so FScreenshotRequest never resolves and the
+		// process hangs indefinitely. Clamp back to the 3.0s default to stay safe.
+		if (Delay <= 0.f)
+		{
+			UE_LOG(LogTemp, Warning,
+				TEXT("SCB2: SCB2ShotDelay resolved to %.3f (<= 0); clamping to 3.0s default."), Delay);
+			Delay = 3.f;
+		}
+
 		// Optional framing: -SCB2ShotArm=160 pulls the camera in for hero close-ups,
-		// -SCB2ShotYaw=180 orbits it (180 = face-on portrait).
-		float ShotArm = 0.f, ShotYaw = 0.f;
+		// -SCB2ShotYaw=180 orbits it (180 = face-on portrait), -SCB2ShotPitch=55
+		// tilts it (+ = look up — the Reach's roots_up vantage), and
+		// -SCB2ShotAt=x,y,z teleports the hero first (W3 vertical vantages).
+		float ShotArm = 0.f, ShotYaw = 0.f, ShotPitch = 0.f;
+		FString ShotAt;
 		const bool bHasArm = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotArm="), ShotArm);
 		const bool bHasYaw = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotYaw="), ShotYaw);
-		if (bHasArm || bHasYaw)
+		const bool bHasPitch = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotPitch="), ShotPitch);
+		// bShouldStopOnSeparator=false: the value is a comma list; default parsing
+		// stops at the first comma and hands back a lone "0".
+		const bool bHasAt = FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotAt="), ShotAt,
+		                                  /*bShouldStopOnSeparator*/ false);
+		if (bHasArm || bHasYaw || bHasPitch || bHasAt)
 		{
 			if (ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(
 					UGameplayStatics::GetPlayerPawn(this, 0)))
 			{
+				if (bHasAt)
+				{
+					TArray<FString> Parts;
+					ShotAt.ParseIntoArray(Parts, TEXT(","));
+					if (Parts.Num() == 3)
+					{
+						const FVector Dest(FCString::Atof(*Parts[0]),
+						                   FCString::Atof(*Parts[1]),
+						                   FCString::Atof(*Parts[2]));
+						const bool bMoved = Hero->TeleportTo(Dest, Hero->GetActorRotation());
+						UE_LOG(LogTemp, Display, TEXT("SCB2: ShotAt teleport to %s -> %s"),
+							*Dest.ToCompactString(), bMoved ? TEXT("OK") : TEXT("BLOCKED"));
+					}
+					else
+					{
+						UE_LOG(LogTemp, Warning,
+							TEXT("SCB2: -SCB2ShotAt wants x,y,z — got '%s'; ignoring."), *ShotAt);
+					}
+				}
 				if (bHasArm)
 				{
 					Hero->BaseArmLength = ShotArm;
@@ -145,13 +242,58 @@ void ASparkHeroGameMode::BeginPlay()
 					Hero->SpringArm->bEnableCameraLag = false;
 					Hero->SpringArm->bEnableCameraRotationLag = false;
 				}
-				if (bHasYaw)
+				if (bHasYaw || bHasPitch)
 				{
 					if (AController* C = Hero->GetController())
 					{
-						C->SetControlRotation(FRotator(0.f, ShotYaw, 0.f));
+						C->SetControlRotation(FRotator(ShotPitch, ShotYaw, 0.f));
 					}
 				}
+			}
+		}
+
+		// -SCB2ShotCam=x,y,z,pitch,yaw — a FREE camera, detached from the hero.
+		// The spring arm's collision probe pins look-up framings at the hero's
+		// feet (it cannot descend through the floor), so world-scale vantages
+		// (a 400m tree from its roots, the crown looking down) view through a
+		// spawned CameraActor instead.
+		FString ShotCam;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotCam="), ShotCam,
+		                  /*bShouldStopOnSeparator*/ false))
+		{
+			TArray<FString> CamParts;
+			ShotCam.ParseIntoArray(CamParts, TEXT(","));
+			if (CamParts.Num() == 5)
+			{
+				const FVector CamLoc(FCString::Atof(*CamParts[0]),
+				                     FCString::Atof(*CamParts[1]),
+				                     FCString::Atof(*CamParts[2]));
+				const FRotator CamRot(FCString::Atof(*CamParts[3]),
+				                      FCString::Atof(*CamParts[4]), 0.f);
+				if (ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(CamLoc, CamRot))
+				{
+					// Possession lands AFTER BeginPlay in standalone -game, and the
+					// controller's bAutoManageActiveCameraTarget re-targets the pawn a
+					// frame later — so the free cam takes the view on a short timer,
+					// after possession settles (the KrakenNear pattern).
+					FTimerHandle CamTimer;
+					GetWorldTimerManager().SetTimer(CamTimer, [this, Cam]()
+					{
+						if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+						{
+							PC->bAutoManageActiveCameraTarget = false;
+							PC->SetViewTargetWithBlend(Cam, 0.f);
+							UE_LOG(LogTemp, Display,
+								TEXT("SCB2: free shot cam took the view at %s"),
+								*Cam->GetActorLocation().ToCompactString());
+						}
+					}, 0.6f, false);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("SCB2: -SCB2ShotCam wants x,y,z,pitch,yaw — got '%s'; ignoring."), *ShotCam);
 			}
 		}
 
@@ -171,6 +313,76 @@ void ASparkHeroGameMode::BeginPlay()
 						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
 				}
 			}, 1.0f, false);
+		}
+
+		// -SCB2ProwlerNear: teleport the Glade Prowler to dueling distance (he will
+		// SPOT the hero and engage on camera) + log his live animation vitals twice,
+		// one second apart — position delta proves whether the pose evaluates.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2ProwlerNear")))
+		{
+			FTimerHandle NearTimer;
+			GetWorldTimerManager().SetTimer(NearTimer, [this]()
+			{
+				AGladeProwler* Prowler = Cast<AGladeProwler>(
+					UGameplayStatics::GetActorOfClass(this, AGladeProwler::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Prowler && Pawn)
+				{
+					Prowler->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 560.f + FVector(0.f, 0.f, 30.f));
+				}
+			}, 1.0f, false);
+
+			auto LogVitals = [this](const TCHAR* Tag)
+			{
+				AGladeProwler* Prowler = Cast<AGladeProwler>(
+					UGameplayStatics::GetActorOfClass(this, AGladeProwler::StaticClass()));
+				if (!Prowler) { return; }
+				// ACharacter's built-in (empty) Mesh comes first — probe the component
+				// that actually WEARS the model.
+				USkeletalMeshComponent* Body = nullptr;
+				TArray<USkeletalMeshComponent*> Bodies;
+				Prowler->GetComponents<USkeletalMeshComponent>(Bodies);
+				for (USkeletalMeshComponent* B : Bodies)
+				{
+					if (B && B->GetSkeletalMeshAsset()) { Body = B; break; }
+				}
+				UE_LOG(LogTemp, Display, TEXT("MOONWORKS_MARKER: prowler skel comps=%d modeled=%d"),
+				       Bodies.Num(), Body ? 1 : 0);
+				if (!Body) { return; }
+				UE_LOG(LogTemp, Display,
+					TEXT("MOONWORKS_MARKER: prowler vitals %s: playing=%d pos=%.3f rate=%.2f dilation=%.2f uro=%d tickopt=%d rendered=%d"),
+					Tag, Body->IsPlaying() ? 1 : 0, Body->GetPosition(), Body->GetPlayRate(),
+					Prowler->CustomTimeDilation, Body->bEnableUpdateRateOptimizations ? 1 : 0,
+					static_cast<int32>(Body->VisibilityBasedAnimTickOption),
+					Body->bRecentlyRendered ? 1 : 0);
+			};
+			FTimerHandle ProbeA, ProbeB;
+			GetWorldTimerManager().SetTimer(ProbeA, [LogVitals]() { LogVitals(TEXT("t4")); }, 4.0f, false);
+			GetWorldTimerManager().SetTimer(ProbeB, [LogVitals]() { LogVitals(TEXT("t5")); }, 5.0f, false);
+		}
+
+		// -SCB2ShotPower=bolt|nova|ring [-SCB2ShotTier=3]: cast the power just
+		// before the shutter so captures photograph the spectacle (recipe §6:
+		// extend the harness per new verb).
+		FString ShotPower;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotPower="), ShotPower))
+		{
+			int32 ShotTier = 3;
+			FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotTier="), ShotTier);
+			FTimerHandle PowerTimer;
+			GetWorldTimerManager().SetTimer(PowerTimer, [this, ShotPower, ShotTier]()
+			{
+				if (ASparkHeroCharacter* PowerHero = Cast<ASparkHeroCharacter>(
+						UGameplayStatics::GetPlayerPawn(this, 0)))
+				{
+					const ESparkPower P =
+						ShotPower.Equals(TEXT("nova"), ESearchCase::IgnoreCase) ? ESparkPower::Nova :
+						ShotPower.Equals(TEXT("ring"), ESearchCase::IgnoreCase) ? ESparkPower::FireRing :
+						ESparkPower::Bolt;
+					PowerHero->Debug_CastPower(P, ShotTier);
+				}
+			}, FMath::Max(Delay - 0.35f, 0.5f), false);
 		}
 
 		// -SCB2ReaverNear: same trick for rival #2 (dash trails want a camera).
@@ -330,6 +542,25 @@ void ASparkHeroGameMode::BeginPlay()
 					Hero->CaptureStrike();
 				}
 			}, FMath::Max(Delay - 0.15f, 0.05f), false);
+		}
+
+		// -SCB2ShotClimb=up|down|hang: nudge the hero into the REAL grab laws just
+		// before the shutter (recipe §6: extend the harness per new verb). Spawn
+		// beside any wall via -SCB2ShotAt; bClimbAnywhere makes every wall legal.
+		FString ShotClimb;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2ShotClimb="), ShotClimb))
+		{
+			const float UpSign = ShotClimb.Equals(TEXT("down"), ESearchCase::IgnoreCase) ? -1.f
+			                   : ShotClimb.Equals(TEXT("hang"), ESearchCase::IgnoreCase) ? 0.f : 1.f;
+			FTimerHandle ClimbTimer;
+			GetWorldTimerManager().SetTimer(ClimbTimer, [this, UpSign]()
+			{
+				if (ASparkHeroCharacter* Hero = Cast<ASparkHeroCharacter>(
+						UGameplayStatics::GetPlayerPawn(this, 0)))
+				{
+					Hero->Debug_ForceClimb(UpSign);
+				}
+			}, FMath::Max(Delay - 1.4f, 0.05f), false);
 		}
 
 		FTimerHandle ShotTimer;
