@@ -144,6 +144,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Pacing")
 	float FlinchSeconds = 0.45f;
 
+	// ---------------- Combat FEEL (research pass: settle + hit-stop) ----------------
+	/** Recover no longer FREEZES the body on the last swing frame for the whole window.
+	    Hold that strong attack END pose this long (the canon end-pose read + punish
+	    window), THEN breathe back to a living idle for the rest of recovery. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Feel")
+	float RecoverHoldSeconds = 0.3f;
+
+	/** HIT-STOP: on a connect, briefly freeze BOTH this rival and the hero (the God of
+	    War "hold the hit frame" trick) so the strike reads as weighty rather than passing
+	    through. Real-time window; set Seconds = 0 to disable. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Feel")
+	float HitStopSeconds = 0.06f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|Feel")
+	float HitStopDilation = 0.12f;
+
 	// ---------------- Impact cosmetics (per-rival color in ctor) ----------------
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rival|FX")
 	FLinearColor HitBurstColor = FLinearColor(3.f, 1.65f, 0.6f);
@@ -229,6 +244,8 @@ protected:
 	void PlayOneShot(UAnimSequence* Clip, float FitSeconds, float StartFraction = 0.f, float OverrideRate = 0.f);
 	void FinishAttack(float RecoverSeconds);
 	void LandDuelHit(ASparkHeroCharacter* Hero, float Embers);
+	/** Freeze this rival + the hero for HitStopSeconds on a connect (impact weight). */
+	void ApplyHitStop();
 	float TellScale() const { return HeroLossCount >= 2 ? TellSoftenScale : 1.f; }
 	float Now() const;
 
@@ -273,6 +290,7 @@ protected:
 	// ---------------- Shared state ----------------
 	ERivalState State = ERivalState::Waiting;
 	float StateUntil = 0.f;
+	float SettleAt = 0.f;   // Recover: when to stop holding the end pose and breathe to idle
 	int32 Phase = 1;
 	int32 HeroLossCount = 0;   // Charter 7 softening tally (increment left to subclass/BP)
 	bool bHitThisAttack = false;

@@ -202,54 +202,11 @@ prop("monorail_pillar", 4500, 0, 0, "Monorail_2")
 block(1500, 2080, 1500, 900, 20, 340, "Holo_Mid", material=M_HOLO)
 glow(1500, 1800, 1500, SIGN_COLORS["district"], 4200, 1600, "HoloGlow_Mid")
 
-# ============================================================== climb + roof
-# East-end back-alley shaft: ledges zig-zag from street to roof height (2500).
-CLIMB_X = 7600.0
-block(CLIMB_X, -1500, 1250, 1300, 100, 2600, "ClimbWall_S", material=M_WINDOWS[0])
-block(CLIMB_X, 1500, 1250, 1300, 100, 2600, "ClimbWall_N", material=M_WINDOWS[1])
-zz = 180.0
-side = -1
-for i in range(12):
-    ly = side * random.uniform(550, 900)
-    lx = CLIMB_X + random.uniform(-380, 380)
-    if i in (3, 7) and prop("fire_escape", lx, ly, zz - 180, f"Fire_{i}", yaw=(90 if side > 0 else -90)):
-        pass
-    else:
-        block(lx, ly, zz, 330, 300, 36, f"Ledge_{i:02d}", material=M_SIDEWALK)
-    if i % 3 == 1:
-        sign(brands[(i * 3) % len(brands)], lx, ly + side * -420, zz + 260,
-             facing_south=(side > 0), w=300, label=f"ClimbSign_{i}")
-    zz += 205.0
-    side *= -1
-
-# Rooftop plaza.
-ROOF_Z = 2500.0
-block(10300, 0, ROOF_Z - 60, 3600, 2600, 120, "Roof", material=M_SIDEWALK)
-block(10300, 0, ROOF_Z - 1240, 3300, 2300, 2400, "RoofBuilding", material=M_WINDOWS[2])
-prop("water_tank", 9300, 800, ROOF_Z, "Roof_Tank", yaw=20)
-prop("rooftop_props", 9600, -750, ROOF_Z, "Roof_AC", yaw=-15)
-prop("antenna_cluster", 11200, 850, ROOF_Z, "Roof_Antenna")
-if not prop("billboard_large", 11500, -650, ROOF_Z, "Roof_Billboard", yaw=140):
-    block(11500, -650, ROOF_Z + 500, 1300, 30, 480, "Roof_HoloBox", material=M_HOLO)
-glow(11400, -500, ROOF_Z + 600, SIGN_COLORS["district"], 5200, 2000, "RoofHoloGlow")
-
-# Goal beacon: an emissive ring + light shaft. The story will name it.
-beacon = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(11000, 0, ROOF_Z + 18))
-beacon.static_mesh_component.set_static_mesh(CYL)
-beacon.set_actor_scale3d(unreal.Vector(2.6, 2.6, 0.35))
-if M_EMISSIVE:
-    beacon.static_mesh_component.set_material(0, M_EMISSIVE)
-beacon.set_actor_label("GoalBeacon")
-shaft = eas.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(11000, 0, ROOF_Z + 1700))
-shaft.static_mesh_component.set_static_mesh(CYL)
-shaft.set_actor_scale3d(unreal.Vector(0.5, 0.5, 33.0))
-if M_HOLO:
-    shaft.static_mesh_component.set_material(0, M_HOLO)
-shaft.set_actor_label("GoalShaft")
-glow(11000, 0, ROOF_Z + 350, unreal.LinearColor(1.0, 0.72, 0.3, 1.0), 6000, 2400, "GoalGlow")
-
-# Bridge from climb top to the roof plaza.
-block(8650, 0, ROOF_Z - 40, 900, 420, 60, "RoofBridge", material=M_SIDEWALK)
+# ============================================================== east end
+# The old rooftop climb + GoalBeacon were REMOVED here: World 1's finale is now the
+# LANTERN CLIMB canyon, appended east of the boulevard by merge_world1.py (the canyon
+# crown's First Lantern is the single world goal). The boulevard simply ends here and
+# hands off to the canyon mouth via the merge's transition corridor.
 
 # ============================================================ backdrop ring
 for i in range(44):

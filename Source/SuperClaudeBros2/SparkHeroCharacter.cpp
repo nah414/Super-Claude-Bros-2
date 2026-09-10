@@ -21,7 +21,9 @@
 #include "RolyShellback.h"
 #include "Materials/MaterialInterface.h"
 #include "Bramblehulk.h"
+#include "CheckpointSubsystem.h"
 #include "GrabbableProp.h"
+#include "SparkInteractionComponent.h"
 #include "SparkImpactBurst.h"
 #include "Engine/Engine.h"
 #include "Engine/LocalPlayer.h"
@@ -206,6 +208,9 @@ ASparkHeroCharacter::ASparkHeroCharacter()
 	// Placeholder flame = a small sphere the meter scales; the point light is the
 	// part that actually sells it (and dims the world as the hero gutters).
 	EmberMeter = CreateDefaultSubobject<UEmberMeterComponent>(TEXT("EmberMeter"));
+
+	// The hero's one interaction brain (focus + tap/hold relight; reused world-wide).
+	InteractionComp = CreateDefaultSubobject<USparkInteractionComponent>(TEXT("InteractionComp"));
 
 	EmberFlame = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("EmberFlame"));
 	EmberFlame->SetupAttachment(VisualRoot);   // squashes with the body — flames bounce too
@@ -439,6 +444,7 @@ void ASparkHeroCharacter::BeginPlay()
 	{
 		EmberMeter->RegisterFlameVisuals(EmberFlame, EmberGlow);
 		EmberMeter->OnFlameOut.AddDynamic(this, &ASparkHeroCharacter::HandleFlameOut);
+		EmberMeter->bRefillsInLanternLight = true;   // the hero drinks in lantern warmth
 	}
 
 	// Plasma dress for the power visuals: glowing additive material everywhere,
@@ -646,6 +652,7 @@ void ASparkHeroCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 		EIC->BindAction(PowerScrollAction, ETriggerEvent::Triggered, this, &ASparkHeroCharacter::HandlePowerScroll);
 		EIC->BindAction(ZoomPresetAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleZoomPreset);
 		EIC->BindAction(InteractAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleInteractPressed);
+		EIC->BindAction(InteractAction, ETriggerEvent::Completed, this, &ASparkHeroCharacter::HandleInteractReleased);
 		EIC->BindAction(SkinAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleCycleSkin);
 		EIC->BindAction(GuardAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleGuardPressed);
 		EIC->BindAction(SwitchHeroAction, ETriggerEvent::Started, this, &ASparkHeroCharacter::HandleSwitchHero);
@@ -1153,8 +1160,13 @@ void ASparkHeroCharacter::TryStartClimb()
 	{
 		return;
 	}
-	if (FMath::Abs(WallHit.ImpactNormal.Z) > 0.4f) { return; }       // walls only, not ramps
+	if (FMath::Abs(WallHit.ImpactNormal.Z) > 0.55f) { return; }      // walls only (M6: relaxed 0.4->0.55)
 	if (FVector::DotProduct(LastWorldMoveInput, WallHit.ImpactNormal) > -0.5f) { return; }
+	// M7: when not climb-anywhere, only grip tagged climb-architecture (the M5 cliff facade).
+	if (!bClimbAnywhere && !(WallHit.GetActor() && WallHit.GetActor()->ActorHasTag(ClimbableTag)))
+	{
+		return;
+	}
 
 	bClimbing = true;
 	ClimbWallNormal = WallHit.ImpactNormal;
@@ -1164,7 +1176,10 @@ void ASparkHeroCharacter::TryStartClimb()
 	Move->MaxFlySpeed = ClimbSpeed;
 	Move->BrakingDecelerationFlying = 2048.f;
 	Move->GravityScale = 0.f;
-	Move->Velocity = FVector::ZeroVector;
+	// M6: keep damped along-wall momentum (strip only the into-wall component) so a jump-into-
+	// wall flows up instead of dead-stopping.
+	const FVector IntoWall = ClimbWallNormal * FVector::DotProduct(Move->Velocity, ClimbWallNormal);
+	Move->Velocity = (Move->Velocity - IntoWall) * ClimbGrabMomentumRetain;
 	SetActorRotation(FRotationMatrix::MakeFromX(-ClimbWallNormal).Rotator());
 }
 
@@ -1282,6 +1297,11 @@ void ASparkHeroCharacter::ApplySkin(int32 Index)
 
 void ASparkHeroCharacter::HandleInteractPressed()
 {
+	// Interactables first: a dark lantern's HOLD-relight (or a Tap lever/pickup). The
+	// interaction component consumes the press if something is focused; only then do we
+	// fall through to grab/drop.
+	if (InteractionComp && InteractionComp->OnInteractPressed()) { return; }
+
 	// E: drop what you hold, or grab the nearest prop in reach.
 	if (CarriedProp.IsValid())
 	{
@@ -1328,6 +1348,12 @@ void ASparkHeroCharacter::ThrowCarried()
 	CarriedProp->OnThrown(Dir * ThrowSpeed + FVector(0.f, 0.f, 320.f), this);
 	CarriedProp = nullptr;
 	ApplySquash(1.08f);   // the heave reads in the body
+}
+
+void ASparkHeroCharacter::HandleInteractReleased()
+{
+	// Release: complete (if the flame-climb filled) or interrupt the relight hold.
+	if (InteractionComp) { InteractionComp->OnInteractReleased(); }
 }
 
 float ASparkHeroCharacter::GetPowerReadyIn(ESparkPower Power) const
@@ -1491,17 +1517,21 @@ void ASparkHeroCharacter::EndActionClip()
 // ---------------------------------------------------------------------------
 void ASparkHeroCharacter::RespawnAtStart()
 {
+	RespawnAtTransform(SafeGroundLocation + FVector(0.f, 0.f, 50.f), SpawnRotation);
+}
+
+void ASparkHeroCharacter::RespawnAtTransform(const FVector& Loc, const FRotator& Rot)
+{
 	if (bIsDashing) { EndDash(); }
 	if (bFastFalling) { HandleFastFallReleased(); }
 
 	GetCharacterMovement()->Velocity = FVector::ZeroVector;
 	GetCharacterMovement()->SetMovementMode(MOVE_Falling);
-	SetActorLocation(SafeGroundLocation + FVector(0.f, 0.f, 50.f), false, nullptr,
-	                 ETeleportType::TeleportPhysics);
-	SetActorRotation(SpawnRotation);
+	SetActorLocation(Loc, false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorRotation(Rot);
 	if (Controller)
 	{
-		Controller->SetControlRotation(SpawnRotation);
+		Controller->SetControlRotation(Rot);
 	}
 	AirJumpsRemaining = MaxAirJumps;
 	AirDashesRemaining = MaxAirDashes;
@@ -1540,7 +1570,22 @@ void ASparkHeroCharacter::HandleFlameOut()
 	// Today: instant relight at the safe spot. The ~3 s lantern ceremony (respawn
 	// at the last LIT lantern, spec §2) arrives with the checkpoint system, M0.3.
 	OnHeroFlameOut();
-	RespawnAtStart();
+	// Respawn at the last lit CHECKPOINT lantern (diegetic: Lumen kept it lit), or the
+	// safe-ground spot if no checkpoint has been claimed yet. M0.3 — now live.
+	bool bRespawned = false;
+	if (UWorld* W = GetWorld())
+	{
+		if (UCheckpointSubsystem* CP = W->GetSubsystem<UCheckpointSubsystem>())
+		{
+			if (CP->HasActiveCheckpoint())
+			{
+				const FTransform T = CP->GetRespawnTransform();
+				RespawnAtTransform(T.GetLocation(), T.Rotator());
+				bRespawned = true;
+			}
+		}
+	}
+	if (!bRespawned) { RespawnAtStart(); }
 	if (EmberMeter) { EmberMeter->RefillFull(); }
 }
 
@@ -1652,9 +1697,9 @@ void ASparkHeroCharacter::Tick(float DeltaSeconds)
 			ClimbWallNormal = WallHit.ImpactNormal;
 		}
 	}
-	else if (!Move->IsMovingOnGround() && !bIsDashing && bClimbAnywhere)
+	else if (!Move->IsMovingOnGround() && !bIsDashing)
 	{
-		TryStartClimb();
+		TryStartClimb();   // M7: always probe; the tag gate inside enforces grippable-only
 	}
 
 	// Keep live-tuned values flowing into the movement component (editor tuning).

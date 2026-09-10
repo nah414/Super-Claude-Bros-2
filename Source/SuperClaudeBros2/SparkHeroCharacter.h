@@ -23,6 +23,7 @@ class UAnimSequence;
 class UEmberMeterComponent;
 class UPointLightComponent;
 class AGrabbableProp;
+class USparkInteractionComponent;
 
 /** THE POWER WHEEL (Adam's RPG layout, June 12): the mouse wheel scrolls the
     selection, F fires it. Future powers (Keeper's Craft…) append here. */
@@ -212,13 +213,18 @@ public:
 	float CrouchSpeed = 260.f;
 
 	// ---------------- Climb (Adam's round-4 verb: "our Hero's need to climb") ----------------
-	/** Vertical/lateral speed while clinging to a wall. */
+	/** Vertical/lateral speed while clinging to a wall. (M6: 220->400 for parity with run.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
-	float ClimbSpeed = 220.f;
+	float ClimbSpeed = 400.f;
 
-	/** How far past the capsule we probe for a climbable wall. */
+	/** How far past the capsule we probe for a climbable wall. (M6: 24->56, reach ~90u.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
-	float ClimbCheckDistance = 24.f;
+	float ClimbCheckDistance = 56.f;
+
+	/** M6: fraction of along-wall momentum kept on grab (0=dead-stop, 1=full) so a jump-into-
+	    wall flows instead of snapping. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	float ClimbGrabMomentumRetain = 0.35f;
 
 	/** Wall-leap: jump while climbing kicks away from the wall and up. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
@@ -227,10 +233,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
 	float WallLeapUp = 700.f;
 
-	/** TEMP: any wall climbs until the W3 GRIPPABLE material tags land — then this
-	    flips false and only bark/vine/rope/cable-class surfaces speak squid. */
+	/** Dev default: any wall climbs. Flip false for shipping -> only actors tagged ClimbableTag
+	    (the M5 cliff climb-architecture) can be gripped. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
 	bool bClimbAnywhere = true;
+
+	/** M7: when bClimbAnywhere is false, only actors carrying this tag are climbable. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SparkHero|Climb")
+	FName ClimbableTag = FName("Climbable");
 
 	// ---------------- THE SPARK SURGE KIT (Powers Codex §2 — Adam: build the FULL
 	// hero now, stage per-world later) ----------------
@@ -560,7 +570,8 @@ protected:
 	void HandleFirePressed();                          // F: fire the selected power
 	void HandlePowerScroll(const FInputActionValue& Value);   // wheel: scroll the wheel
 	void HandleZoomPreset();                           // Z: near / default / far
-	void HandleInteractPressed();                      // E: grab / drop (Phase C)
+	void HandleInteractPressed();                      // E: interact (relight) else grab / drop
+	void HandleInteractReleased();                     // E release: finish/interrupt a hold
 	void HandleGuardPressed();
 	void HandleSwitchHero();
 	void HandleFastFallPressed();
@@ -637,6 +648,10 @@ private:
 	int32 ZoomPresetIndex = 1;           // {near, default, far}
 	// The carried prop (E grabs, E drops, LMB throws).
 	TWeakObjectPtr<AGrabbableProp> CarriedProp;
+
+	/** The hero's one interaction brain (focus + tap/hold relight; reused world-wide). */
+	UPROPERTY(VisibleAnywhere, Category = "SparkHero|Components")
+	TObjectPtr<USparkInteractionComponent> InteractionComp;
 	void ThrowCarried();
 	float LastStrikeEndTime = -1000.f;
 	float ComboCooldownUntil = -1000.f;
@@ -700,6 +715,7 @@ private:
 
 	// Respawn (solid-ground guarantee)
 	void RespawnAtStart();
+	void RespawnAtTransform(const FVector& Loc, const FRotator& Rot);   // checkpoint respawn
 	UFUNCTION() void HandleFlameOut();   // bound to the meter's OnFlameOut
 	FVector SpawnLocation = FVector::ZeroVector;     // the level's PlayerStart
 	FRotator SpawnRotation = FRotator::ZeroRotator;

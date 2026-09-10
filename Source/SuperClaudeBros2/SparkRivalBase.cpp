@@ -15,6 +15,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
 #include "SparkAnimPerf.h"
 #include "SparkCameraShakes.h"
 #include "SparkHeroCharacter.h"
@@ -129,6 +130,9 @@ void ASparkRivalBase::EnterState(ERivalState NewState, float Duration)
 {
 	State = NewState;
 	StateUntil = Now() + Duration;
+	// Recover entry: hold the strong end pose for RecoverHoldSeconds, then (in the
+	// Recover tick) breathe back to idle instead of freezing on the last swing frame.
+	if (NewState == ERivalState::Recover) { SettleAt = Now() + RecoverHoldSeconds; }
 }
 
 void ASparkRivalBase::FaceHero(const ASparkHeroCharacter* Hero, float DeltaTime)
@@ -175,6 +179,31 @@ void ASparkRivalBase::LandDuelHit(ASparkHeroCharacter* Hero, float Embers)
 		ASparkImpactBurst::Burst(this, FVector(HitMid.X, HitMid.Y, 8.f),
 			FLinearColor(0.7f, 0.55f, 0.4f), HitBurstScale * 2.4f, 1400.f, 0.34f);
 	}
+	ApplyHitStop();   // the boss's blow LANDS — freeze the frame so it reads as weight
+}
+
+void ASparkRivalBase::ApplyHitStop()
+{
+	// God of War's "hold the hit frame": on a connect, briefly drop the time dilation of
+	// BOTH the rival and the hero so the impact reads as a weighty crunch instead of the
+	// swing passing through. Per-actor CustomTimeDilation (not global), restored by a
+	// WORLD timer (world time ignores the frozen actor's own dilation, so the window is
+	// real-time and self-heals even if the actor is mid-freeze).
+	if (HitStopSeconds <= 0.f) { return; }
+	UWorld* W = GetWorld();
+	if (!W) { return; }
+	auto Freeze = [this, W](AActor* A)
+	{
+		if (!A) { return; }
+		A->CustomTimeDilation = HitStopDilation;
+		TWeakObjectPtr<AActor> Weak(A);
+		FTimerHandle Handle;
+		FTimerDelegate Del;
+		Del.BindLambda([Weak]() { if (Weak.IsValid()) { Weak->CustomTimeDilation = 1.f; } });
+		W->GetTimerManager().SetTimer(Handle, Del, HitStopSeconds, false);
+	};
+	Freeze(this);
+	Freeze(ResolveHero());
 }
 
 void ASparkRivalBase::TakeStrike(int32 InComboBeat, bool bCharged)
@@ -183,6 +212,7 @@ void ASparkRivalBase::TakeStrike(int32 InComboBeat, bool bCharged)
 	float Embers = (bCharged || InComboBeat >= 2) ? HeavyStrikeEmbers : LightStrikeEmbers;
 	Embers = ModifyIncomingEmbers(Embers, InComboBeat, bCharged);   // Reaver blind-cone, etc.
 	DuelMeter->ApplyEmberDamage(Embers);
+	ApplyHitStop();   // the hero's strike CONNECTS — freeze the frame for a weighty crunch
 
 	// Post-damage short-circuit: the Stalker's blink-feint break handles & returns.
 	if (OnStruck(InComboBeat, bCharged)) { return; }
@@ -355,6 +385,11 @@ void ASparkRivalBase::Tick(float DeltaTime)
 		// facing for the whole 1-2.5s recovery (a dead, blind window that reads as
 		// "unresponsive"). Half-rate keeps it heavy but no longer staring at empty air.
 		if (Hero) { FaceHero(Hero, DeltaTime * 0.5f); }
+		// SETTLE (canon follow-through): the body used to FREEZE on the last swing frame
+		// for the whole recovery (single-node PlayAnimation holds the final pose). Hold
+		// that strong end pose briefly (the read/punish window), then breathe back to a
+		// living idle for the rest of the window so the boss never looks dead mid-swing.
+		if (IdleAnim && CurrentLoop != IdleAnim && Now() >= SettleAt) { PlayLoop(IdleAnim, 1.f); }
 		if (Now() >= StateUntil)
 		{
 			ClearMove();
