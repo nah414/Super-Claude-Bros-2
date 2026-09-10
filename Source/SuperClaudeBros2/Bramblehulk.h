@@ -90,10 +90,10 @@ public:
 	float ForgetRadius = 1800.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
-	float ApproachSpeed = 380.f;   // slow, inevitable
+	float ApproachSpeed = 480.f;   // inevitable but no longer un-catchably slow (was 380)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
-	float TurnRate = 4.f;
+	float TurnRate = 6.f;   // RESPONSE: track a strafing player (was 4 — flailed at empty air)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
 	float TantrumHitEmbers = 20.f;
@@ -111,7 +111,7 @@ public:
 	float SlamRingRadius = 320.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
-	float SlamRecover = 1.7f;
+	float SlamRecover = 1.4f;   // trim the dead time (was 1.7) — still a clear punish window
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
 	float QuakeTell = 1.3f;
@@ -120,7 +120,7 @@ public:
 	float QuakeRingRadius = 500.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
-	float QuakeRecover = 2.3f;
+	float QuakeRecover = 1.9f;   // trim the longest dead window (was 2.3)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bramblehulk|Storm")
 	float AttackTriggerRange = 360.f;

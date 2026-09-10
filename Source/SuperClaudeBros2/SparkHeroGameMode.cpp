@@ -3,7 +3,12 @@
 #include "Bramblehulk.h"
 #include "EmberReaver.h"
 #include "KrakenBoss.h"
+#include "RustWarlord.h"
+#include "HollowWarden.h"
+#include "LumenDragonlord.h"
+#include "Unlight.h"
 #include "VoidStalker.h"
+#include "GuardianFighter.h"
 #include "SparkHeroCharacter.h"
 #include "SparkHeroineCharacter.h"
 
@@ -187,6 +192,99 @@ void ASparkHeroGameMode::BeginPlay()
 				{
 					Hulk->SetActorLocation(Pawn->GetActorLocation()
 						+ Pawn->GetActorForwardVector() * 430.f + FVector(0.f, 0.f, 50.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2WarlordNear: rival #4's furnace wants a camera too.
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2WarlordNear")))
+		{
+			FTimerHandle WarlordTimer;
+			GetWorldTimerManager().SetTimer(WarlordTimer, [this]()
+			{
+				ARustWarlord* Warlord = Cast<ARustWarlord>(
+					UGameplayStatics::GetActorOfClass(this, ARustWarlord::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Warlord && Pawn)
+				{
+					Warlord->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 540.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2WardenNear: the Lamp-Eater wants a camera (watch the lights die).
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2WardenNear")))
+		{
+			FTimerHandle WardenTimer;
+			GetWorldTimerManager().SetTimer(WardenTimer, [this]()
+			{
+				AHollowWarden* Warden = Cast<AHollowWarden>(
+					UGameplayStatics::GetActorOfClass(this, AHollowWarden::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Warden && Pawn)
+				{
+					Warden->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2DragonNear: the final boss wants a camera (the lantern, the sanctuary).
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2DragonNear")))
+		{
+			FTimerHandle DragonTimer;
+			GetWorldTimerManager().SetTimer(DragonTimer, [this]()
+			{
+				ALumenDragonlord* Dragon = Cast<ALumenDragonlord>(
+					UGameplayStatics::GetActorOfClass(this, ALumenDragonlord::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Dragon && Pawn)
+				{
+					Dragon->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 600.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2UnlightNear: the true final boss wants a camera (the violet void).
+		if (FParse::Param(FCommandLine::Get(), TEXT("SCB2UnlightNear")))
+		{
+			FTimerHandle UnlightTimer;
+			GetWorldTimerManager().SetTimer(UnlightTimer, [this]()
+			{
+				AUnlight* Unlight = Cast<AUnlight>(
+					UGameplayStatics::GetActorOfClass(this, AUnlight::StaticClass()));
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (Unlight && Pawn)
+				{
+					Unlight->SetActorLocation(Pawn->GetActorLocation()
+						+ Pawn->GetActorForwardVector() * 600.f + FVector(0.f, 0.f, 20.f));
+				}
+			}, 1.0f, false);
+		}
+
+		// -SCB2GuardianNear=<ClassName> teleports the named guardian (SleekKnight /
+		// HeroicTank / Powerhouse / ClassicSpark) to dueling distance — one flag for
+		// all four, matched by class name on the live AGuardianFighter actors.
+		FString GuardianName;
+		if (FParse::Value(FCommandLine::Get(), TEXT("SCB2GuardianNear="), GuardianName))
+		{
+			FTimerHandle GuardianTimer;
+			GetWorldTimerManager().SetTimer(GuardianTimer, [this, GuardianName]()
+			{
+				TArray<AActor*> Guardians;
+				UGameplayStatics::GetAllActorsOfClass(this, AGuardianFighter::StaticClass(), Guardians);
+				APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+				if (!Pawn) { return; }
+				for (AActor* G : Guardians)
+				{
+					if (G && G->GetClass()->GetName() == GuardianName)
+					{
+						G->SetActorLocation(Pawn->GetActorLocation()
+							+ Pawn->GetActorForwardVector() * 520.f + FVector(0.f, 0.f, 20.f));
+						break;
+					}
 				}
 			}, 1.0f, false);
 		}

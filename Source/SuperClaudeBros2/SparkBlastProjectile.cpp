@@ -8,6 +8,9 @@
 #include "EmberReaver.h"
 #include "GlimmerEnemy.h"
 #include "KrakenBoss.h"
+#include "RolyShellback.h"
+#include "SparkHeroCharacter.h"
+#include "SparkRivalBase.h"
 #include "VoidStalker.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "SparkImpactBurst.h"
@@ -24,6 +27,7 @@ ASparkBlastProjectile::ASparkBlastProjectile()
 	Collision->SetCollisionObjectType(ECC_WorldDynamic);
 	Collision->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	Collision->SetGenerateOverlapEvents(true);   // guarantee the boss-capsule overlap fires
 	SetRootComponent(Collision);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -111,20 +115,59 @@ void ASparkBlastProjectile::OnBlastOverlap(UPrimitiveComponent*, AActor* OtherAc
 {
 	if (!OtherActor || OtherActor == GetOwner() || OtherActor == GetInstigator()) { return; }
 
+	// Spark-fire is a real ranged hit now: it lands a LIGHT duel-meter strike on any
+	// damageable boss (the same value as a melee jab), mirroring the hero's own
+	// StrikeHitCheck branch-for-branch so EVERY boss the melee recognizes, the bolt
+	// recognizes too. (Previously only the four original bosses had a branch — and
+	// theirs only splashed — so bolts passed clean through every guardian and newer
+	// boss, doing nothing to the health bar.)
+	bool bHandled = false;
+
 	if (AGlimmerEnemy* Glimmer = Cast<AGlimmerEnemy>(OtherActor))
 	{
-		Glimmer->TakeStrike();   // Motes die to spark-fire (mass-class ladder)
+		Glimmer->TakeStrike();          // Motes die to spark-fire (mass-class ladder)
+		bHandled = true;
+	}
+	else if (ARolyShellback* Shell = Cast<ARolyShellback>(OtherActor))
+	{
+		Shell->TakeStrike();            // the Cannonball pops (covers Shellback Alpha)
+		bHandled = true;
+	}
+	else if (AKrakenBoss* Kraken = Cast<AKrakenBoss>(OtherActor))
+	{
+		Kraken->TakeStrike(1, false);
+		bHandled = true;
+	}
+	else if (AEmberReaver* Reaver = Cast<AEmberReaver>(OtherActor))
+	{
+		Reaver->TakeStrike(1, false);
+		bHandled = true;
+	}
+	else if (AVoidStalker* Stalker = Cast<AVoidStalker>(OtherActor))
+	{
+		Stalker->TakeStrike(1, false);
+		bHandled = true;
+	}
+	// Every ASparkRivalBase subclass — Rust Warlord / Hollow Warden / Lumen
+	// Dragonlord / The Unlight / Foundry King AND the four guardians. THE fix.
+	else if (ASparkRivalBase* AnyRival = Cast<ASparkRivalBase>(OtherActor))
+	{
+		AnyRival->TakeStrike(1, false);
+		bHandled = true;
+	}
+	else if (ABramblehulk* Hulk = Cast<ABramblehulk>(OtherActor))
+	{
+		// The gentle giant has no health to drain — aggression COSTS calm (a clang),
+		// exactly as a melee hit does. The bar still responds; you soothe him with the
+		// aura, not the gun.
+		Hulk->TakeStrikeClang(Cast<ASparkHeroCharacter>(GetInstigator()), false);
+		bHandled = true;
+	}
+
+	if (bHandled)
+	{
 		ASparkImpactBurst::Burst(this, GetActorLocation(),
 		                         FLinearColor(4.f, 1.6f, 0.45f), 1.1f, 3200.f);
-		Destroy();
-	}
-	else if (Cast<AKrakenBoss>(OtherActor) || Cast<AEmberReaver>(OtherActor)
-	         || Cast<AVoidStalker>(OtherActor) || Cast<ABramblehulk>(OtherActor))
-	{
-		// Duels are a rhythm game, not target practice: bolts SPLASH on rivals
-		// (no meter damage) — but the contact still SHOWS.
-		ASparkImpactBurst::Burst(this, GetActorLocation(),
-		                         FLinearColor(2.6f, 1.1f, 0.35f), 0.9f, 2400.f);
 		Destroy();
 	}
 }

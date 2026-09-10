@@ -17,6 +17,7 @@ class UStaticMeshComponent;
 class USkeletalMeshComponent;
 class USceneComponent;
 class UInputAction;
+class UMaterialInterface;
 class UInputMappingContext;
 class UAnimSequence;
 class UEmberMeterComponent;
@@ -589,6 +590,16 @@ private:
 	UPROPERTY(Transient) TObjectPtr<UInputAction> SwitchHeroAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> FastFallAction;
 	UPROPERTY(Transient) TObjectPtr<UInputAction> QuitAction;
+	UPROPERTY(Transient) TObjectPtr<UInputAction> SkinAction;
+
+	// ---- Hero SKINS (the guardians' aspects, granted to the Spark; cycle with B) ----
+	UPROPERTY(EditAnywhere, Category = "Hero|Skins")
+	TArray<TObjectPtr<UMaterialInterface>> HeroSkins;
+	int32 CurrentSkin = 0;
+	void HandleCycleSkin();
+	void ApplySkin(int32 Index);
+	/** Sonnet returns false — the hero skins recolor HIS base texture, not hers. */
+	virtual bool AllowSkins() const { return true; }
 
 	// Jump state
 	void TryJump();

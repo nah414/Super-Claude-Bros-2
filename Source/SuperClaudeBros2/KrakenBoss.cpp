@@ -16,6 +16,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "SparkAnimPerf.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "SparkCameraShakes.h"
@@ -63,7 +64,9 @@ AKrakenBoss::AKrakenBoss()
 	KrakenBody->SetupAttachment(VisualRoot);
 	KrakenBody->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	KrakenBody->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW
+	KrakenBody->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;   // LOAD LAW (distance pose-LOD throttles far)
+	KrakenBody->bEnableUpdateRateOptimizations = true;   // PERF
+	KrakenBody->SetBoundsScale(1.6f);   // cull-freeze insurance for the Champion's wide swing/slam
 
 	PlaceholderBody = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlaceholderBody"));
 	PlaceholderBody->SetupAttachment(VisualRoot);
@@ -288,7 +291,9 @@ void AKrakenBoss::StartTelegraph()
 		PlayOneShot(SwingAnim, Tell + SwingActive + SwingRecover * 0.5f, SwingClipStart, SwingClipRate);
 		break;
 	case EKrakenMove::PauldronRush:
-		PlayOneShot(ChargeAnim ? ChargeAnim : SwingAnim, Tell + RushActive, 0.f, 0.f);
+		// The 0.63s charge clip was auto-fit over ~1.65s = ~0.38x slow-mo; play it
+		// briskly (the rush is aggressive, not a slow lean) and hold the charge pose.
+		PlayOneShot(ChargeAnim ? ChargeAnim : SwingAnim, Tell + RushActive, 0.f, 1.2f);
 		break;
 	case EKrakenMove::ChampionsSlam:
 		PlayOneShot(SlamAnim, Tell + 1.0f + SlamRecover * 0.5f, SlamClipStart, SlamClipRate);
@@ -605,6 +610,7 @@ void AKrakenBoss::Tick(float DeltaTime)
 
 	ASparkHeroCharacter* Hero = ResolveHero();
 	const float Dist = Hero ? FVector::Dist(Hero->GetActorLocation(), GetActorLocation()) : 1e9f;
+	SCB2_TickPoseLOD(KrakenBody, Dist, 3500.f);   // PERF: far rivals cull off-screen
 
 	// SOLID-BODY LAW (Adam's contact pass): bodies never share the same ground.
 	// A hero inside his personal space gets shouldered out, gently and always â€”

@@ -27,7 +27,7 @@ if (Test-Path $Out) {
     if ($fallback) {
         Write-Host "SCREENSHOT_SAVED: $($fallback.FullName)" -ForegroundColor Green
     } else {
-        Write-Host "SCREENSHOT_MISSING — check the engine log." -ForegroundColor Red
+        Write-Host "SCREENSHOT_MISSING -- check the engine log." -ForegroundColor Red
         exit 1
     }
 }
